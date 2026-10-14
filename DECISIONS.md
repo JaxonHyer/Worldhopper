@@ -165,3 +165,12 @@ this to stay oriented; agents add to it in the same PR as the change.
 - **No control may print `NaN`.** The palette row's readout ran an enum through
   the numeric formatter; `formatSettingValue` now handles enums and empty values
   and is asserted for every setting in the schema.
+- **Ground colouring moved to `src/core/terrain-color.js` as pure, tested maths.**
+  The first version hashed *quantised* world coordinates, so its noise repeated
+  on a grid aligned with the mesh, and a hard accent threshold turned that grid
+  into seams you could see in a screenshot. Colour now comes from a smooth
+  world-space field (fbm, ~50 m patches) plus ±4.5% per-facet jitter indexed by
+  facet — never by position — with a soft accent threshold. Tests assert
+  determinism, palette containment, ramp direction, neighbour smoothness, jitter
+  spread and NaN-immunity, because this is exactly the class of bug that only
+  shows up in an image.

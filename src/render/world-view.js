@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import { hash2 } from '../core/noise.js';
+import { facetNoise, groundFacetColor, groundPalette } from '../core/terrain-color.js';
 import { terrainHeight } from '../core/world-state.js';
 import { createSky } from './sky.js';
 
@@ -146,22 +147,20 @@ function buildGround({ map, seed, variant }) {
 }
 
 /**
- * One flat colour per triangle: two-tone ground + occasional dark facets.
- * The ramp window is derived from the map's own amplitude — a hard-coded window
- * silently flattens to the low colour the moment the terrain gets taller.
+ * One flat colour per triangle, sampled from a smooth world-space colour field
+ * (see core/terrain-color.js). The old version hashed quantised world
+ * coordinates, which produced a visible grid aligned with the mesh.
  */
 function applyGroundColors(geometry, variant, amplitude) {
   const position = geometry.attributes.position;
-  const low = new THREE.Color(variant.ground.low);
-  const high = new THREE.Color(variant.ground.high);
-  const accent = new THREE.Color(variant.ground.accent);
+  const palette = groundPalette(variant);
   const triangles = position.count / 3;
 
   if (!geometry.attributes.color) {
     geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(position.count * 3), 3));
   }
   const colors = geometry.attributes.color;
-  const scratch = new THREE.Color();
+  const scratch = [0, 0, 0];
 
   for (let t = 0; t < triangles; t++) {
     const i0 = t * 3;
@@ -169,16 +168,17 @@ function applyGroundColors(geometry, variant, amplitude) {
     const cy = (position.getY(i0) + position.getY(i0 + 1) + position.getY(i0 + 2)) / 3;
     const cz = (position.getZ(i0) + position.getZ(i0 + 1) + position.getZ(i0 + 2)) / 3;
 
-    const span = Math.max(0.5, amplitude * 2);
-    const heightMix = Math.min(1, Math.max(0, (cy + span * 0.5) / span));
-    scratch.copy(low).lerp(high, heightMix);
+    groundFacetColor({
+      palette,
+      x: cx,
+      z: cz,
+      height: cy,
+      amplitude,
+      facetHash: facetNoise(t),
+      out: scratch,
+    });
 
-    // Stable per-facet jitter: same seed => same facets.
-    const grain = hash2(Math.round(cx * 0.5), Math.round(cz * 0.5), 7717);
-    scratch.multiplyScalar(0.94 + grain * 0.12);
-    if (grain > 0.82) scratch.lerp(accent, 0.55);
-
-    for (let v = 0; v < 3; v++) colors.setXYZ(i0 + v, scratch.r, scratch.g, scratch.b);
+    for (let v = 0; v < 3; v++) colors.setXYZ(i0 + v, scratch[0], scratch[1], scratch[2]);
   }
   colors.needsUpdate = true;
 }
