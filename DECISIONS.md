@@ -162,3 +162,6 @@ this to stay oriented; agents add to it in the same PR as the change.
   flags the session started with — those are now always re-added.
 - **The seed row shows nothing in the value column** (the number is in the field
   itself), instead of rendering an empty-backed `NaN`.
+- **No control may print `NaN`.** The palette row's readout ran an enum through
+  the numeric formatter; `formatSettingValue` now handles enums and empty values
+  and is asserted for every setting in the schema.

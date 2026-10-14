@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  formatSettingValue,
   SETTING_DEFS,
   coerceSetting,
   defaultSettings,
@@ -84,6 +85,17 @@ test('flags parse the ways a human would write them', () => {
   assert.equal(parseFlag(params, 'dev'), true);
   assert.equal(parseFlag(params, 'off'), false);
   assert.equal(parseFlag(params, 'missing', 'fallback'), 'fallback');
+});
+
+test('every setting formats to something a human can read', () => {
+  for (const d of SETTING_DEFS) {
+    const text = formatSettingValue(d, d.default);
+    assert.ok(text.length > 0, `${d.key} formats to nothing`);
+    assert.ok(!/NaN|undefined|\[object/.test(text), `${d.key} formats to "${text}"`);
+    // ...and it must survive being handed a value of the wrong type.
+    const nonsense = formatSettingValue(d, undefined);
+    assert.ok(!/NaN|undefined|\[object/.test(nonsense), `${d.key} formats undefined to "${nonsense}"`);
+  }
 });
 
 test('later-milestone controls are declared but not live', () => {

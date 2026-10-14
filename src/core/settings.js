@@ -240,9 +240,13 @@ export function settingsEqual(a, b) {
 }
 
 export function formatSettingValue(def, value) {
+  if (value === undefined || value === null || value === '') return '—';
+  if (def.kind === 'enum') return String(value);
   if (def.kind === 'int') return String(value);
-  if (def.decimals === 0) return String(Math.round(value));
-  return Number(value).toFixed(def.decimals ?? 2);
+  const number = Number(value);
+  if (!Number.isFinite(number)) return String(value ?? '');
+  if (def.decimals === 0) return String(Math.round(number));
+  return number.toFixed(def.decimals ?? 2);
 }
 
 /** '1' -> true, '0'/'false' -> false, absent -> fallback. */
