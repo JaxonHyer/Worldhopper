@@ -75,6 +75,8 @@ test('the tuning panel drives the sim, the URL and localStorage', async ({ page,
   const slider = page.locator('#setting-fog');
   await slider.focus();
   for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowRight');
+  // Let go: `change` fires on blur, which is when the value is persisted.
+  await page.locator('.panel__title').click();
   await page.waitForTimeout(250);
 
   const tuned = await readDebug(page);

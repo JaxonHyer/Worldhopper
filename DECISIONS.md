@@ -156,3 +156,9 @@ this to stay oriented; agents add to it in the same PR as the change.
   plane has a far edge; matching the backdrop to the fog lets that edge dissolve
   instead of ending on a seam, whatever density the owner picks. Asserted in
   `tests/unit/maps.test.js` alongside the existing horizon rule.
+- **Sliders persist on release, not during the drag.** `input` updates the world
+  live (quiet), `change` writes localStorage + the URL. Replacing the URL on
+  every pixel would churn history, and *rebuilding* it dropped the `?debug`/`?dev`
+  flags the session started with — those are now always re-added.
+- **The seed row shows nothing in the value column** (the number is in the field
+  itself), instead of rendering an empty-backed `NaN`.

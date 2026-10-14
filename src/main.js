@@ -72,7 +72,9 @@ function bootstrap() {
   const panel = createTuningPanel({
     mount: uiMount,
     settings,
-    onChange: (key, raw) => applySetting(key, raw),
+    // Quiet while a range input is dragged: replacing the URL on every pixel
+    // would both churn history and drop the tool's own ?debug/?dev flags.
+    onChange: (key, raw, options) => applySetting(key, raw, options),
     onReset: resetSettings,
     onRerollSeed: () => applySetting('seed', Math.floor(Math.random() * 2147483646) + 1),
   });
@@ -155,25 +157,35 @@ function bootstrap() {
   requestAnimationFrame(frame);
 
   // --- settings plumbing --------------------------------------------------
-  function applySetting(key, raw) {
+  /**
+   * Apply one tunable.
+   *
+   * `persist: false` is used while a slider is being dragged: the world follows
+   * the value live, but localStorage and the URL wait for the gesture to end,
+   * so history is not churned and the tool's own ?debug/?dev flags survive.
+   */
+  function applySetting(key, raw, { persist = true } = {}) {
     const def = SETTING_BY_KEY[key];
     if (!def) return undefined;
     const value = coerceSetting(def, raw);
     if (value === undefined) return undefined;
-    const previous = settings[key];
+    const changed = settings[key] !== value;
     settings[key] = value;
-    if (previous === value && key !== 'seed') return value;
 
-    if (key === 'seed') {
-      state = createWorldState({ map, seed: value });
-      rebuildWorld();
-    } else if (key === 'palette') {
-      variant = getVariant(map.id, value);
+    if (changed) {
+      if (key === 'seed') {
+        state = createWorldState({ map, seed: value });
+        rebuildWorld();
+      } else if (key === 'palette') {
+        variant = getVariant(map.id, value);
+      }
+      world.applySettings(settings, variant);
     }
-    world.applySettings(settings, variant);
-    panel.sync(settings);
-    saveSettings(storage, settings);
-    syncUrl();
+    if (persist) {
+      saveSettings(storage, settings);
+      syncUrl();
+      panel.sync(settings);
+    }
     return value;
   }
 
@@ -202,6 +214,8 @@ function bootstrap() {
 
   function syncUrl() {
     const query = new URLSearchParams();
+    // Rebuilt from scratch each time; the boot flags are re-added below so a
+    // ?dev=1 session stays a ?dev=1 session.
     for (const [key, def] of Object.entries(SETTING_BY_KEY)) {
       if (settings[key] !== def.default) query.set(def.param, String(settings[key]));
     }

@@ -60,7 +60,7 @@ export function createTuningPanel({ mount, settings, onChange, onReset, onReroll
       control.step = '1';
       control.id = `setting-${def.key}`;
       control.value = String(settings[def.key]);
-      control.addEventListener('input', () => emit(def, control.value));
+      control.addEventListener('change', () => emit(def, control.value));
       const reroll = document.createElement('button');
       reroll.type = 'button';
       reroll.className = 'tuning-row__mini';
@@ -68,7 +68,7 @@ export function createTuningPanel({ mount, settings, onChange, onReset, onReroll
       reroll.title = 'Roll a new seed and rebuild the map';
       reroll.addEventListener('click', () => onRerollSeed?.());
       row.append(control, reroll, value);
-      value.textContent = '';
+      value.textContent = ''; // the field itself already shows the number
     } else if (def.kind === 'enum') {
       control = document.createElement('select');
       control.id = `setting-${def.key}`;
@@ -89,7 +89,9 @@ export function createTuningPanel({ mount, settings, onChange, onReset, onReroll
       control.step = String(def.step);
       control.id = `setting-${def.key}`;
       control.value = String(settings[def.key]);
-      control.addEventListener('input', () => emit(def, control.value));
+      // Live feedback while dragging (quiet), persisted when the gesture ends.
+      control.addEventListener('input', () => emit(def, control.value, { persist: false }));
+      control.addEventListener('change', () => emit(def, control.value, { persist: true }));
       row.append(control, value);
     }
 
@@ -150,8 +152,8 @@ export function createTuningPanel({ mount, settings, onChange, onReset, onReroll
   root.appendChild(footer);
   mount.appendChild(root);
 
-  function emit(def, raw) {
-    const applied = onChange?.(def.key, raw);
+  function emit(def, raw, options = {}) {
+    const applied = onChange?.(def.key, raw, options);
     if (applied !== undefined) {
       controls.get(def.key).value = String(applied);
       const row = rows.get(def.key);
@@ -185,7 +187,10 @@ export function createTuningPanel({ mount, settings, onChange, onReset, onReroll
         control.value = String(next[def.key]);
         const row = rows.get(def.key);
         const output = row.querySelector('.tuning-row__value');
-        if (output) output.textContent = def.live === false ? '—' : formatSettingValue(def, next[def.key]);
+        if (output) {
+          // The seed row has no slider/value readout: the number is in the field.
+          output.textContent = def.key === 'seed' || def.live === false ? '' : formatSettingValue(def, next[def.key]);
+        }
       }
       config.value = buildConfigUrl(next);
     },
