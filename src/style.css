@@ -20,6 +20,13 @@
   box-sizing: border-box;
 }
 
+/* Panels are shown/hidden with the `hidden` attribute. An author rule such as
+   `.credits { display: grid }` would otherwise beat the UA style and leave a
+   full-screen invisible-ish element swallowing every pointer event. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;

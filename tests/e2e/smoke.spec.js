@@ -27,6 +27,12 @@ test('loads, renders, and reports state through the debug hook', async ({ page }
   expect(box.width).toBeGreaterThan(200);
   expect(box.height).toBeGreaterThan(200);
 
+  // `hidden` has to mean hidden: an overlay that stays on screen (and swallows
+  // every pointer event) is invisible to state assertions alone.
+  for (const selector of ['.credits', '.tuning-panel', '.debug-overlay', '.dock__dev']) {
+    expect(await page.locator(selector).isVisible(), `${selector} must be hidden on load`).toBe(false);
+  }
+
   // The sim loop is alive: tick advances while wall-clock time passes.
   const before = await readDebug(page);
   await page.waitForTimeout(400);

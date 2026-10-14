@@ -99,7 +99,7 @@ const blankBasin = {
       fog: { color: '#a7aeb0', density: 0.0030 },
       ground: { low: '#5b6663', high: '#79817c', accent: '#48524f' },
       props: { rock: '#3f4a49', landmark: '#2f3944' },
-      sun: { color: '#fff0d2', intensity: 1.15, direction: { x: 0.34, y: 0.30, z: -0.89 }, discSize: 0.9994 },
+      sun: { color: '#fff0d2', direction: { x: 0.30, y: 0.58, z: -0.79 }, discSize: 0.9994 },
     },
     {
       id: 'mist-sea',
@@ -109,7 +109,7 @@ const blankBasin = {
       fog: { color: '#8fa3b3', density: 0.0052 },
       ground: { low: '#4a5459', high: '#66737a', accent: '#3b464c' },
       props: { rock: '#333d45', landmark: '#243040' },
-      sun: { color: '#e8f0ff', intensity: 0.95, direction: { x: 0.30, y: 0.36, z: -0.88 }, discSize: 0.9994 },
+      sun: { color: '#e8f0ff', direction: { x: 0.26, y: 0.50, z: -0.82 }, discSize: 0.9994 },
     },
     {
       id: 'cold-ridge',
@@ -119,7 +119,7 @@ const blankBasin = {
       fog: { color: '#c3cfd6', density: 0.0015 },
       ground: { low: '#5f6a70', high: '#8894a0', accent: '#4b555c' },
       props: { rock: '#43505a', landmark: '#1d2733' },
-      sun: { color: '#ffffff', intensity: 1.35, direction: { x: 0.42, y: 0.24, z: -0.87 }, discSize: 0.9994 },
+      sun: { color: '#ffffff', direction: { x: 0.38, y: 0.46, z: -0.80 }, discSize: 0.9994 },
     },
   ],
 };

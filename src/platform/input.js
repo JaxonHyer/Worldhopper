@@ -31,10 +31,15 @@ export function createInput({ canvas, onHotkey }) {
 
   function onKeyDown(event) {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
+    // Typing into a control (a tuning slider, a seed field) must not be eaten
+    // by hotkeys or camera keys: the control owns the keyboard while focused.
+    const target = event.target;
+    if (target instanceof Element && target.closest('input, select, textarea, button, [contenteditable]')) return;
     const key = event.key;
     const lower = key.length === 1 ? key.toLowerCase() : key;
     for (const [action, hotkey] of Object.entries(hotkeys)) {
       if (lower === hotkey.toLowerCase()) {
+        counters.hotkeys++;
         onHotkey?.(action, event);
         if (action !== 'resetView') event.preventDefault();
         return;
@@ -53,6 +58,7 @@ export function createInput({ canvas, onHotkey }) {
     if (event.target !== canvas) return;
     activePointerId = event.pointerId;
     dragging = true;
+    counters.pointersDown++;
     lastX = event.clientX;
     lastY = event.clientY;
     canvas.setPointerCapture?.(event.pointerId);
@@ -65,6 +71,11 @@ export function createInput({ canvas, onHotkey }) {
     const dy = event.clientY - lastY;
     lastX = event.clientX;
     lastY = event.clientY;
+    counters.pointersMoved++;
+    if (dx !== 0 || dy !== 0) {
+      counters.dragSamples++;
+      counters.dragRadians += Math.abs(dx * RAD_PER_PIXEL) + Math.abs(dy * RAD_PER_PIXEL);
+    }
     dragYaw += dx * RAD_PER_PIXEL;
     dragPitch += dy * RAD_PER_PIXEL;
   }
@@ -81,6 +92,10 @@ export function createInput({ canvas, onHotkey }) {
     keys.clear();
     endPointer();
   }
+
+  // Counters for the headless tests: when a drag does nothing, the report says
+  // *which* input stage went missing instead of "yaw did not change".
+  const counters = { pointersDown: 0, pointersMoved: 0, dragSamples: 0, dragRadians: 0, hotkeys: 0 };
 
   window.addEventListener('keydown', onKeyDown, { passive: false });
   window.addEventListener('keyup', onKeyUp);
@@ -112,6 +127,8 @@ export function createInput({ canvas, onHotkey }) {
       return { x: x * KEY_LOOK_RATE, y: y * KEY_LOOK_RATE };
     },
     heldKeys: () => [...keys],
+    /** Diagnostics for the smoke test (see counters above). */
+    stats: () => ({ ...counters, pointerActive: dragging, heldKeys: keys.size }),
     reset() {
       keys.clear();
       dragYaw = 0;

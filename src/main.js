@@ -96,6 +96,8 @@ function bootstrap() {
     settings: () => ({ ...settings }),
     describe: () => describeSettings(settings),
     setSetting: (key, raw) => applySetting(key, raw),
+    /** Input counters, so a dead drag reports which stage went missing. */
+    input: () => input.stats(),
     ui: {
       showOverlay: (visible) => (visible ? debugOverlay.show() : debugOverlay.hide()),
       showPanel: (visible) => (visible ? panel.show() : panel.hide()),

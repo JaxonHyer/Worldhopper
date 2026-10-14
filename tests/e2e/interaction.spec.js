@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { attachWatch, dragLook, gotoGame, holdKey, readDebug, saveShot, touchDrag } from './helpers.js';
+import { PITCH_LIMIT } from '../../src/core/math.js';
 
 /**
  * Scripted input: drag/keys move the camera, panel changes reach the sim AND
@@ -11,10 +12,23 @@ test('pointer/touch drag looks around without moving the player', async ({ page,
   await gotoGame(page);
 
   const before = await readDebug(page);
+  const inputBefore = await page.evaluate(() => window.__worldhopper.input());
   if (isMobile) await touchDrag(page, 260, 0);
   else await dragLook(page, 260, 0);
   await page.waitForTimeout(250);
   const after = await readDebug(page);
+  const inputAfter = await page.evaluate(() => window.__worldhopper.input());
+
+  // If a drag does nothing, name the stage that broke instead of guessing:
+  // pointerdown never landed / moves never arrived / events arrived but the
+  // sim never consumed them.
+  expect(inputAfter.pointersDown, `pointerdown never reached the canvas: ${JSON.stringify(inputAfter)}`).toBeGreaterThan(
+    inputBefore.pointersDown,
+  );
+  expect(inputAfter.pointersMoved, `pointermove never reached the canvas: ${JSON.stringify(inputAfter)}`).toBeGreaterThan(
+    inputBefore.pointersMoved,
+  );
+  expect(inputAfter.dragRadians, `drag deltas were zero: ${JSON.stringify(inputAfter)}`).toBeGreaterThan(0.2);
 
   expect(after.camera.yaw).not.toBe(before.camera.yaw);
   expect(Math.abs(after.camera.yaw - before.camera.yaw)).toBeGreaterThan(0.2);
@@ -38,7 +52,8 @@ test('arrow keys look at a controlled rate and pitch stays clamped', async ({ pa
 
   await holdKey(page, 'ArrowUp', 3000);
   const afterUp = await readDebug(page);
-  expect(Math.abs(afterUp.camera.pitch)).toBeLessThanOrEqual(1.55);
+  // The clamp itself (PI/2 - 0.02), not a hand-picked number that sits below it.
+  expect(Math.abs(afterUp.camera.pitch)).toBeLessThanOrEqual(PITCH_LIMIT + 1e-3);
 
   await page.keyboard.press('r');
   await page.waitForTimeout(200);

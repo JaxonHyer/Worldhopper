@@ -108,3 +108,22 @@ this to stay oriented; agents add to it in the same PR as the change.
   *not* Actions logs and artifacts, so a red build was previously just the word
   "failed". The branch is ignored by the CI trigger to avoid a loop, and it is
   not the default branch, so no build output is committed to `main` (§3).
+- **`[hidden] { display: none !important; }` is a global rule.** `.credits`
+  (`display: grid`) and `.dock__dev` (`display: flex`) overrode the UA rule for
+  `hidden`, so the credits overlay stayed on screen — full-viewport, swallowing
+  every pointer event — and the phone dev buttons showed without `?dev=1`. State
+  assertions said "hidden"; the screen said otherwise, which is why the smoke
+  test now also asserts visibility of each panel.
+- **Global key handlers ignore events aimed at form controls.** The arrow keys
+  drove the camera *and* got `preventDefault()`ed, so a focused tuning slider
+  never received them.
+- **Input counters (`window.__worldhopper.input()`) are part of the debug
+  surface.** A dead drag now reports which stage failed — pointerdown never
+  landed, moves never arrived, or events arrived with zero deltas.
+- **Lights are tuned for readable mid-tones, not physical plausibility.** three
+  multiplies Lambert diffuse by 1/π, so sun 1.15 / ambient 0.6 rendered the
+  ground nearly black even though every value was "sensible". Defaults are now
+  sun 2.4 / ambient 1.3 with the sun lifted off the horizon — a starting point
+  the owner can move with the sliders in one second.
+- **Per-variant `sun.intensity` was removed.** Sun and ambient strength are the
+  owner's sliders; a second source of truth would have fought the panel.
