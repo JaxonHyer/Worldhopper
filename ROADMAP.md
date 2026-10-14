@@ -56,10 +56,18 @@ playtesting.)*
 - [x] Tuning panel (`p`): live sliders, URL + localStorage persistence, copyable
       config link; later-milestone controls declared and disabled
 - [x] Headless smoke test (Playwright + Chromium) in CI, screenshots as artifacts
-- [x] 57 headless logic + scene-graph tests (`npm run test:unit`) and a dist
+- [x] 75 headless logic + scene-graph tests (`npm run test:unit`) and a dist
       constraint check (`npm run test:dist`)
 - [x] Phone layout + touch look path, and on-screen dev buttons behind `?dev=1`
 - [ ] **M0 sign-off — needs the owner's playtest** (three questions in the PR)
+
+### Blocked on the owner
+
+- **GitHub Pages cannot deploy while this repository is private.** Pages requires
+  a public repository (or a paid plan), and `main` has never been pushed, so
+  nothing is live yet. Also note `main` currently has **no commit at all** — it
+  has no files, so merging this branch would be the first commit on it. Making
+  the repo public and merging the M0 PR turns the deploy workflow on.
 
 ### Open questions for the owner
 
