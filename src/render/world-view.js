@@ -186,35 +186,41 @@ function buildLandmark(entity, map, materials) {
   object.position.set(entity.position.x, entity.position.y, entity.position.z);
   object.userData.dynamic = false;
 
-  // Wide broken plinth so the spire looks planted, not dropped.
+  // Low broken plinth so the spire looks planted, not dropped.
   const plinth = new THREE.Mesh(
-    new THREE.CylinderGeometry(definition.baseRadius * 1.55, definition.baseRadius * 1.9, definition.height * 0.11, 7, 1),
+    new THREE.CylinderGeometry(definition.baseRadius * 1.05, definition.baseRadius * 1.45, definition.height * 0.07, 6, 1),
     materials.base,
   );
-  plinth.position.y = definition.height * 0.05;
+  plinth.position.y = definition.height * 0.035;
   object.add(plinth);
 
+  // Companion shards: thin and leaning outward, never taller than half the
+  // needle. Wider cones here read as a pile of traffic cones, not a spire.
   const shardCount = definition.shards;
   for (let i = 0; i < shardCount; i++) {
     const ratio = i / (shardCount - 1 || 1);
-    const angle = ratio * Math.PI * 2 + 0.4;
-    const spread = definition.spread * (0.4 + ratio * 0.6);
-    const height = definition.height * (0.34 + hash2(i, seed, 991) * 0.4);
-    const radius = definition.baseRadius * (0.2 + hash2(i, seed + 7, 313) * 0.16);
-    const shard = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 5, 1), materials.stone);
-    shard.position.set(Math.cos(angle) * spread, definition.height * 0.08 + height / 2, Math.sin(angle) * spread);
+    const angle = ratio * Math.PI * 2 + 0.4 + hash2(i, seed + 23, 401) * 0.4;
+    const spread = definition.spread * (0.35 + hash2(i, seed + 5, 199) * 0.8);
+    const shaft = definition.height * (0.22 + hash2(i, seed, 991) * 0.26);
+    const radius = definition.baseRadius * (0.06 + hash2(i, seed + 7, 313) * 0.07);
+    const shard = new THREE.Mesh(new THREE.ConeGeometry(radius, shaft, 5, 1), materials.stone);
+    const lean = 0.05 + hash2(i, seed + 11, 733) * 0.12;
+    shard.position.set(Math.cos(angle) * spread, definition.height * 0.05 + shaft / 2, Math.sin(angle) * spread);
     shard.rotation.y = hash2(i, seed + 3, 557) * Math.PI;
-    shard.rotation.z = (hash2(i, seed + 11, 733) - 0.5) * 0.16;
+    // Tilt away from the centre so the group stays a cluster, not a picket line.
+    shard.rotation.z = -Math.cos(angle) * lean;
+    shard.rotation.x = Math.sin(angle) * lean;
     object.add(shard);
   }
 
   // The needle itself: the silhouette the whole map is built around (§6).
   const needle = new THREE.Mesh(
-    new THREE.ConeGeometry(definition.baseRadius * 0.34, definition.height, 6, 1),
+    new THREE.ConeGeometry(definition.baseRadius * 0.3, definition.height, 6, 1),
     materials.stone,
   );
-  needle.position.y = definition.height * 0.5 + definition.height * 0.06;
+  needle.position.y = definition.height * 0.5 + definition.height * 0.03;
   needle.rotation.y = 0.35;
+  needle.rotation.z = 0.012;
   object.add(needle);
 
   return object;

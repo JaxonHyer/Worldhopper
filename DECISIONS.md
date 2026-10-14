@@ -137,3 +137,8 @@ this to stay oriented; agents add to it in the same PR as the change.
   — and light direction is the only orientation cue in a fog-heavy frame.
 - **Sky gradient band exponent 0.68 (was 0.55).** More gradient across the dome
   makes the horizon read as a horizon, not a flat wash.
+- **The sun was moved to the player's right-rear, and the terrain given real
+  relief (±7 m at 0.006 frequency, was ±2.6 m at 0.0035).** With the light in
+  front of the opening view, every form rendered as a black slab and the ground
+  was a table: fog had nothing to roll over and the needle had no lit facets.
+  Side-lighting is what makes a flat-shaded low-poly silhouette read at all.

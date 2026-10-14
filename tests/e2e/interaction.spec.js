@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { attachWatch, dragLook, gotoGame, holdKey, readDebug, saveShot, touchDrag } from './helpers.js';
 import { PITCH_LIMIT } from '../../src/core/math.js';
+import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 /**
  * Scripted input: drag/keys move the camera, panel changes reach the sim AND
@@ -110,7 +111,8 @@ test('the tuning panel drives the sim, the URL and localStorage', async ({ page,
   await page.getByRole('button', { name: 'reset' }).click();
   await page.waitForTimeout(250);
   const reset = await readDebug(page);
-  expect(reset.fogDensity).toBe(0.003);
+  // The schema owns the default; a hard-coded number here would rot silently.
+  expect(reset.fogDensity).toBe(SETTING_BY_KEY.fog.default);
   // Back at defaults: the stored tuning is cleared and the URL is bare again.
   expect(await page.evaluate(() => localStorage.getItem('worldhopper.settings.v1'))).toBeNull();
   expect(page.url()).not.toContain('fog=');
