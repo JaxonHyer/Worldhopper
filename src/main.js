@@ -11,7 +11,8 @@ import './style.css';
 import { APP, SIM } from './core/config.js';
 import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
-import { createWorldState, scaleFenceStatus, stepWorld, countEntities, entityHash } from './core/world-state.js';
+import { createWorldState, stepWorld } from './core/world-state.js';
+import { buildSnapshot } from './core/snapshot.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from './core/maps/index.js';
 import {
   parseSettings,
@@ -224,48 +225,25 @@ function bootstrap() {
     }
   }
 
+  /** The one shape shared by window.__debug(), the overlay and the reports. */
   function snapshot() {
-    const scale = scaleFenceStatus(state);
     const info = view.info();
-    const stats = clock.stats();
-    return {
-      ready: debugApi.ready,
-      version: APP.version,
-      milestone: APP.milestone,
-      mapId: state.mapId,
-      mapLabel: map.label,
-      realm: state.realm,
-      seed: state.seed,
-      palette: variant.id,
-      tick: stats.tick,
-      simTime: Number(stats.simTime.toFixed(3)),
-      droppedSubsteps: stats.droppedSubsteps,
-      fps: frameStats.fps(),
-      frameMs: frameStats.meanMs(),
-      worstFrameMs: frameStats.worstMs(),
-      longFrames: frameStats.longFrames,
-      camera: {
-        x: Number(state.observer.position.x.toFixed(3)),
-        y: Number(state.observer.position.y.toFixed(3)),
-        z: Number(state.observer.position.z.toFixed(3)),
-        yaw: Number(state.observer.yaw.toFixed(4)),
-        pitch: Number(state.observer.pitch.toFixed(4)),
-      },
-      distanceFromOrigin: Number(scale.distance.toFixed(3)),
-      scaleFence: { worst: Number(scale.worst.toFixed(2)), limit: scale.limit, warn: scale.warn },
-      entityCount: countEntities(state),
-      entityHash: entityHash(state),
-      fogDensity: settings.fog,
-      drawCalls: info.drawCalls,
-      triangles: info.triangles,
+    return buildSnapshot({
+      app: APP,
+      state,
+      map,
+      variant,
+      settings,
+      clock,
+      frameStats,
+      render: { ...info, gl: view.contextInfo() },
       ui: {
         overlay: debugOverlay.visible,
         panel: panel.visible,
         credits: credits.visible,
       },
-      settings: { ...settings },
-      settingsHint: describeSettings(settings),
-    };
+      ready: debugApi.ready,
+    });
   }
 }
 

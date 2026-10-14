@@ -9,7 +9,7 @@
 
 const REFRESH_MS = 250;
 
-export function createDebugOverlay({ mount, onRefresh }) {
+export function createDebugOverlay({ mount, onRefresh, now = () => performance.now() }) {
   const root = document.createElement('div');
   root.className = 'panel debug-overlay';
   root.hidden = true;
@@ -57,20 +57,23 @@ export function createDebugOverlay({ mount, onRefresh }) {
   setRow('settings', 'config');
 
   function refresh(snapshot) {
-    const now = performance.now();
-    if (now - lastRefresh < REFRESH_MS) return;
-    lastRefresh = now;
+    const stamp = now();
+    if (stamp - lastRefresh < REFRESH_MS) return;
+    lastRefresh = stamp;
 
     const fps = snapshot.fps == null ? '—' : snapshot.fps.toFixed(0);
     set('fps', `${fps} fps · ${snapshot.frameMs.toFixed(1)} ms (worst ${snapshot.worstFrameMs.toFixed(1)})`);
     set('tick', `${snapshot.tick} · ${snapshot.simTime.toFixed(2)} s`);
     set('realm', `${snapshot.realm} · ${snapshot.mapId}`);
     set('seed', `${snapshot.seed} · ${snapshot.palette}`);
-    set('origin', `${snapshot.scale.worst.toFixed(1)} m (limit ${snapshot.scale.limit})`);
-    rows.get('origin').dd.classList.toggle('is-warn', snapshot.scale.warn);
-    set('entities', `${snapshot.entityCount}`);
-    set('render', `${snapshot.drawCalls} · ${snapshot.triangles}`);
-    set('gpu', `${snapshot.gl.version.replace('WebGL ', 'gl').replace(' (OpenGL ES 3.0 Chromium)', '')}\n${snapshot.gl.gpu}`);
+    set('origin', `${snapshot.scaleFence.worst.toFixed(1)} m (limit ${snapshot.scaleFence.limit})`);
+    rows.get('origin').dd.classList.toggle('is-warn', snapshot.scaleFence.warn);
+    set('entities', `${snapshot.entityCount} (hash ${snapshot.entityHash})`);
+    set('render', `${snapshot.drawCalls} calls · ${snapshot.triangles} tris`);
+    set(
+      'gpu',
+      `${String(snapshot.gl.version).replace('WebGL ', 'gl').replace(' (OpenGL ES 3.0 Chromium)', '')}\n${snapshot.gl.gpu}`,
+    );
     set('settings', snapshot.settingsHint);
     onRefresh?.(snapshot);
   }

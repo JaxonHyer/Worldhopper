@@ -19,7 +19,13 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : undefined,
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'artifacts/playwright-report' }]],
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: 'artifacts/playwright-report' }],
+    // Machine-readable copy: scripts/ci-report.mjs turns it into the markdown
+    // summary CI publishes (the agent's only readable window into a red build).
+    ['json', { outputFile: 'artifacts/playwright-report/report.json' }],
+  ],
   use: {
     baseURL: `http://${HOST}:${PORT}`,
     trace: 'off',

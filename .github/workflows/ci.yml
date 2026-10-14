@@ -4,6 +4,8 @@ name: CI
 
 on:
   push:
+    # The evidence branch this workflow writes must not retrigger itself.
+    branches-ignore: [ci-artifacts]
   pull_request:
   workflow_dispatch:
 
@@ -19,6 +21,10 @@ jobs:
     name: unit + build + headless smoke
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # contents: write is only for the evidence branch step at the bottom; every
+    # other step in this job is read-only.
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -70,3 +76,30 @@ jobs:
           name: playwright-report
           path: artifacts/playwright-report
           if-no-files-found: ignore
+
+      # The owner reads results here on GitHub; the agent reads them from the
+      # `ci-artifacts` branch, because it cannot open Actions logs or download
+      # artifacts from its sandbox.
+      - name: Summarise the run
+        if: always()
+        run: |
+          node scripts/ci-report.mjs > artifacts/ci-report.md || echo "report generation failed" > artifacts/ci-report.md
+          cat artifacts/ci-report.md >> "$GITHUB_STEP_SUMMARY"
+          cat artifacts/ci-report.md
+
+      - name: Publish evidence to the ci-artifacts branch
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          rm -rf /tmp/evidence && mkdir -p /tmp/evidence/screenshots
+          cp artifacts/ci-report.md /tmp/evidence/ci-report.md
+          cp -r artifacts/screenshots/. /tmp/evidence/screenshots/ 2>/dev/null || true
+          cd /tmp/evidence
+          git init -q -b ci-artifacts
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "ci evidence: run ${{ github.run_id }} on ${{ github.ref_name }}" || true
+          git push -q --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" ci-artifacts

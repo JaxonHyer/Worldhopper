@@ -20,6 +20,8 @@ export function createView({ canvas, settings, onContextLost }) {
 
   let width = 1;
   let height = 1;
+  // Queried once: gl.getParameter walks the driver and must not sit in the loop.
+  const context = readContextInfo(renderer);
 
   if (onContextLost) canvas.addEventListener('webglcontextlost', onContextLost, false);
 
@@ -54,17 +56,22 @@ export function createView({ canvas, settings, onContextLost }) {
       const { calls, triangles } = renderer.info.render;
       return { drawCalls: calls, triangles };
     },
+    /** Cached at construction: the debug snapshot reads this every frame. */
     contextInfo() {
-      try {
-        const gl = renderer.getContext();
-        const debug = gl.getExtension('WEBGL_debug_renderer_info');
-        return {
-          version: String(gl.getParameter(gl.VERSION)),
-          gpu: debug ? String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)) : 'unavailable',
-        };
-      } catch {
-        return { version: 'unavailable', gpu: 'unavailable' };
-      }
+      return context;
     },
   };
+}
+
+function readContextInfo(renderer) {
+  try {
+    const gl = renderer.getContext();
+    const debug = gl.getExtension('WEBGL_debug_renderer_info');
+    return {
+      version: String(gl.getParameter(gl.VERSION)),
+      gpu: debug ? String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)) : 'unavailable',
+    };
+  } catch {
+    return { version: 'unavailable', gpu: 'unavailable' };
+  }
 }

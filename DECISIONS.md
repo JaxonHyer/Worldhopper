@@ -89,3 +89,22 @@ this to stay oriented; agents add to it in the same PR as the change.
 - **`NOTICE.md` carries the fan-work text, `LICENSE` is MIT for original work
   only, and the same notice appears in the in-game credits.** §9 requires it in
   both README and credits; both are asserted by the smoke test.
+
+## M0 — follow-up: the debug snapshot is a shared, tested contract (2026-10-14)
+
+- **`src/core/snapshot.js` owns the snapshot shape** (`buildSnapshot`,
+  `SNAPSHOT_KEYS`). It was inlined in `main.js` and the debug overlay read two
+  fields the snapshot no longer produced (`gl`, `scaleFence`), which threw inside
+  the render loop on the first frame — a blank page that no headless probe could
+  see, because the crash was in the browser. One builder, one key list.
+- **A unit test pushes a real snapshot through the real overlay against a 20-line
+  DOM stub.** A missing field now fails locally in milliseconds, not in CI. This
+  is the cheap half of "assert game state via a debug hook" (§8).
+- **`gl` info is read once, at renderer construction.** It is displayed by the
+  overlay every refresh; `gl.getParameter` has no business in a frame loop.
+- **CI publishes its own evidence to a rolling `ci-artifacts` branch**
+  (`scripts/ci-report.mjs` + a `git push --force` of the Playwright JSON summary
+  and the screenshots). Reason: the agent's sandbox can read the repository but
+  *not* Actions logs and artifacts, so a red build was previously just the word
+  "failed". The branch is ignored by the CI trigger to avoid a loop, and it is
+  not the default branch, so no build output is committed to `main` (§3).
