@@ -127,3 +127,13 @@ this to stay oriented; agents add to it in the same PR as the change.
   the owner can move with the sliders in one second.
 - **Per-variant `sun.intensity` was removed.** Sun and ambient strength are the
   owner's sliders; a second source of truth would have fought the panel.
+- **The landmark moved from 640 m to 430 m and fog thinned to 0.0021 (variant A).**
+  At 0.003 the needle was 97% fog by the time it reached the camera: the map's
+  identity was invisible. Screenshot check (world-ashen-basin) now shows a
+  readable silhouette against the haze; the *taste* of how much haze stays the
+  owner's call via the fog slider and the three variants.
+- **Sun disc is crisper and the halo tighter (`pow(sd, 900) * 0.45`).** The old
+  wide bloom read as a lens smudge rather than a light source you can orient by
+  — and light direction is the only orientation cue in a fog-heavy frame.
+- **Sky gradient band exponent 0.68 (was 0.55).** More gradient across the dome
+  makes the horizon read as a horizon, not a flat wash.

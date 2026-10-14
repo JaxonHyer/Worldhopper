@@ -37,9 +37,11 @@ const fragmentShader = /* glsl */ `
     col = mix(col, uHaze, clamp(-h * 3.0, 0.0, 1.0));
 
     float sd = max(dot(dir, normalize(uSunDir)), 0.0);
-    float disc = smoothstep(uSunDisc, uSunDisc + 0.0008, sd);
-    float halo = pow(sd, 160.0) * 0.3;
-    col += uSunColor * uSunStrength * (disc * 1.5 + halo);
+    // A crisp disc plus a tight halo: a wide soft bloom reads as a lens smudge,
+    // not as a light source you can orient by.
+    float disc = smoothstep(uSunDisc, uSunDisc + 0.0004, sd);
+    float halo = pow(sd, 900.0) * 0.45;
+    col += uSunColor * uSunStrength * (disc * 1.6 + halo);
 
     col += (dither(gl_FragCoord.xy) - 0.5) / 255.0;
     gl_FragColor = vec4(col, 1.0);
@@ -58,7 +60,7 @@ export function createSky({ variant }) {
       uSunDir: { value: sunDirection(variant) },
       uSunDisc: { value: variant.sun.discSize ?? 0.9994 },
       uSunStrength: { value: 1 },
-      uBand: { value: 0.55 },
+      uBand: { value: 0.68 },
     },
     vertexShader,
     fragmentShader,
