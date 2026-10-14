@@ -142,3 +142,8 @@ this to stay oriented; agents add to it in the same PR as the change.
   front of the opening view, every form rendered as a black slab and the ground
   was a table: fog had nothing to roll over and the needle had no lit facets.
   Side-lighting is what makes a flat-shaded low-poly silhouette read at all.
+- **The ground colour ramp window is derived from the map's terrain amplitude.**
+  It was a hard-coded 3.2 m window inherited from the first (much flatter)
+  terrain, so every facet sampled the same end of the ramp and the palette
+  variation vanished. Same class of bug as the drifting e2e default: a copied
+  constant instead of a derived one.

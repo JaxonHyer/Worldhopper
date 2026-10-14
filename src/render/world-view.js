@@ -129,7 +129,7 @@ function buildGround({ map, seed, variant }) {
   const faceted = geometry.toNonIndexed();
   geometry.dispose();
   faceted.computeVertexNormals();
-  applyGroundColors(faceted, variant);
+  applyGroundColors(faceted, variant, map.ground.amplitude);
 
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const mesh = new THREE.Mesh(faceted, material);
@@ -139,14 +139,18 @@ function buildGround({ map, seed, variant }) {
     mesh,
     geometry: faceted,
     setColors(nextVariant) {
-      applyGroundColors(faceted, nextVariant);
+      applyGroundColors(faceted, nextVariant, map.ground.amplitude);
       faceted.attributes.color.needsUpdate = true;
     },
   };
 }
 
-/** One flat colour per triangle: two-tone ground + occasional dark facets. */
-function applyGroundColors(geometry, variant) {
+/**
+ * One flat colour per triangle: two-tone ground + occasional dark facets.
+ * The ramp window is derived from the map's own amplitude — a hard-coded window
+ * silently flattens to the low colour the moment the terrain gets taller.
+ */
+function applyGroundColors(geometry, variant, amplitude) {
   const position = geometry.attributes.position;
   const low = new THREE.Color(variant.ground.low);
   const high = new THREE.Color(variant.ground.high);
@@ -165,7 +169,8 @@ function applyGroundColors(geometry, variant) {
     const cy = (position.getY(i0) + position.getY(i0 + 1) + position.getY(i0 + 2)) / 3;
     const cz = (position.getZ(i0) + position.getZ(i0 + 1) + position.getZ(i0 + 2)) / 3;
 
-    const heightMix = Math.min(1, Math.max(0, (cy + 1.2) / 3.2));
+    const span = Math.max(0.5, amplitude * 2);
+    const heightMix = Math.min(1, Math.max(0, (cy + span * 0.5) / span));
     scratch.copy(low).lerp(high, heightMix);
 
     // Stable per-facet jitter: same seed => same facets.
