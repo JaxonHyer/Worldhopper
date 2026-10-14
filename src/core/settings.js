@@ -53,7 +53,7 @@ export const SETTING_DEFS = Object.freeze([
     max: 0.012,
     step: 0.0001,
     decimals: 4,
-    default: 0.0021,
+    default: 0.0028,
     phase: 'm0',
   },
   {

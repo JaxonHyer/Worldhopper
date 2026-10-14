@@ -54,7 +54,9 @@ export const REALMS = Object.freeze({
 export const RENDER = Object.freeze({
   maxPixelRatio: 2,
   /** Ground plane resolution cap (vertices ~ (n+1)^2). */
-  groundMaxSegments: 128,
+  groundMaxSegments: 192,
+  /** A ground facet larger than this reads as an abstract slab, not terrain. */
+  groundMaxFacetSize: 12,
 });
 
 export const FLAG_DEFAULTS = Object.freeze({

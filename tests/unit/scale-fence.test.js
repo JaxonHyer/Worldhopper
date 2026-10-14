@@ -39,6 +39,11 @@ test('every map stays pocket-scale and inside the origin warning radius', () => 
     const maxPropReach = map.propPolicy.outerRadius;
     assert.ok(maxPropReach < half, `${map.id}: props can spawn past the edge of the ground`);
     assert.ok(map.ground.segments <= RENDER.groundMaxSegments, `${map.id}: ground resolution over budget`);
+    const facetSize = map.ground.size / map.ground.segments;
+    assert.ok(
+      facetSize <= RENDER.groundMaxFacetSize,
+      `${map.id}: ${facetSize.toFixed(1)}m facets read as abstract slabs at eye height`,
+    );
   }
 });
 

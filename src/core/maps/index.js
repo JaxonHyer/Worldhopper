@@ -36,8 +36,8 @@ const blankBasin = {
 
   ground: {
     /** metres, square. Kept far inside the scale fence (§5). */
-    size: 2400,
-    segments: 96,
+    size: 1600,
+    segments: 144,
     /** gentle rolling, ±amplitude metres */
     amplitude: 7,
     frequency: 0.006,
@@ -64,7 +64,7 @@ const blankBasin = {
     kind: 'rock',
     count: 34,
     innerRadius: 16,
-    outerRadius: 300,
+    outerRadius: 280,
     minScale: 0.7,
     maxScale: 3.6,
     /** keep the landmark's base clear so its silhouette stays readable */
@@ -95,8 +95,8 @@ const blankBasin = {
       id: 'ashen-basin',
       label: 'A · Ashen basin',
       summary: 'Warm grey haze, low contrast, pale sun above the ridge.',
-      sky: { horizon: '#a7aeb0', zenith: '#232d38', haze: '#8c9296' },
-      fog: { color: '#a7aeb0', density: 0.0021 },
+      sky: { horizon: '#a7aeb0', zenith: '#232d38', haze: '#a7aeb0' },
+      fog: { color: '#a7aeb0', density: 0.0028 },
       ground: { low: '#626d6a', high: '#7d8480', accent: '#4d5754' },
       props: { rock: '#4b5452', landmark: '#39434f' },
       sun: { color: '#fff0d2', direction: { x: 0.72, y: 0.52, z: 0.46 }, discSize: 0.9996 },
@@ -105,8 +105,8 @@ const blankBasin = {
       id: 'mist-sea',
       label: 'B · Mist sea',
       summary: 'Bluer, denser, closer horizon — the world ends sooner.',
-      sky: { horizon: '#8fa3b3', zenith: '#151d29', haze: '#7b8a97' },
-      fog: { color: '#8fa3b3', density: 0.0034 },
+      sky: { horizon: '#8fa3b3', zenith: '#151d29', haze: '#8fa3b3' },
+      fog: { color: '#8fa3b3', density: 0.0040 },
       ground: { low: '#525c61', high: '#6b787f', accent: '#445055' },
       props: { rock: '#3f4a54', landmark: '#2c3a4b' },
       sun: { color: '#e8f0ff', direction: { x: 0.64, y: 0.58, z: 0.50 }, discSize: 0.9996 },
@@ -115,8 +115,8 @@ const blankBasin = {
       id: 'cold-ridge',
       label: 'C · Cold ridge',
       summary: 'Clearest of the three: the needle reads hard against a dark sky.',
-      sky: { horizon: '#c3cfd6', zenith: '#0d1420', haze: '#9fb0bb' },
-      fog: { color: '#c3cfd6', density: 0.0011 },
+      sky: { horizon: '#c3cfd6', zenith: '#0d1420', haze: '#c3cfd6' },
+      fog: { color: '#c3cfd6', density: 0.0016 },
       ground: { low: '#656f75', high: '#8b97a3', accent: '#525c63' },
       props: { rock: '#4e5b66', landmark: '#243040' },
       sun: { color: '#ffffff', direction: { x: 0.80, y: 0.44, z: 0.41 }, discSize: 0.9996 },

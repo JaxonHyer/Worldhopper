@@ -33,11 +33,16 @@ test('palettes are well-formed and complete', () => {
         assert.match(value, hex, `${map.id}/${variant.id}: ${name} must be #rrggbb`);
       }
       assert.ok(variant.fog.density > 0 && variant.fog.density <= 0.05, `${variant.id}: fog density out of sane range`);
-      assert.equal(
-        variant.sky.horizon.toLowerCase(),
-        variant.fog.color.toLowerCase(),
-        `${map.id}/${variant.id}: horizon and fog colours must match or the horizon seams`,
-      );
+      for (const [name, value] of [
+        ['sky.horizon', variant.sky.horizon],
+        ['sky.haze', variant.sky.haze],
+      ]) {
+        assert.equal(
+          value.toLowerCase(),
+          variant.fog.color.toLowerCase(),
+          `${map.id}/${variant.id}: ${name} and the fog colour must match or the horizon seams`,
+        );
+      }
       const dir = variant.sun.direction;
       assert.ok(Math.hypot(dir.x, dir.y, dir.z) > 0.5, 'sun direction must be a usable vector');
     }

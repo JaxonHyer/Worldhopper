@@ -147,3 +147,12 @@ this to stay oriented; agents add to it in the same PR as the change.
   terrain, so every facet sampled the same end of the ramp and the palette
   variation vanished. Same class of bug as the drifting e2e default: a copied
   constant instead of a derived one.
+- **Ground plane 1600 m / 144 segments (~11 m facets) instead of 2400 m / 96
+  (~25 m).** At eye height, 25 m triangles read as abstract slabs, not terrain.
+  The resolution cap and a new "facets must be ≤ 12 m" rule live in
+  `src/core/config.js` and are asserted per map, so the next map cannot quietly
+  regress into slabs.
+- **Below-horizon sky colour (`sky.haze`) must equal the fog colour.** The ground
+  plane has a far edge; matching the backdrop to the fog lets that edge dissolve
+  instead of ending on a seam, whatever density the owner picks. Asserted in
+  `tests/unit/maps.test.js` alongside the existing horizon rule.
