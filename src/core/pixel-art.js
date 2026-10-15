@@ -139,78 +139,36 @@ export function normalizeVariant(variant) {
  */
 /**
  * One character's skin. The two variants differ in exactly two ways: the
- * palette (clothes and hair colours) and whether there is long hair to hang
- * behind the head. Everything else is shared, so a change to a sleeve is a
- * change for both characters — never one that drifts.
+ * palette (clothes and hair colours) and the hair drawn on the head and upper
+ * back. Everything else is shared, so a change to a sleeve is a change for both
+ * characters — never one that drifts.
+ *
+ * The girl's hair is *texture only*: no extra boxes, no geometry. The owner
+ * asked for that after the box version ("the girl's hair looks weird, make it a
+ * texture only thing. Not actual 3d hair"), so the long hair is painted into
+ * the head's side/back faces and over the shoulders of her shirt.
  */
 export function characterSkin(options = {}) {
   const variant = normalizeVariant(typeof options === 'string' ? options : options.variant);
+  /** The girl's hair is painted, not modelled: it changes art, never geometry. */
+  const longHair = variant === 'girl';
   const p = typeof options === 'string' ? paletteFor(variant) : (options.palette ?? paletteFor(variant));
-
-  /** The girl's hair: a sheet over the back of the head. */
-  const hairSheet = (palette) =>
-    pixelArt(
-      [
-        'HHHHHHHH',
-        'HHHHHHHH',
-        'SHHHHHHS',
-        'SHHHHHHS',
-        'SHHHHHHS',
-        'SHHHHHHS',
-        'SHHHHHHS',
-        'SHSHHSHS',
-      ],
-      { H: palette.hair, S: palette.hairShade },
-      { name: 'hair' },
-    );
-
-  /** The girl's hair: the long fall down her back. */
-  const hairFall = (palette) =>
-    pixelArt(
-      [
-        'HHHH',
-        'HHHH',
-        'HSSH',
-        'HSSH',
-        'HSSH',
-        'HSSH',
-        'SSSS',
-        'SSSS',
-        'SSSS',
-        'SSSS',
-        'SSSS',
-        'SSSS',
-        'HHSH',
-        'SHSH',
-        'SHSH',
-        'SSSS',
-        'SSSS',
-        'SSSS',
-        'SSSS',
-        'SSSS',
-      ],
-      { H: palette.hair, S: palette.hairShade },
-      { name: 'hair-back' },
-    );
 
   const head = (rows, name) =>
     pixelArt(
       rows,
-      { H: p.hair, S: p.skin, E: p.eye, W: p.eyeWhite, M: p.mouth, N: p.skinShade },
+      { H: p.hair, K: p.hairShade, S: p.skin, E: p.eye, W: p.eyeWhite, M: p.mouth, N: p.skinShade },
       { name },
     );
+  // Side of the head: hair over the top two rows for both, and for the girl the
+  // hair keeps going all the way down — that is what "long hair" is when there
+  // is no geometry to hang it from.
+  //
   // One object, not two identical ones: the renderer uploads it once.
   const sideOfHead = head(
-    [
-      'HHHHHHHH',
-      'HHHHHHHH',
-      'SSSSSSSS',
-      'SSSSSSSS',
-      'SSSSSSSS',
-      'SSSSSSSS',
-      'SSSSSSSS',
-      'NNNNNNNN',
-    ],
+    longHair
+      ? ['HHHHHHHH', 'HHHHHHHH', 'HHHHHHHH', 'HHHHHHHH', 'HHHHHHHH', 'HHHHHHHH', 'HHHHHHHH', 'KKKKKKKK']
+      : ['HHHHHHHH', 'HHHHHHHH', 'SSSSSSSS', 'SSSSSSSS', 'SSSSSSSS', 'SSSSSSSS', 'SSSSSSSS', 'NNNNNNNN'],
     'head-side',
   );
 
@@ -223,16 +181,29 @@ export function characterSkin(options = {}) {
       // ... go Minecraft style again") after not being able to see the front
       // of their own character.
       front: head(
-        [
-          'HHHHHHHH',
-          'HHHHHHHH',
-          'SSSSSSSS',
-          'SWESSEWS', // eyes: white outside, pupil inside, a gap between them
-          'SSSNNSSS', // nose: narrower than the mouth, so the two do not merge
-          'SSMMMMSS', // mouth
-          'SSSSSSSS',
-          'NNNNNNNN', // jaw
-        ],
+        longHair
+          ? [
+              'HHHHHHHH',
+              'HHHHHHHH',
+              // Her hair comes down past the eyes on both sides, which is what
+              // frames the face from the front now that the side locks are gone.
+              'HSSSSSSH',
+              'HWESSEWH',
+              'HSSNNSSH', // nose: narrower than the mouth, so the two do not merge
+              'HSMMMMSH', // mouth
+              'HSSSSSSH',
+              'HSSSSSSH',
+            ]
+          : [
+              'HHHHHHHH',
+              'HHHHHHHH',
+              'SSSSSSSS',
+              'SWESSEWS', // eyes: white outside, pupil inside, a gap between them
+              'SSSNNSSS', // nose: narrower than the mouth, so the two do not merge
+              'SSMMMMSS', // mouth
+              'SSSSSSSS',
+              'NNNNNNNN', // jaw
+            ],
         'head-front',
       ),
       back: head(
@@ -244,7 +215,7 @@ export function characterSkin(options = {}) {
           'HHHHHHHH',
           'HHHHHHHH',
           'HHHHHHHH',
-          'HHHHHHHH',
+          longHair ? 'KKKKKKKK' : 'HHHHHHHH',
         ],
         'head-back',
       ),
@@ -278,42 +249,80 @@ export function characterSkin(options = {}) {
         { C: p.shirtShade, S: p.shirt, B: p.shirtDark, H: p.shirtShade },
         { name: 'torso-front' },
       ),
-      back: pixelArt(
-        [
-          'CCCCCCCC',
-          'CSSSSSSC',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'HHHHHHHH',
-          'HHHHHHHH',
-        ],
-        { C: p.shirtShade, S: p.shirt, H: p.shirtShade },
-        { name: 'torso-back' },
-      ),
-      side: pixelArt(
-        [
-          'CCCCCCCC',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSSSSSS',
-          'HHHHHHHH',
-          'HHHHHHHH',
-        ],
-        { C: p.shirtShade, S: p.shirt, H: p.shirtShade },
-        { name: 'torso-side' },
-      ),
+      back: longHair
+        ? pixelArt(
+            [
+              'HHHHHHHH', // her hair covers the collar and falls down her back
+              'HHHHHHHH',
+              'HHHHHHHH',
+              'HHHHHHHH',
+              'SHHHHHHS',
+              'SSHHHHSS',
+              'SSSHHSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'CCCCCCCC',
+              'CCCCCCCC',
+            ],
+            { H: p.hair, S: p.shirt, C: p.shirtShade },
+            { name: 'torso-back' },
+          )
+        : pixelArt(
+            [
+              'CCCCCCCC',
+              'CSSSSSSC',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'HHHHHHHH',
+              'HHHHHHHH',
+            ],
+            { C: p.shirtShade, S: p.shirt, H: p.shirtShade },
+            { name: 'torso-back' },
+          ),
+      side: longHair
+        ? pixelArt(
+            [
+              'HHHHHHHH', // the fall of her hair, seen from the side
+              'HHHHHHHH',
+              'HHHHHHHH',
+              'SHHHHHHS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'CCCCCCCC',
+              'CCCCCCCC',
+            ],
+            { H: p.hair, S: p.shirt, C: p.shirtShade },
+            { name: 'torso-side' },
+          )
+        : pixelArt(
+            [
+              'CCCCCCCC',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'SSSSSSSS',
+              'HHHHHHHH',
+              'HHHHHHHH',
+            ],
+            { C: p.shirtShade, S: p.shirt, H: p.shirtShade },
+            { name: 'torso-side' },
+          ),
       top: pixelArt(['SSSSSSSS', 'SSSSSSSS', 'SSSSSSSS', 'SSSSSSSS'], { S: p.shirt }, { name: 'torso-top' }),
       bottom: pixelArt(['HHHHHHHH', 'HHHHHHHH', 'HHHHHHHH', 'HHHHHHHH'], { H: p.shirtShade }, { name: 'torso-bottom' }),
     },
@@ -340,12 +349,6 @@ export function characterSkin(options = {}) {
 
     // Hands: skin, one shade row where the wrist is.
     hand: pixelArt(['SSSS', 'SSSS', 'SSSS', 'NNNN'], { S: p.skin, N: p.skinShade }, { name: 'hand' }),
-
-    // Long hair, Girl only: a sheet over the back of the head and a fall down
-    // her back. Two tones each, so neither reads as a flat slab. Only she has
-    // them — the boy's version is an unused texture otherwise.
-    ...(variant === 'girl' ? { hair: hairSheet(p), hairBack: hairFall(p) } : {}),
-
 
     // Trouser legs: a belt at the top, then cloth.
     leg: pixelArt(

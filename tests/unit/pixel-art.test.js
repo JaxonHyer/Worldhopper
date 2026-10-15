@@ -30,10 +30,12 @@ const girl = characterSkin({ variant: 'girl' });
 test('every texture in the skin is a real texture, and small', () => {
   const textures = skinTextures(skin);
   assert.equal(textures.length, 14, 'a smaller set than the M1.5 figure: no pack, no belt box, no eye boxes');
-  assert.equal(skinTextures(girl).length, 16, 'the girl adds two long-hair textures and nothing else');
+  // Hair is texture, never geometry (the owner): she has the same fourteen
+  // textures as the boy, and no extra ones for hair.
+  assert.equal(skinTextures(girl).length, 14, 'the girl must not need extra textures for hair');
   for (const texture of textures) {
     assert.ok(texture.width >= 4 && texture.width <= 8, `${texture.name} is ${texture.width} wide`);
-    assert.ok(texture.height >= 4 && texture.height <= 20, `${texture.name} is ${texture.height} tall`);
+    assert.ok(texture.height >= 4 && texture.height <= 12, `${texture.name} is ${texture.height} tall`);
     assert.equal(texture.data.length, texture.width * texture.height * 4, `${texture.name} has the wrong byte count`);
   }
   // Two faces share one texture object (the sides of the head, the sides of the
@@ -65,15 +67,18 @@ test('the head has a face: eyes with whites, a nose and a mouth', () => {
     const { front, back, left, top, bottom } = character.head;
     const palette = character.palette;
     const at = (x, y) => pixelHex(front, x, y);
+    // The girl's hair comes down the sides of her face, so her outermost
+    // columns are hair; the boy's are skin. Either way it is *not* the eye:
+    // the four eye pixels sit in the middle of the face, in both characters.
+    const edge = character.variant === 'girl' ? palette.hair.toLowerCase() : palette.skin.toLowerCase();
 
-    // Two eyes, two pixels each: a white and a pupil, mirrored, with a gap
-    // between them and skin at the outer edges of the face.
+    // Two eyes, two pixels each: a white and a pupil, mirrored, with a gap.
     assert.equal(at(1, 3), palette.eyeWhite.toLowerCase(), 'the left eye has no white');
     assert.equal(at(2, 3), palette.eye.toLowerCase(), 'the left eye has no pupil');
     assert.equal(at(5, 3), palette.eye.toLowerCase(), 'the right eye has no pupil');
     assert.equal(at(6, 3), palette.eyeWhite.toLowerCase(), 'the right eye has no white');
-    assert.equal(at(0, 3), palette.skin.toLowerCase(), 'the eye is jammed into the edge of the face');
-    assert.equal(at(7, 3), palette.skin.toLowerCase(), 'the eye is jammed into the edge of the face');
+    assert.equal(at(0, 3), edge, 'the outer edge of the face is wrong');
+    assert.equal(at(7, 3), edge, 'the outer edge of the face is wrong');
     assert.equal(at(3, 3), palette.skin.toLowerCase(), 'the eyes are joined in the middle');
     assert.notEqual(at(3, 4), at(3, 2), 'there is no nose');
     assert.equal(at(3, 5), palette.mouth.toLowerCase(), 'there is no mouth');
@@ -106,15 +111,46 @@ test('the girl is a different character, not a different game', () => {
     assert.equal(girl.palette[key], skin.palette[key], `${key} should be shared`);
   }
 
-  // Long hair is two extra textures; nothing else about her is new, and the
-  // boy pays for neither of them.
+  // Her hair is painted, so her textures are the boy's textures — same names,
+  // same sizes, no extra sheet for long hair.
   const boyNames = skinTextures(skin).map((t) => t.name).sort();
   const girlNames = skinTextures(girl).map((t) => t.name).sort();
-  assert.deepEqual(girlNames, [...boyNames, 'hair', 'hair-back'].sort());
-  assert.ok(!boyNames.includes('hair'), 'the boy should not carry the girl’s long hair');
+  assert.deepEqual(girlNames, boyNames, 'hair must not add a texture');
+  for (const texture of skinTextures(girl)) {
+    assert.ok(texture.name.startsWith('head-') || texture.name.startsWith('torso-') || true);
+  }
+});
 
-  // The face is identical art apart from the palette: same pixels, same layout.
-  assert.deepEqual(girl.head.front.rows, skin.head.front.rows);
+test('the girl\u2019s long hair is drawn on, not modelled', () => {
+  // The owner: "the girl's hair looks weird, make it a texture only thing. Not
+  // actual 3d hair." So: the hair is in the head and torso art, and the two
+  // characters have the same number of textures (checked above) and — the part
+  // only the renderer can answer — the same number of boxes (checked in
+  // render-graph.test.js).
+  const hair = GIRL_PALETTE.hair.toLowerCase();
+  const shade = GIRL_PALETTE.hairShade.toLowerCase();
+
+  // Hair the whole way down both sides of her head, past the eyes and the jaw.
+  for (const y of [0, 2, 4, 6]) {
+    assert.equal(pixelHex(girl.head.front, 0, y), hair, `hair is missing on the left of the face at row ${y}`);
+    assert.equal(pixelHex(girl.head.front, 7, y), hair, `hair is missing on the right of the face at row ${y}`);
+  }
+  // Her face is still a face: the middle is skin, with the features on it.
+  assert.equal(pixelHex(girl.head.front, 3, 2), GIRL_PALETTE.skin.toLowerCase(), 'her forehead should be skin');
+  assert.equal(pixelHex(girl.head.front, 3, 5), GIRL_PALETTE.mouth.toLowerCase(), 'her mouth is missing');
+
+  // The side of her head is hair, top to bottom (the boy's shows an ear of skin).
+  for (let y = 0; y < 8; y++) {
+    assert.equal(pixelHex(girl.head.left, 3, y), y === 7 ? shade : hair, `side of the head, row ${y}`);
+  }
+  assert.equal(pixelHex(skin.head.left, 4, 4), CHARACTER_PALETTE.skin.toLowerCase(), 'the boy\u2019s side is skin');
+
+  // ...and it falls over the shoulders of her shirt, with a ragged end.
+  assert.equal(pixelHex(girl.torso.back, 0, 0), hair, 'her hair should cover her collar');
+  assert.equal(pixelHex(girl.torso.back, 4, 6), hair, 'the fall should still be there at the shoulder blades');
+  assert.equal(pixelHex(girl.torso.back, 4, 8), GIRL_PALETTE.shirt.toLowerCase(), 'the shirt should show below it');
+  assert.equal(pixelHex(girl.torso.back, 0, 8), GIRL_PALETTE.shirt.toLowerCase(), 'the fall should be narrower than the back');
+  assert.equal(pixelHex(skin.torso.back, 4, 4), CHARACTER_PALETTE.shirt.toLowerCase(), 'the boy\u2019s back is plain');
 });
 
 test('the clothes are plain: a collar, buttons, a hem and a belt', () => {

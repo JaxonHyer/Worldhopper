@@ -253,7 +253,9 @@ export const SETTING_DEFS = Object.freeze([
     max: 3,
     step: 0.05,
     decimals: 2,
-    default: 1.5,
+    // The owner's number (2026-10-15): "make the default sprint multiplier
+    // 2.20" — a sprint should read as a sprint, not as a brisk walk.
+    default: 2.2,
     phase: 'm1',
   },
   {

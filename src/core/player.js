@@ -169,7 +169,11 @@ export function stepPlayer(player, intent, context, dt) {
   // widens the swing instead of blurring it. Sprinting only counts while
   // actually moving: holding shift standing still is not a sprint.
   const sprinting = Boolean(intent?.sprint) && (move.x !== 0 || move.y !== 0);
-  const moveSpeed = walkSpeed * (sprinting ? Math.max(1, settings.sprint ?? 1) : 1);
+  // A setting is data that can arrive from a hand-typed URL: a multiplier that
+  // is not a finite number must not be able to poison the player's position
+  // (Math.max(1, NaN) is NaN, and a NaN velocity never comes back).
+  const sprintFactor = Number.isFinite(settings.sprint) ? Math.max(1, settings.sprint) : 1;
+  const moveSpeed = walkSpeed * (sprinting ? sprintFactor : 1);
 
   // --- look (mouse/drag impulse + held look keys) --------------------------
   // The input layer has already applied the matching sensitivity slider (mouse
@@ -263,7 +267,9 @@ export function stepPlayer(player, intent, context, dt) {
   // 4.9 times a second and read as a jitter, so past the cap the speed goes
   // into the *swing length* instead: the legs stride further, not faster.
   const speed = horizontalSpeed(player);
-  const rateCap = Math.max(0.1, settings.strideRate ?? PLAYER.maxStrideRate);
+  const rateCap = Number.isFinite(settings.strideRate)
+    ? Math.max(0.1, settings.strideRate)
+    : PLAYER.maxStrideRate;
   // The speed at which the cap starts to bite: below it the legs follow the
   // ground exactly, above it they stop quickening.
   const capSpeed = PLAYER.strideLength * rateCap;
