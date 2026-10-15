@@ -22,6 +22,7 @@ export const SETTINGS_STORAGE_KEY = 'worldhopper.settings.v1';
  */
 export const SETTING_GROUPS = Object.freeze([
   { id: 'world', label: 'world' },
+  { id: 'player', label: 'the player' },
   { id: 'camera', label: 'camera & looking' },
   { id: 'movement', label: 'walking & jumping' },
   { id: 'future', label: 'later milestones' },
@@ -233,7 +234,7 @@ export const SETTING_DEFS = Object.freeze([
   },
   {
     key: 'girlPlayer',
-    group: 'camera',
+    group: 'player',
     param: 'girl',
     kind: 'bool',
     label: 'Girl player character',

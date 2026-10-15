@@ -47,6 +47,8 @@ export const SNAPSHOT_KEYS = Object.freeze([
   'ui',
   'settings',
   'settingsHint',
+  // Which of the two player characters is on screen: 'boy' or 'girl'.
+  'avatarVariant',
 ]);
 
 const cameraScratch = createCameraState();
@@ -157,6 +159,7 @@ export function buildSnapshot({
     ui: { overlay: ui.overlay, panel: ui.panel, credits: ui.credits, touch: Boolean(ui.touch) },
     settings: { ...settings },
     settingsHint: describeSettings(settings),
+    avatarVariant: render.avatarVariant === 'girl' ? 'girl' : 'boy',
   };
 }
 

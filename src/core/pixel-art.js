@@ -228,8 +228,8 @@ export function characterSkin(options = {}) {
           'HHHHHHHH',
           'SSSSSSSS',
           'SWESSEWS', // eyes: white outside, pupil inside, a gap between them
-          'SSSNNSSS', // nose
-          'SSSMMSSS', // mouth
+          'SSSNNSSS', // nose: narrower than the mouth, so the two do not merge
+          'SSMMMMSS', // mouth
           'SSSSSSSS',
           'NNNNNNNN', // jaw
         ],

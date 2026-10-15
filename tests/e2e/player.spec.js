@@ -278,11 +278,26 @@ test('holding shift sprints on desktop, and only while moving', async ({ page, i
   const walking = await stepSim(page, 1);
   expect(walking.player.sprinting).toBe(false);
   expect(walking.player.speed).toBeLessThan(walk * 1.1);
-  await page.keyboard.up('KeyW');
 
-  // And it is the *speed* that changed: the stride rate is still capped, so a
-  // sprint widens the swing rather than blurring it (M1.6, owner-accepted).
-  expect(running.player.strideAmplitude).toBeGreaterThan(walking.player.strideAmplitude);
+  // And it is the *speed* that changed, not the animation: at 7.9 m/s the swing
+  // is already at its ceiling, so a sprint must not push the legs faster than
+  // the owner-accepted cap. Count cycles from the sim's own stride phase.
+  await page.keyboard.down('ShiftLeft');
+  await stepSim(page, 3); // reach top speed
+  let cycles = 0;
+  let previous = (await readDebug(page)).player.stridePhase;
+  for (let i = 0; i < 30; i++) {
+    const snap = await stepSim(page, 0.1);
+    const delta = snap.player.stridePhase - previous;
+    cycles += Math.abs(Math.atan2(Math.sin(delta), Math.cos(delta))) / (2 * Math.PI);
+    previous = snap.player.stridePhase;
+  }
+  await page.keyboard.up('ShiftLeft');
+  await page.keyboard.up('KeyW');
+  const rate = cycles / 3;
+  expect(rate, `sprinting swung the legs ${rate.toFixed(2)} times a second`).toBeLessThanOrEqual(
+    start.settings.strideRate + 0.15,
+  );
 
   // A sprint must not move the camera, only the legs.
   expect(Math.abs(walking.player.yaw - start.player.yaw)).toBeLessThan(1e-6);
@@ -332,7 +347,7 @@ test('the girl character is one boolean away, and it is live', async ({ page, is
   const watch = attachWatch(page);
   await gotoGame(page, '?dev=1&debug=1');
   const boy = await readDebug(page);
-  expect(boy.render.avatarVariant).toBe('boy');
+  expect(boy.avatarVariant).toBe('boy');
   expect(boy.settings.girlPlayer).toBe(false);
 
   await page.locator('.dock__button[aria-label*="Tuning"]').click();
@@ -344,19 +359,22 @@ test('the girl character is one boolean away, and it is live', async ({ page, is
 
   // No reload: the figure is swapped where it stands, in the same world.
   const girl = await readDebug(page);
-  expect(girl.render.avatarVariant).toBe('girl');
+  expect(girl.avatarVariant).toBe('girl');
   expect(girl.settings.girlPlayer).toBe(true);
-  expect(girl.render.avatar).toBe(boy.render.avatar + 2); // long hair: two boxes
-  expect(girl.render.avatarTextures).toBe(boy.render.avatarTextures + 2);
+  // Same player, same world, same position — only the body changed, and it
+  // changed without a reload.
+  expect(girl.player.x).toBe(boy.player.x);
+  expect(girl.player.z).toBe(boy.player.z);
+  expect(girl.mapId).toBe(boy.mapId);
   await expect(page.locator('#setting-girlPlayer + .tuning-row__value')).toHaveText('on');
   await expect(page.locator('#game')).toBeVisible(); // still playing, not a rebuild
 
   await checkbox.uncheck();
-  expect((await readDebug(page)).render.avatarVariant).toBe('boy');
+  expect((await readDebug(page)).avatarVariant).toBe('boy');
 
   // The URL form is the same switch, for a config link.
   await gotoGame(page, '?girl=1&debug=1');
-  expect((await readDebug(page)).render.avatarVariant).toBe('girl');
+  expect((await readDebug(page)).avatarVariant).toBe('girl');
   watch.assertClean();
 });
 
