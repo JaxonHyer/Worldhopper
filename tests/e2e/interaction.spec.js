@@ -58,6 +58,10 @@ test('arrow keys walk exactly like WASD, and pitch stays clamped when looking', 
   const watch = attachWatch(page);
   // Capture off, so a drag is a drag here: the captured path has its own suite.
   await startFrozen(page, '?capture=off');
+  // Each scripted input event is a round trip that queues behind a rendered
+  // frame, and CI renders with SwiftShader on two cores. The assertions below
+  // are about the sim, not about how fast the machine answers.
+  test.setTimeout(120_000);
   const settings = (await readDebug(page)).settings;
 
   // Two short laps, the first of which proves the ground is clear, so a rock
@@ -79,16 +83,17 @@ test('arrow keys walk exactly like WASD, and pitch stays clamped when looking', 
   expect(arrows.walked).toBeGreaterThan(1);
   expect(Math.abs(arrows.speed - wasd.speed), 'arrow keys must drive the sim exactly like WASD').toBeLessThan(0.01);
 
-  // Looking far up and far down must stop at the clamp, never flip over.
+  // Looking far up and far down must stop at the clamp, never flip over. Big
+  // drags in one step each: the sweep needs distance, not smoothness.
   const dragPitch = async (dy, times) => {
     for (let i = 0; i < times; i++) {
-      await dragLook(page, 0, dy);
+      await dragLook(page, 0, dy, 1);
       await stepSim(page, 0.05);
     }
     return (await readDebug(page)).camera.pitch;
   };
-  expect(await dragPitch(-200, 6)).toBeCloseTo(PITCH_LIMIT, 2);
-  expect(await dragPitch(200, 12)).toBeCloseTo(-PITCH_LIMIT, 2);
+  expect(await dragPitch(-400, 2)).toBeCloseTo(PITCH_LIMIT, 2);
+  expect(await dragPitch(400, 3)).toBeCloseTo(-PITCH_LIMIT, 2);
   expect((await readDebug(page)).player.grounded).toBe(true);
 
   await page.keyboard.press('r');
