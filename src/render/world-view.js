@@ -15,6 +15,7 @@ import { hash2 } from '../core/noise.js';
 import { facetNoise, groundFacetColor, groundPalette } from '../core/terrain-color.js';
 import { terrainHeight } from '../core/world-state.js';
 import { createSky } from './sky.js';
+import { createPlayerAvatar } from './player-view.js';
 
 export function createWorldView({ map, state, variant, settings }) {
   const scene = new THREE.Scene();
@@ -51,6 +52,11 @@ export function createWorldView({ map, state, variant, settings }) {
     return new THREE.MeshLambertMaterial({ color: shifted, flatShading: true });
   });
 
+  // The player's body. It is not an entity (the sim owns the player, not the
+  // entity list) and it is never authored by the renderer: this only draws it.
+  const avatar = createPlayerAvatar();
+  scene.add(avatar.group);
+
   /** entity id -> Object3D, so state changes can be mirrored without a rebuild. */
   const entityObjects = new Map();
   const disposables = [ground.geometry, ...rockMaterials, ...Object.values(landmarkMaterials)];
@@ -69,7 +75,7 @@ export function createWorldView({ map, state, variant, settings }) {
     group,
     entityObjects,
     /** Mirror state -> scene. Called once per rendered frame, allocates nothing. */
-    sync(currentState) {
+    sync(currentState, camera = null) {
       // The sky follows the player's feet, not the eye: the bob is a camera
       // effect and must not make the skyline jitter against the world.
       sky.follow(currentState.player.position);
@@ -80,6 +86,7 @@ export function createWorldView({ map, state, variant, settings }) {
           object.position.set(entity.position.x, entity.position.y, entity.position.z);
         }
       }
+      avatar.sync(currentState.player, camera);
     },
     applySettings(next, nextVariant) {
       scene.fog.color.set(nextVariant.fog.color);
@@ -105,10 +112,11 @@ export function createWorldView({ map, state, variant, settings }) {
       }
     },
     stats() {
-      return { meshes: group.children.length, entityCount: entityObjects.size };
+      return { meshes: group.children.length, entityCount: entityObjects.size, avatar: avatar.stats().boxes };
     },
     dispose() {
       for (const item of disposables) item.dispose?.();
+      avatar.dispose();
       sky.dispose();
       scene.clear();
     },

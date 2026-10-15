@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { attachWatch, dragLook, gotoGame, readDebug, saveShot, startFrozen, stepSim, touchDrag } from './helpers.js';
-import { PITCH_LIMIT } from '../../src/core/math.js';
+import { CAMERA } from '../../src/core/config.js';
 import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 /**
@@ -43,12 +43,30 @@ test('pointer/touch drag looks around without moving the player', async ({ page,
 
   expect(after.camera.yaw).not.toBe(before.camera.yaw);
   expect(Math.abs(after.camera.yaw - before.camera.yaw)).toBeGreaterThan(0.2);
-  // The sim's own angle and the input layer's measured radians must agree.
-  expect(Math.abs(Math.abs(after.camera.yaw - before.camera.yaw) - radians)).toBeLessThan(0.05);
-  // M0 has no locomotion: the eye must not have travelled.
-  expect(after.camera.x).toBeCloseTo(before.camera.x, 6);
-  expect(after.camera.y).toBeCloseTo(before.camera.y, 6);
-  expect(after.camera.z).toBeCloseTo(before.camera.z, 6);
+  // The sim's own angle and the input layer's measured radians must agree —
+  // compared as wrapped angles, because the sensitivity setting can turn a
+  // swipe past half a revolution (at the owner's look=3.7, a 260 px drag is
+  // 232°), and a yaw that crosses ±π would otherwise look like a difference.
+  const wrap = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));
+  const turned = wrap(after.camera.yaw - before.camera.yaw);
+  const expected = wrap(-radians); // dragging right turns right (yaw decreases)
+  expect(
+    Math.abs(turned - expected),
+    `the sim turned ${turned} rad but the input layer measured ${radians} rad of drag`,
+  ).toBeLessThan(0.05);
+  // Looking moves the camera, never the player. In third person the camera
+  // *does* move (it orbits), so the assertion is about the body: same spot, and
+  // the camera still exactly one boom away from it.
+  expect(after.player.x).toBeCloseTo(before.player.x, 6);
+  expect(after.player.y).toBeCloseTo(before.player.y, 6);
+  expect(after.player.z).toBeCloseTo(before.player.z, 6);
+  const boom = Math.hypot(
+    after.camera.x - after.player.x,
+    after.camera.y - (after.player.y + after.camera.aimHeight),
+    after.camera.z - after.player.z,
+  );
+  expect(boom).toBeCloseTo(after.camera.distance, 2);
+  expect(after.camera.distance).toBeLessThanOrEqual(after.settings.camDistance + 1e-6);
 
   watch.assertClean();
 });
@@ -90,16 +108,18 @@ test('arrow keys walk exactly like WASD, and pitch stays clamped when looking', 
       await dragLook(page, 0, dy, 1);
       await stepSim(page, 0.05);
     }
-    return (await readDebug(page)).camera.pitch;
+    return (await readDebug(page)).player.pitch;
   };
-  expect(await dragPitch(-400, 2)).toBeCloseTo(PITCH_LIMIT, 2);
-  expect(await dragPitch(400, 3)).toBeCloseTo(-PITCH_LIMIT, 2);
+  // Third person stops short of straight up (the boom would hit the ground):
+  // CAMERA.pitchMax / pitchMin are the limits the sim enforces here.
+  expect(await dragPitch(-400, 2)).toBeCloseTo(CAMERA.pitchMax, 2);
+  expect(await dragPitch(400, 3)).toBeCloseTo(CAMERA.pitchMin, 2);
   expect((await readDebug(page)).player.grounded).toBe(true);
 
   await page.keyboard.press('r');
   const reset = await stepSim(page, 0.05);
-  expect(reset.camera.yaw).toBeCloseTo(0, 3);
-  expect(reset.camera.pitch).toBeCloseTo(-0.04, 3);
+  expect(reset.player.yaw).toBeCloseTo(0, 3);
+  expect(reset.player.pitch).toBeCloseTo(-0.04, 3);
   watch.assertClean();
 });
 
@@ -167,20 +187,24 @@ test('palette variants change the atmosphere and the picture', async ({ page, is
   await gotoGame(page);
 
   const before = await readDebug(page);
-  expect(before.palette).toBe('ashen-basin');
+  expect(before.palette).toBe(SETTING_BY_KEY.palette.default);
   const firstShot = await saveShot(page, `palette-${before.palette}`, testInfo);
 
+  // Whichever variant the defaults picked, the test switches to a *different*
+  // one, and both the setting and the bytes on screen must change.
+  const variants = SETTING_BY_KEY.palette.values;
+  const other = variants.find((id) => id !== before.palette);
   let expected;
   if (isMobile) {
     // The phone drives it from the dev dock: cycles to the next variant.
     await page.goto('/?dev=1');
     await page.waitForFunction(() => window.__worldhopper?.ready === true);
     await page.locator('.dock__button[aria-label*="palette"]').tap();
-    expected = 'mist-sea';
+    expected = variants[(variants.indexOf(before.palette) + 1) % variants.length];
   } else {
     await page.keyboard.press('p');
-    await page.locator('#setting-palette').selectOption('cold-ridge');
-    expected = 'cold-ridge';
+    await page.locator('#setting-palette').selectOption(other);
+    expected = other;
   }
   await page.waitForTimeout(350);
 

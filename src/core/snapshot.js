@@ -11,7 +11,8 @@
 
 import { countEntities, entityHash, scaleFenceStatus } from './world-state.js';
 import { describeSettings } from './settings.js';
-import { eyePosition, horizontalSpeed } from './player.js';
+import { horizontalSpeed } from './player.js';
+import { createCameraState, resolveCamera } from './camera.js';
 
 /** Every key the overlay and the tests are allowed to rely on. */
 export const SNAPSHOT_KEYS = Object.freeze([
@@ -48,6 +49,8 @@ export const SNAPSHOT_KEYS = Object.freeze([
   'settingsHint',
 ]);
 
+const cameraScratch = createCameraState();
+
 export function buildSnapshot({
   app,
   state,
@@ -65,7 +68,12 @@ export function buildSnapshot({
   const scale = scaleFenceStatus(state);
   const stats = clock.stats();
   const player = state.player;
-  const eye = eyePosition(player);
+  // The camera is resolved here, from the player in *this* snapshot. Passing in
+  // the frame loop's camera looked equivalent and was not: a debug step() moves
+  // the player without waiting for a rendered frame, so the snapshot reported a
+  // camera that belonged to the previous position. Derived, never borrowed.
+  // (The scratch object is reused: the values are copied out below.)
+  const view = resolveCamera({ player, settings, map, seed: state.seed, obstacles: state.obstacles }, cameraScratch);
   return {
     ready: Boolean(ready),
     version: app.version,
@@ -89,11 +97,17 @@ export function buildSnapshot({
     worstFrameMs: round(frameStats.worstMs(), 2),
     longFrames: frameStats.longFrames,
     camera: {
-      x: round(eye.x, 3),
-      y: round(eye.y, 3),
-      z: round(eye.z, 3),
-      yaw: round(player.yaw, 4),
-      pitch: round(player.pitch, 4),
+      x: round(view.x, 3),
+      y: round(view.y, 3),
+      z: round(view.z, 3),
+      yaw: round(view.yaw, 4),
+      pitch: round(view.pitch, 4),
+      mode: view.mode,
+      /** metres above the feet the boom is aimed at (the point it looks at) */
+      aimHeight: round(view.targetHeight, 3),
+      distance: round(view.distance, 3),
+      clipped: Boolean(view.clipped),
+      avatar: Boolean(view.avatarVisible),
     },
     player: {
       x: round(player.position.x, 3),
@@ -102,6 +116,10 @@ export function buildSnapshot({
       speed: round(horizontalSpeed(player), 3),
       vy: round(player.velocity.y, 3),
       grounded: player.grounded,
+      // The look state belongs to the player (the camera is derived from it).
+      yaw: round(player.yaw, 4),
+      pitch: round(player.pitch, 4),
+      stridePhase: round(player.stridePhase ?? 0, 3),
       bob: round(player.bob, 4),
       jumps: player.jumps,
       landings: player.landings,

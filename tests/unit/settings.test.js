@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildConfigUrl,
   formatSettingValue,
   SETTING_DEFS,
   coerceSetting,
@@ -111,6 +112,49 @@ test('controls for milestones that have not started are declared but not live', 
   const future = SETTING_DEFS.filter((d) => d.live === false);
   assert.ok(future.length >= 1, 'expected the attunement swap window to be declared ahead of M6');
   assert.ok(future.every((d) => d.phase !== 'm1'), 'M1 controls must be live once M1 ships');
+});
+
+test('the owner’s playtested feel is the default (guard against a silent reset)', () => {
+  // Numbers pasted back from the tuning panel on 2026-10-15, together with the
+  // playtest that passed M1. If a change moves one of these, it is a decision
+  // the owner has to make, not a side effect of an edit.
+  const tuned = {
+    seed: 1607255203,
+    palette: 'cold-ridge',
+    fog: 0.0026,
+    sun: 2.4,
+    ambient: 1.25,
+    fov: 81,
+    look: 3.7,
+    lookMouse: 3.45,
+    captureMouse: 'on',
+    view: 'third',
+    walkSpeed: 7.9,
+    jumpHeight: 2.4,
+    gravity: 30.5,
+    accel: 59,
+    viewBob: 0.005,
+  };
+  const defaults = defaultSettings();
+  for (const [key, value] of Object.entries(tuned)) {
+    assert.equal(defaults[key], value, `${key} default changed (was ${value})`);
+  }
+  // And they must survive a round trip through the URL the panel writes.
+  const parsed = parseSettings({ search: buildConfigUrl(tuned).split('?')[1] });
+  for (const [key, value] of Object.entries(tuned)) {
+    assert.equal(parsed[key], value, `${key} did not survive the config link`);
+  }
+});
+
+test('the camera controls are live in M1', () => {
+  for (const key of ['view', 'camDistance']) {
+    const def = SETTING_BY_KEY[key];
+    assert.ok(def, `${key} is missing from the schema`);
+    assert.notEqual(def.live, false, `${key} should be wired up in M1`);
+    assert.equal(def.phase, 'm1');
+  }
+  assert.equal(SETTING_BY_KEY.view.default, 'third', 'the game is third person by default');
+  assert.deepEqual(SETTING_BY_KEY.view.values, ['third', 'first']);
 });
 
 test('the M1 feel controls are live', () => {

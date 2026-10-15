@@ -15,9 +15,16 @@ dangers, attune to different magic systems, and open each world's
 
 **Status: M1 — the player.** You can walk a world: a capsule against the terrain
 heightfield, solid rocks and landmark, jump with coyote time and a jump buffer,
-and a phone-first control scheme (thumb-stick, look-drag, jump button). Every
-feel number — walk speed, jump height, gravity, acceleration, view bob — is a
-live slider in the tuning panel.
+and a phone-first control scheme (thumb-stick, look-drag, jump button). The
+camera is **third person** — a boom behind your character, which pulls in rather
+than pass through terrain (`?view=first` puts you back behind the eyes). Every
+feel number — walk speed, jump height, gravity, acceleration, view bob, camera
+distance — is a live slider in the tuning panel.
+
+**Art direction:** characters are **blocky** (box limbs, flat colours, a
+Minecraft-style build) — the player today, enemies at M3 and NPCs at M5 follow
+the same recipe. The *world* stays low-poly faceted. Both are generated in code:
+no imported models, no textures.
 
 ---
 
@@ -38,6 +45,11 @@ without a mouse. If capture is refused (an embedded frame, for instance) or
 switched off with `?capture=off`, dragging with the button held looks around
 instead — the game is playable either way.
 
+**Camera:** third person by default — you are looking at your character from
+behind, and the camera slides closer when a hill or a rock is in the way. Look
+up is limited (the boom would end up in the floor); **Camera** in the tuning
+panel switches to first person, where the full vertical range comes back.
+
 **Phone:** the left half of the screen is a thumb-stick (it appears where your
 thumb lands), drag on the right to look, and the round **jump** button is
 bottom-right. It also works with a mouse if you just want to test the layout.
@@ -55,6 +67,8 @@ buttons (add `?dev=1` to the URL) give the same tools.
 | `palette` | `?palette=cold-ridge` | atmosphere variant (`ashen-basin`, `mist-sea`, `cold-ridge`) |
 | `walk`, `jump`, `gravity`, `accel`, `bob` | `?walk=9&jump=2.5&bob=0` | how walking feels |
 | `fog`, `sun`, `ambient`, `fov` | `?fog=0.0042` | atmosphere |
+| `view` | `?view=first` | `third` (default, over the shoulder) or `first` (through the eyes) |
+| `camdist` | `?camdist=6` | third-person boom length in metres (1.2–8) |
 | `look`, `mouselook` | `?mouselook=1.4` | look sensitivity: dragging, and the captured mouse |
 | `capture` | `?capture=off` | `off` = never capture the mouse; drag to look instead |
 | `debug` | `?debug=1` | open the debug overlay immediately |

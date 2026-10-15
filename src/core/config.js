@@ -58,7 +58,41 @@ export const PLAYER = Object.freeze({
   strideLength: 1.6,
 });
 
-/** Simulation loop. Fixed timestep so runs are reproducible from a seed. */
+/**
+ * Camera. The player is drawn in third person by default (the owner's call):
+ * the boom sits behind the character and looks at a point at chest height.
+ *
+ * Structural numbers only — the view switch and the boom length are settings,
+ * so the owner tunes them in the panel. The camera is *never* allowed under the
+ * ground or inside a rock: it pulls in instead, and FENCE.cameraNearMin still
+ * holds, so a short boom does not clip.
+ */
+export const CAMERA = Object.freeze({
+  /** metres above the feet that the boom aims at (chest height, not the eyes) */
+  targetHeight: 1.35,
+  /** boom length when the setting is untouched (m) */
+  distance: 4.2,
+  /** shortest boom: closer than this and the camera is inside the head (m) */
+  minDistance: 1.1,
+  /** longest boom the slider allows (m) */
+  maxDistance: 8,
+  /** metres of clearance kept between the camera and whatever is behind it */
+  clearance: 0.35,
+  /** samples used to find the first obstruction along the boom (fixed cost) */
+  samples: 8,
+  /** below this boom length the avatar is hidden: the camera is inside it (m) */
+  hideAvatarBelow: 1.0,
+  /**
+   * Third-person pitch range (rad). Looking *up* swings the boom down towards
+   * the floor, so the upper bound is what keeps the camera out of the ground;
+   * the lower bound (looking down) is where a shoulder camera is most useful.
+   */
+  pitchMin: -1.1,
+  pitchMax: 0.6,
+});
+
+/**
+ * Simulation loop. Fixed timestep so runs are reproducible from a seed. */
 export const SIM = Object.freeze({
   fixedStepHz: 60,
   /** Max sim steps per rendered frame (spiral-of-death guard). */

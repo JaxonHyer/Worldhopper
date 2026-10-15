@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { attachWatch, gotoGame, readDebug, saveShot, startFrozen, stepSim } from './helpers.js';
+import { CAMERA } from '../../src/core/config.js';
 import { PITCH_LIMIT } from '../../src/core/math.js';
 import { MOUSE_RAD_PER_PIXEL } from '../../src/core/look.js';
+import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 /**
  * Desktop look: standard mouse capture (Pointer Lock).
@@ -101,7 +103,7 @@ async function measuredTurn(page, { x = 0, y = 0, times = 1 } = {}) {
       const after = api.step(0.05);
       // Wrapped, so a turn across ±π is still measured as the turn it is.
       const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-      return { yaw: wrap(after.camera.yaw - before.camera.yaw), pitch: after.camera.pitch };
+      return { yaw: wrap(after.camera.yaw - before.camera.yaw), pitch: after.player.pitch };
     },
     { x, y, times },
   );
@@ -174,18 +176,28 @@ test('captured movement turns the camera, within the pitch limit', async ({ page
     description: `Captured deltas are driven with known values (${MOUSE_RAD_PER_PIXEL} rad/px); the browser's own synthetic mouse under a locked pointer reports unusable magnitudes.`,
   });
 
-  // 2 × 100 px right: the camera turns right by exactly 200 × 0.0026 rad.
+  // 2 × 100 px right: the camera turns right by exactly the base radians per
+  // pixel × the sensitivity the game ships with (the owner's playtested number,
+  // not a test's idea of a nice value).
+  const sensitivity = SETTING_BY_KEY.lookMouse.default;
   const turned = await measuredTurn(page, { x: 100, times: 2 });
   expect(turned.yaw, `captured movement did not turn the camera: ${JSON.stringify(turned)}`).toBeCloseTo(
-    -200 * MOUSE_RAD_PER_PIXEL,
+    -200 * MOUSE_RAD_PER_PIXEL * sensitivity,
     3,
   );
+  // ...and the same stroke turns *less* when the player lowers the setting.
+  await page.evaluate(() => window.__worldhopper.setSetting('lookMouse', 1));
+  const atOne = await measuredTurn(page, { x: 100, times: 2 });
+  expect(atOne.yaw).toBeCloseTo(-200 * MOUSE_RAD_PER_PIXEL, 3);
+  expect(Math.abs(atOne.yaw)).toBeLessThan(Math.abs(turned.yaw));
+  await page.evaluate((value) => window.__worldhopper.setSetting('lookMouse', value), sensitivity);
 
-  // Pitch is clamped however far the mouse travels, and it does reach the limit.
+  // Pitch is clamped however far the mouse travels, and it does reach the
+  // limit — the third-person limit, which stops short of straight up.
   const up = await measuredTurn(page, { y: -120, times: 40 });
-  expect(up.pitch).toBeCloseTo(PITCH_LIMIT, 2);
+  expect(up.pitch).toBeCloseTo(CAMERA.pitchMax, 2);
   const down = await measuredTurn(page, { y: 120, times: 80 });
-  expect(down.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
+  expect(down.pitch).toBeCloseTo(CAMERA.pitchMin, 2);
 
   // Looking never moves the player, and walking still works while captured.
   // The sweeps above left the camera pointing anywhere, so face the spawn
@@ -281,6 +293,41 @@ test('the mouse-look sensitivity slider changes how far the camera turns', async
   await page.evaluate(() => window.__worldhopper.setSetting('lookMouse', 0.2));
   const least = await turn(240);
   expect(least).toBeCloseTo(240 * MOUSE_RAD_PER_PIXEL * 0.2, 3);
+
+  watch.assertClean();
+});
+
+test('first person looks further up than third, and draws no body', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'desktop control path');
+  const watch = attachWatch(page);
+  const start = await startFrozen(page, '?view=first');
+  expect(start.camera.mode).toBe('first');
+  expect(start.camera.avatar).toBe(false);
+  await clickWorld(page);
+
+  const seen = await state(page);
+  if (seen.state !== 'locked') {
+    test.info().annotations.push({ type: 'note', description: 'Pointer lock refused here; the first-person pitch sweep was not exercised.' });
+    watch.assertClean();
+    return;
+  }
+
+  // First person reaches the flip-over limit, not the third-person one...
+  const up = await measuredTurn(page, { y: -120, times: 40 });
+  expect(up.pitch).toBeCloseTo(PITCH_LIMIT, 2);
+  // ...and the camera follows the player's own pitch there, with no boom and no
+  // body in the way.
+  const raised = await readDebug(page);
+  expect(raised.camera.mode).toBe('first');
+  expect(raised.camera.distance).toBe(0);
+  expect(raised.camera.avatar).toBe(false);
+  expect(raised.camera.pitch).toBeCloseTo(PITCH_LIMIT, 2);
+  expect(raised.camera.pitch).toBeCloseTo(raised.player.pitch, 4);
+
+  const down = await measuredTurn(page, { y: 120, times: 80 });
+  expect(down.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
+  const lowered = await readDebug(page);
+  expect(lowered.camera.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
 
   watch.assertClean();
 });

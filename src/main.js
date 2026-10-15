@@ -2,10 +2,11 @@
  * Entry point: wires settings, world state, the player, the renderer, the sim
  * loop and the dev UI together.
  *
- * M1 scope: you can walk a world — W/A/S/D or a thumb-stick, drag to look,
- * space or a button to jump, with capsule-vs-heightfield collision, and every
- * feel number live in the tuning panel. One world state, one camera derived
- * from it.
+ * M1 scope: you can walk a world — W/A/S/D or a thumb-stick, look with the
+ * mouse or a drag, space or a button to jump, with capsule-vs-heightfield
+ * collision, and every feel number live in the tuning panel. The camera is
+ * derived from the player every frame (third person by default, `?view=first`
+ * for the eye) and is never a second copy of the world.
  */
 
 import './style.css';
@@ -14,7 +15,7 @@ import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
 import { createWorldState, countEntities, entityHash, stepWorld } from './core/world-state.js';
 import { buildSnapshot } from './core/snapshot.js';
-import { eyePosition } from './core/player.js';
+import { createCameraState, resolveCamera } from './core/camera.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from './core/maps/index.js';
 import {
   parseSettings,
@@ -69,6 +70,9 @@ function bootstrap() {
 
   const clock = createFixedClock({ stepHz: SIM.fixedStepHz, maxSubsteps: SIM.maxSubsteps, maxFrameDelta: SIM.maxFrameDelta });
   const frameStats = createFrameStats();
+  // One camera object for the whole session: rebuild the *values* every frame,
+  // never the object (nothing in the loop allocates).
+  const camera = createCameraState();
 
   // The HUD owns the touch surfaces; input drives them. Build the HUD first —
   // it used to be the other way round, which left the jump button dead on a
@@ -224,10 +228,11 @@ function bootstrap() {
 
     view.setFov(settings.fov);
     view.resize();
-    const eye = eyePosition(state.player);
-    view.camera.position.set(eye.x, eye.y, eye.z);
-    view.camera.rotation.set(state.player.pitch, state.player.yaw, 0);
-    world.sync(state);
+    // The camera is derived from the player; the sim never reads it back.
+    resolveCamera({ player: state.player, settings, map, seed: state.seed, obstacles: state.obstacles }, camera);
+    view.camera.position.set(camera.x, camera.y, camera.z);
+    view.camera.rotation.set(camera.pitch, camera.yaw, 0);
+    world.sync(state, camera);
     view.render(world.scene);
 
     debugOverlay.refresh(snapshot());

@@ -80,6 +80,23 @@ non-interactive, and M2 is the Cognitive Realm.*
 - [x] 118 headless unit tests + 60 e2e tests on desktop and phone projects
 - [ ] **M1 sign-off — needs the owner's playtest** (checklist in the PR)
 
+### M1.5 — third person + the blocky look (owner's playtest notes, 2026-10-15)
+
+*M1 passed playtest ("that was a pass"), with two changes: third person, and
+blocky characters.)*
+
+- [x] Third-person camera: a boom behind the character, which shortens rather
+      than pass through terrain or rocks, and hides the body when it is too
+      short to see past
+- [x] `Camera` (third/first) and `Camera distance` controls; first person keeps
+      the full vertical look range
+- [x] Blocky player: box limbs with pivots at the shoulders and hips, walking
+      cycle driven by the sim's stride phase, arms raised in the air
+- [x] The owner's playtested feel numbers are the defaults (pinned by a test)
+- [x] Tuning panel grouped into world / camera & looking / walking & jumping
+- [ ] **M1.5 sign-off — needs the owner's playtest** (third person distance and
+      height, the blocky look, and whether the avatar's walk reads well)
+
 ### Blocked on the owner
 
 - **M1 sign-off** — the checklist in PR #2 needs a playtest (phone first: stick,
