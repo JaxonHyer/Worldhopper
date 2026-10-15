@@ -185,11 +185,18 @@ test('captured movement turns the camera, within the pitch limit', async ({ page
   expect(down.camera.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
 
   // Looking never moves the player, and walking still works while captured.
+  // The sweeps above left the camera pointing anywhere, so face the spawn
+  // corridor again first: walking into a rock is a collision, not a failure.
+  await page.keyboard.press('r');
   const walked = await stepSim(page, 0.05);
   await page.keyboard.down('KeyW');
   const afterWalk = await stepSim(page, 1);
   await page.keyboard.up('KeyW');
-  expect(Math.abs(afterWalk.player.z - walked.player.z)).toBeGreaterThan(2);
+  expect(
+    Math.abs(afterWalk.player.z - walked.player.z),
+    `walking while captured went nowhere: z ${walked.player.z} -> ${afterWalk.player.z}, yaw ${afterWalk.camera.yaw}`,
+  ).toBeGreaterThan(2);
+  expect(afterWalk.player.speed).toBeGreaterThan(3);
   expect(afterWalk.input.capture).toBe('locked');
 
   await saveShot(page, 'mouse-look', testInfo);
