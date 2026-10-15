@@ -69,10 +69,16 @@ function bootstrap() {
 
   const clock = createFixedClock({ stepHz: SIM.fixedStepHz, maxSubsteps: SIM.maxSubsteps, maxFrameDelta: SIM.maxFrameDelta });
   const frameStats = createFrameStats();
+
+  // The HUD owns the touch surfaces; input drives them. Build the HUD first —
+  // it used to be the other way round, which left the jump button dead on a
+  // phone because the element did not exist yet when input looked for it.
+  const coarse = detectTouch(flags.touch);
+  const hud = createHud({ mount: uiMount, coarsePointer: coarse, onJump: () => {} });
   const input = createInput({
     canvas,
-    mount: uiMount,
     onHotkey,
+    elements: { stick: hud.stick, knob: hud.knob, jump: hud.jump },
   });
 
   const debugOverlay = createDebugOverlay({ mount: uiMount });
@@ -93,18 +99,6 @@ function bootstrap() {
   });
   dock.setDevVisible(flags.dev);
   if (flags.debug) debugOverlay.show();
-
-  const coarse = detectTouch();
-  function detectTouch() {
-    if (flags.touch) return true;
-    if (typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0) return true;
-    if (typeof matchMedia === 'function') {
-      if (matchMedia('(pointer: coarse)').matches) return true;
-      if (matchMedia('(hover: none)').matches) return true;
-    }
-    return false;
-  }
-  const hud = createHud({ mount: uiMount, coarsePointer: coarse, onJump: () => {} });
 
   // Expose the debug surface the headless smoke test asserts against (§8).
   const debugApi = {
@@ -375,6 +369,17 @@ function describeSettingsSafe(settings) {
 }
 
 // --- helpers --------------------------------------------------------------
+
+/** Touch-first detection: hardware capability, plus the ?touch=1 override. */
+function detectTouch(force = false) {
+  if (force) return true;
+  if (typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0) return true;
+  if (typeof matchMedia === 'function') {
+    if (matchMedia('(pointer: coarse)').matches) return true;
+    if (matchMedia('(hover: none)').matches) return true;
+  }
+  return false;
+}
 
 function safeStorage() {
   try {

@@ -28,7 +28,7 @@ const MOVE_KEYS = {
   ArrowRight: [1, 0],
 };
 
-export function createInput({ canvas, mount, onHotkey }) {
+export function createInput({ canvas, onHotkey, elements = {} }) {
   const keys = new Set();
   const hotkeys = { overlay: '`', panel: 'p', credits: 'c', palette: 'v', resetView: 'r' };
 
@@ -64,9 +64,11 @@ export function createInput({ canvas, mount, onHotkey }) {
   let jumpQueued = false;
 
   // --- visuals (owned by the HUD, positioned here) ------------------------
-  const stickEl = mount?.querySelector?.('.touch-stick') ?? null;
-  const knobEl = mount?.querySelector?.('.touch-stick__knob') ?? null;
-  const jumpEl = mount?.querySelector?.('.touch-jump') ?? null;
+  // Passed in, not queried: the HUD must exist first, and a query that returns
+  // null here silently disables the jump button on the device it exists for.
+  const stickEl = elements.stick ?? null;
+  const knobEl = elements.knob ?? null;
+  const jumpEl = elements.jump ?? null;
 
   const pointerZone = (event) => {
     const rect = canvas.getBoundingClientRect();

@@ -234,3 +234,8 @@ this to stay oriented; agents add to it in the same PR as the change.
   the *same height* under any gravity because gravity is used as the spring rate
   — so the test now asserts the apex, and that heavier gravity shortens the
   flight instead of lowering the jump.
+- **The HUD is built before the input layer, and input receives its elements
+  explicitly.** `createInput` used to query the DOM for `.touch-jump` and the
+  stick, and it ran before the HUD existed — so on a real phone the jump button
+  did nothing at all and the stick ring never appeared. The headless test caught
+  the dead button; the new visibility assertion catches the missing ring.

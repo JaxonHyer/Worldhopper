@@ -136,6 +136,13 @@ test('the thumb-stick walks the player, and releasing stops them', async ({ page
 
   // Keep the thumb down so the stick stays pushed, then drive the sim by hand.
   const stick = await openStick(page, 0, -120);
+  // The ring and knob must actually appear: the inputs were driving the sim
+  // while the visuals were silently missing, which only a screenshot showed.
+  await expect(page.locator('.touch-stick')).toBeVisible();
+  const knob = await page.locator('.touch-stick__knob').boundingBox();
+  const ring = await page.locator('.touch-stick').boundingBox();
+  expect(knob.y).toBeLessThan(ring.y + ring.height / 2 - 10);
+
   const moving = await stepSim(page, 1.5);
   expect(moving.input.stick).not.toBeNull();
   expect(moving.input.stick.magnitude).toBeGreaterThan(0.5);
@@ -152,10 +159,12 @@ test('the jump button jumps on a phone', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch path');
   const watch = attachWatch(page);
   const before = await startFrozen(page);
+  const jumpsBefore = await page.evaluate(() => window.__worldhopper.player().jumps);
   await page.locator('.touch-jump').tap();
   const airborne = await stepSim(page, 0.3);
   expect(airborne.player.y).toBeGreaterThan(before.player.y + 0.3);
   expect(airborne.player.jumps).toBe(before.player.jumps + 1);
+  expect(airborne.player.jumps).toBe(jumpsBefore + 1);
 
   const landed = await stepSim(page, 2);
   expect(landed.player.grounded).toBe(true);
