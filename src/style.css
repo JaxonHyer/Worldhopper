@@ -55,6 +55,12 @@ body {
   cursor: grabbing;
 }
 
+/* Captured: the system cursor is hidden by the browser, so the crosshair in
+   the HUD is the only thing telling the player where "straight ahead" is. */
+#game.is-captured {
+  cursor: none;
+}
+
 .ui {
   position: fixed;
   inset: 0;
@@ -489,4 +495,46 @@ body:has(.hud.is-touch) .dock {
     bottom: calc(6px + var(--safe-bottom));
     font-size: 11px;
   }
+}
+
+/* --- mouse capture crosshair -------------------------------------------- */
+
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  opacity: 0.55;
+}
+
+.crosshair span {
+  position: absolute;
+  background: var(--ui-text);
+  border-radius: 1px;
+}
+
+/* a thin plus: two bars, never a filled dot that hides what you are aiming at */
+.crosshair span:first-child {
+  left: 50%;
+  top: 0;
+  width: 1.5px;
+  height: 100%;
+  margin-left: -0.75px;
+}
+
+.crosshair span:last-child {
+  top: 50%;
+  left: 0;
+  height: 1.5px;
+  width: 100%;
+  margin-top: -0.75px;
+}
+
+/* The hint is a prompt while the mouse is free, so make it readable. */
+.hud__hint {
+  font-size: 12px;
+  color: var(--ui-text);
+  background: rgba(12, 17, 22, 0.72);
 }

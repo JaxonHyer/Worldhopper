@@ -149,9 +149,12 @@ export function stepPlayer(player, intent, context, dt) {
   const accelGround = Math.max(0, settings.accel);
   const move = intent?.move ?? { x: 0, y: 0 };
 
-  // --- look (drag impulse + held keys / stick-free look) -------------------
+  // --- look (mouse/drag impulse + held look keys) --------------------------
+  // The input layer has already applied the matching sensitivity slider (mouse
+  // and drag are different devices), so the sim only clamps and wraps here.
   applyLook(player, { lookImpulse: intent?.lookImpulse ?? null, lookRate: intent?.lookRate ?? null }, dt, {
-    sensitivity: settings.look,
+    sensitivity: 1,
+    invertY: settings.invertY ?? false,
   });
 
   // --- jump buffering ------------------------------------------------------

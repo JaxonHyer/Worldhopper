@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { attachWatch, gotoGame, openStick, pauseSim, readDebug, saveShot, stepSim, touchDrag } from './helpers.js';
+import { attachWatch, gotoGame, openStick, readDebug, saveShot, startFrozen, stepSim, touchDrag } from './helpers.js';
 import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 /**
@@ -13,17 +13,6 @@ import { SETTING_BY_KEY } from '../../src/core/settings.js';
  */
 
 const WALK = SETTING_BY_KEY.walkSpeed.default;
-
-/**
- * Load the game and freeze the frame loop's simulation, so every subsequent
- * assertion is about the sim, not about how fast the machine renders. Real
- * input events still arrive normally; only time is under test control.
- */
-async function startFrozen(page, query = '') {
-  await gotoGame(page, query);
-  await pauseSim(page, true);
-  return readDebug(page);
-}
 
 /** Step in slices and track the highest point, for apex assertions. */
 async function jumpPeak(page, { seconds = 1.6, slice = 0.05 } = {}) {

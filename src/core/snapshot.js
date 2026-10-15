@@ -110,11 +110,13 @@ export function buildSnapshot({
     input: input
       ? {
           mode: input.mode,
+          capture: input.capture,
+          captured: input.captured,
           stick: input.stick,
           looking: input.looking,
           heldKeys: input.heldKeys,
         }
-      : { mode: 'unknown', stick: null, looking: false, heldKeys: 0 },
+      : { mode: 'unknown', capture: 'unknown', captured: false, stick: null, looking: false, heldKeys: 0 },
     distanceFromOrigin: round(scale.distance, 3),
     scaleFence: { worst: round(scale.worst, 2), limit: scale.limit, warn: scale.warn },
     entityCount: countEntities(state),

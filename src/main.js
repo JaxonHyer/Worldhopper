@@ -33,7 +33,7 @@ import { createDebugOverlay } from './ui/debug-overlay.js';
 import { createTuningPanel } from './ui/tuning-panel.js';
 import { createCredits } from './ui/credits.js';
 import { createDock } from './ui/dock.js';
-import { createHud } from './ui/hud.js';
+import { HINTS, createHud } from './ui/hud.js';
 
 const canvas = document.getElementById('game');
 const uiMount = document.getElementById('ui');
@@ -78,6 +78,8 @@ function bootstrap() {
   const input = createInput({
     canvas,
     onHotkey,
+    onCaptureChange: (captured) => hud.setCaptured(captured),
+    sensitivity: () => ({ drag: settings.look, mouse: settings.lookMouse }),
     elements: { stick: hud.stick, knob: hud.knob, jump: hud.jump },
   });
 
@@ -111,6 +113,10 @@ function bootstrap() {
     setSetting: (key, raw) => applySetting(key, raw),
     /** Input counters, so a dead drag reports which stage went missing. */
     input: () => input.stats(),
+    /** Mouse capture, for the desktop-look tests. */
+    capture: () => input.captureState(),
+    requestCapture: () => input.requestCapture(),
+    releaseCapture: () => input.releaseCapture(),
     /**
      * Freeze/unfreeze the frame loop's simulation. The renderer keeps drawing,
      * but nothing advances the world, so a headless test can drive the sim
@@ -234,8 +240,10 @@ function bootstrap() {
   }
 
   hud.setTouchControls(coarse);
-  // The hint is for the first few seconds only; after that it is clutter.
-  hud.scheduleHintHide();
+  // Tell the owner what the mouse is doing: capture it, or drag instead.
+  if (coarse) hud.setHint(HINTS.touch);
+  else if (input.captureState() === input.CAPTURE.unsupported) hud.setHint(HINTS.desktopNoCapture);
+  else hud.setHint(HINTS.desktopUncaptured);
   requestAnimationFrame(frame);
 
   // --- settings plumbing --------------------------------------------------
@@ -317,9 +325,20 @@ function bootstrap() {
 
   function onHotkey(action) {
     if (action === 'overlay') debugOverlay.toggle();
-    else if (action === 'panel') panel.toggle();
-    else if (action === 'credits') credits.toggle();
-    else if (action === 'palette') cyclePalette();
+    else if (action === 'panel') {
+      // A captured mouse cannot click sliders: give the cursor back.
+      if (panel.visible) panel.hide();
+      else {
+        input.releaseCapture();
+        panel.show();
+      }
+    } else if (action === 'credits') {
+      if (credits.visible) credits.hide();
+      else {
+        input.releaseCapture();
+        credits.show();
+      }
+    } else if (action === 'palette') cyclePalette();
     else if (action === 'resetView') {
       state.player.yaw = 0;
       state.player.pitch = -0.04;
@@ -348,6 +367,8 @@ function bootstrap() {
       paused: pausedSim,
       input: {
         mode: touchSeen ? 'touch' : 'keyboard',
+        capture: input.captureState(),
+        captured: input.isCaptured(),
         stick: stick.active ? { x: round(stick.x, 3), y: round(stick.y, 3), magnitude: round(stick.magnitude, 3) } : null,
         looking: input.isDragging(),
         heldKeys: input.heldKeys().length,

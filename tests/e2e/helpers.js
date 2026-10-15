@@ -72,6 +72,17 @@ export async function pauseSim(page, paused = true) {
   await page.evaluate((p) => window.__worldhopper.pause(p), paused);
 }
 
+/**
+ * Load the game and freeze the frame loop's simulation, so every subsequent
+ * assertion is about the sim, not about how fast the machine renders. Real
+ * input events still arrive normally; only time is under test control.
+ */
+export async function startFrozen(page, query = '') {
+  await gotoGame(page, query);
+  await pauseSim(page, true);
+  return readDebug(page);
+}
+
 export async function gotoGame(page, query = '') {
   await page.goto(`/${query}`);
   await waitForReady(page);

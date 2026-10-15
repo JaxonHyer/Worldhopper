@@ -239,3 +239,29 @@ this to stay oriented; agents add to it in the same PR as the change.
   stick, and it ran before the HUD existed — so on a real phone the jump button
   did nothing at all and the stick ring never appeared. The headless test caught
   the dead button; the new visibility assertion catches the missing ring.
+- **Desktop look is standard mouse capture (Pointer Lock); touch is untouched.**
+  Click the world to capture, the camera then follows mouse movement with no
+  button held, Esc releases it. A crosshair appears while captured (the system
+  cursor is hidden, so nothing else says which way is forward) and the hint line
+  says how to release. This is what "desktop controls" means to a player.
+- **Capture is a small explicit state machine** (`unsupported → unlocked →
+  pending → locked | denied`) exposed through `window.__worldhopper.capture()`.
+  A browser or an embedded frame can refuse the lock, so the state is *reported*
+  rather than assumed: the overlay and the tests can both see it.
+- **Drag-to-look stays live as the fallback.** It is what a finger uses, and it
+  is what a mouse uses when the lock is refused (an iframe without the
+  `pointer-lock` permission, for instance). A browser permission must never be
+  the difference between playable and not.
+- **Two sensitivity sliders instead of one:** *Look sensitivity (drag)* and
+  *Mouse look (captured)*. They are different devices — a finger travels across
+  the glass and a captured mouse reports raw movement — so they get different
+  base factors (0.0042 and 0.0026 rad/px) and can be tuned apart. Sensitivity is
+  applied by the input layer, which is the only place that knows which device a
+  delta came from; the sim just clamps and wraps.
+- **Opening the tuning panel or the credits releases the mouse.** A captured
+  cursor cannot click a slider, so the panel hands it back (and the tests assert
+  the slider can be focused immediately afterwards).
+- **Raw mouse input where the browser supports it** (`requestPointerLock({
+  unadjustedMovement: true })`), falling back to a plain request, so the camera
+  does not inherit the operating system's pointer acceleration when the browser
+  can avoid it.
