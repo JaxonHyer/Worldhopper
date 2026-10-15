@@ -43,8 +43,17 @@ test('pointer/touch drag looks around without moving the player', async ({ page,
 
   expect(after.camera.yaw).not.toBe(before.camera.yaw);
   expect(Math.abs(after.camera.yaw - before.camera.yaw)).toBeGreaterThan(0.2);
-  // The sim's own angle and the input layer's measured radians must agree.
-  expect(Math.abs(Math.abs(after.camera.yaw - before.camera.yaw) - radians)).toBeLessThan(0.05);
+  // The sim's own angle and the input layer's measured radians must agree —
+  // compared as wrapped angles, because the sensitivity setting can turn a
+  // swipe past half a revolution (at the owner's look=3.7, a 260 px drag is
+  // 232°), and a yaw that crosses ±π would otherwise look like a difference.
+  const wrap = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));
+  const turned = wrap(after.camera.yaw - before.camera.yaw);
+  const expected = wrap(-radians); // dragging right turns right (yaw decreases)
+  expect(
+    Math.abs(turned - expected),
+    `the sim turned ${turned} rad but the input layer measured ${radians} rad of drag`,
+  ).toBeLessThan(0.05);
   // Looking moves the camera, never the player. In third person the camera
   // *does* move (it orbits), so the assertion is about the body: same spot, and
   // the camera still exactly one boom away from it.
