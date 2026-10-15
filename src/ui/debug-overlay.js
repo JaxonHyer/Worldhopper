@@ -47,6 +47,8 @@ export function createDebugOverlay({ mount, onRefresh, now = () => performance.n
 
   // Fixed rows (stable layout = readable, and no reflow churn per update).
   setRow('fps', 'fps / frame');
+  setRow('player', 'player');
+  setRow('input', 'input');
   setRow('tick', 'tick / sim time');
   setRow('realm', 'realm / map');
   setRow('seed', 'seed / palette');
@@ -63,6 +65,19 @@ export function createDebugOverlay({ mount, onRefresh, now = () => performance.n
 
     const fps = snapshot.fps == null ? '—' : snapshot.fps.toFixed(0);
     set('fps', `${fps} fps · ${snapshot.frameMs.toFixed(1)} ms (worst ${snapshot.worstFrameMs.toFixed(1)})`);
+    const player = snapshot.player;
+    set(
+      'player',
+      `${player.x.toFixed(1)}, ${player.y.toFixed(2)}, ${player.z.toFixed(1)}\n` +
+        `${player.speed.toFixed(2)} m/s · vy ${player.vy.toFixed(1)} · ${player.grounded ? 'grounded' : 'airborne'}` +
+        `${snapshot.paused ? ' · PAUSED' : ''}`,
+    );
+    const input = snapshot.input;
+    set(
+      'input',
+      `${input.mode}${input.looking ? ' · looking' : ''}${input.heldKeys ? ` · ${input.heldKeys} key(s)` : ''}` +
+        `${input.stick ? `\nstick ${input.stick.x.toFixed(2)}, ${input.stick.y.toFixed(2)} (${input.stick.magnitude.toFixed(2)})` : ''}`,
+    );
     set('tick', `${snapshot.tick} · ${snapshot.simTime.toFixed(2)} s`);
     set('realm', `${snapshot.realm} · ${snapshot.mapId}`);
     set('seed', `${snapshot.seed} · ${snapshot.palette}`);

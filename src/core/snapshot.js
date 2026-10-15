@@ -25,7 +25,9 @@ export const SNAPSHOT_KEYS = Object.freeze([
   'palette',
   'tick',
   'simTime',
+  'clockTime',
   'droppedSubsteps',
+  'paused',
   'fps',
   'frameMs',
   'worstFrameMs',
@@ -57,6 +59,7 @@ export function buildSnapshot({
   render,
   ui,
   input,
+  paused,
   ready,
 }) {
   const scale = scaleFenceStatus(state);
@@ -72,9 +75,15 @@ export function buildSnapshot({
     realm: state.realm,
     seed: state.seed,
     palette: variant.id,
-    tick: stats.tick,
-    simTime: round(stats.simTime, 3),
+    // The simulation owns these counters: the debug clock can advance them
+    // without the renderer, which is how the headless tests drive the game.
+    tick: state.tick,
+    simTime: round(state.simTime, 3),
+    // How much time the frame loop was allowed to simulate: simTime must never
+    // overtake it, however slow the renderer is.
+    clockTime: round(stats.simTime, 3),
     droppedSubsteps: stats.droppedSubsteps,
+    paused: Boolean(paused),
     fps: frameStats.fps(),
     frameMs: round(frameStats.meanMs(), 2),
     worstFrameMs: round(frameStats.worstMs(), 2),

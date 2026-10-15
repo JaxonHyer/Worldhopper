@@ -209,3 +209,15 @@ this to stay oriented; agents add to it in the same PR as the change.
   turns out to bother the owner.
 - **The camera is derived, never stored:** `eye = feet + eyeHeight + bob`. The
   sky follows the player's feet so the bob cannot make the skyline jitter.
+- **The headless tests drive sim time directly (`window.__worldhopper.step(seconds)`)
+  instead of sleeping.** CI's software renderer runs at ~6 fps, where the
+  fixed-step clock can only simulate ~50% of wall-clock time, so seven M1 tests
+  failed on *speed* rather than on logic. Real input events, deterministic time:
+  input still comes from real key presses and real touch events, then the sim is
+  advanced by hand. The frame loop can be frozen with `pause(true)` for screenshots.
+- **`clockTime` is in the snapshot, and `simTime <= clockTime` is asserted.** The
+  sim is allowed to fall behind the clock (long frames are clamped by design),
+  never to run ahead of it — that invariant is the real guarantee, and it is now
+  tested instead of assumed.
+- **The debug overlay shows the player and the input mode**, not just the camera;
+  "which mode does the game think I'm in" is otherwise invisible.

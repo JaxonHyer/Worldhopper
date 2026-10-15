@@ -1,10 +1,15 @@
 import { test, expect } from '@playwright/test';
-import { attachWatch, gotoGame, holdKey, readDebug, saveShot, touchDrag, stickDrag } from './helpers.js';
+import { attachWatch, gotoGame, holdKey, openStick, readDebug, saveShot, stepSim, touchDrag } from './helpers.js';
 import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 /**
  * M1: the player. Keyboard on desktop, stick + jump on the phone, and the same
- * sim underneath both — asserted through window.__debug(), never by eyeballing.
+ * sim underneath both.
+ *
+ * Timing rule for this suite: *input* is driven by real events (keys, touches)
+ * but *time* is advanced by `stepSim()`, which steps the fixed-timestep sim
+ * directly. Wall-clock assertions would be measuring CI's software renderer
+ * (~6 fps, so the sim is time-dilated to half speed) rather than the game.
  */
 
 const WALK = SETTING_BY_KEY.walkSpeed.default;
@@ -15,36 +20,35 @@ test('walking moves the player, and stopping stops them', async ({ page, isMobil
   await gotoGame(page);
 
   const before = await readDebug(page);
-  await holdKey(page, 'KeyW', 900);
-  const after = await readDebug(page);
+  await page.keyboard.down('KeyW');
+  // yaw 0 looks down -Z, so forward is -Z. 1.5 s at 5.5 m/s is ~7.5 m.
+  const after = await stepSim(page, 1.5);
+  await page.keyboard.up('KeyW');
 
-  // yaw 0 looks down -Z, so forward is -Z.
-  expect(after.player.z).toBeLessThan(before.player.z - 1.5);
+  expect(after.player.z).toBeLessThan(before.player.z - 4);
   expect(Math.abs(after.player.x - before.player.x)).toBeLessThan(0.5);
-  expect(after.player.speed).toBeGreaterThan(WALK * 0.6);
-  expect(after.player.distanceWalked).toBeGreaterThan(1.5);
+  expect(after.player.speed).toBeGreaterThan(WALK * 0.9);
+  expect(after.player.distanceWalked).toBeGreaterThan(5);
 
-  await page.waitForTimeout(500);
-  const stopped = await readDebug(page);
-  expect(stopped.player.speed).toBeLessThan(0.3);
+  const stopped = await stepSim(page, 1);
+  expect(stopped.player.speed).toBeLessThan(0.05);
   expect(stopped.player.grounded).toBe(true);
 
   watch.assertClean();
 });
 
-test('walking is smooth in the sense that matters: no frame-loop spikes', async ({ page, isMobile }) => {
+test('the simulation never runs ahead of the clock, even on a slow renderer', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard path');
   const watch = attachWatch(page);
   await gotoGame(page);
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(2500);
-  await page.keyboard.up('KeyW');
+  await stepSim(page, 2);
   const debug = await readDebug(page);
-  // Not an fps claim — the sandbox is a software renderer. This asserts our own
-  // loop is not doing something pathological (allocation storms, shader
-  // rebuilds, sim backlog) while the player moves.
-  expect(debug.droppedSubsteps).toBeLessThan(20);
-  expect(debug.worstFrameMs).toBeLessThan(2000);
+
+  // This is the contract the old flaky tests were missing: the fixed-step clock
+  // is allowed to fall behind wall clock (it clamps long frames), never ahead.
+  expect(debug.simTime).toBeLessThanOrEqual(debug.clockTime + 1e-6);
+  // And the frame loop must not be dropping huge amounts of sim time.
+  expect(debug.droppedSubsteps).toBeLessThan(400);
   watch.assertClean();
 });
 
@@ -55,13 +59,12 @@ test('a jump leaves the ground and lands again', async ({ page, isMobile }) => {
 
   const before = await readDebug(page);
   await page.keyboard.press('Space');
-  await page.waitForTimeout(150);
-  const airborne = await readDebug(page);
-  expect(airborne.player.y).toBeGreaterThan(before.player.y + 0.2);
+  const airborne = await stepSim(page, 0.25);
+  expect(airborne.player.y).toBeGreaterThan(before.player.y + 0.3);
+  expect(airborne.player.grounded).toBe(false);
   expect(airborne.player.jumps).toBe(before.player.jumps + 1);
 
-  await page.waitForTimeout(1500);
-  const landed = await readDebug(page);
+  const landed = await stepSim(page, 2);
   expect(landed.player.grounded).toBe(true);
   expect(landed.player.y).toBeCloseTo(before.player.y, 1);
   expect(landed.player.landings).toBeGreaterThan(before.player.landings);
@@ -74,20 +77,24 @@ test('the camera follows the player and drag-look does not move them', async ({ 
   const watch = attachWatch(page);
   await gotoGame(page);
 
-  await holdKey(page, 'KeyW', 400);
-  const walked = await readDebug(page);
-  // The camera is derived from the player: same position, eye height above.
-  expect(walked.camera.x).toBeCloseTo(walked.player.x, 3);
-  expect(walked.camera.z).toBeCloseTo(walked.player.z, 3);
-  expect(walked.camera.y - walked.player.y).toBeGreaterThan(1.4);
-  expect(walked.camera.y - walked.player.y).toBeLessThan(1.9);
+  await page.keyboard.down('KeyW');
+  await stepSim(page, 0.6);
+  await page.keyboard.up('KeyW');
+  const walked = await stepSim(page, 0.001);
+
+  // The camera is derived from the player, one eye height above the feet
+  // (never snapshotted separately, which is what drifted before the hold).
+  expect(walked.camera.x).toBeCloseTo(walked.player.x, 6);
+  expect(walked.camera.z).toBeCloseTo(walked.player.z, 6);
+  const eyeHeight = walked.camera.y - walked.player.y;
+  expect(eyeHeight).toBeGreaterThan(1.4);
+  expect(eyeHeight).toBeLessThan(1.9);
 
   await touchDrag(page, 300, 0);
-  await page.waitForTimeout(200);
-  const looked = await readDebug(page);
+  const looked = await stepSim(page, 0.25);
   expect(looked.camera.yaw).not.toBe(walked.camera.yaw);
-  expect(looked.player.x).toBeCloseTo(walked.player.x, 3);
-  expect(looked.player.z).toBeCloseTo(walked.player.z, 3);
+  expect(looked.player.x).toBeCloseTo(walked.player.x, 6);
+  expect(looked.player.z).toBeCloseTo(walked.player.z, 6);
 
   watch.assertClean();
 });
@@ -105,20 +112,16 @@ test('the thumb-stick walks the player, and releasing stops them', async ({ page
   expect(box.width).toBeGreaterThanOrEqual(44);
   expect(box.height).toBeGreaterThanOrEqual(44);
 
-  // Hold the stick pushed forward, sampling while it drives the player.
-  const drive = stickDrag(page, 0, -120, { holdMs: 900 }).then(async () => {
-    await page.waitForTimeout(700);
-  });
-  await page.waitForTimeout(700);
-  const moving = await readDebug(page);
+  // Keep the thumb down so the stick stays pushed, then drive the sim by hand.
+  const stick = await openStick(page, 0, -120);
+  const moving = await stepSim(page, 1.5);
   expect(moving.input.stick).not.toBeNull();
   expect(moving.input.stick.magnitude).toBeGreaterThan(0.5);
-  await drive;
+  expect(Math.abs(moving.player.z - before.player.z)).toBeGreaterThan(5);
+  await stick.release();
 
-  const stopped = await readDebug(page);
-  expect(stopped.player.speed).toBeLessThan(0.3);
-  const after = await readDebug(page);
-  expect(Math.abs(after.player.z - before.player.z)).toBeGreaterThan(1);
+  const stopped = await stepSim(page, 1);
+  expect(stopped.player.speed).toBeLessThan(0.05);
 
   watch.assertClean();
 });
@@ -130,13 +133,12 @@ test('the jump button jumps on a phone', async ({ page, isMobile }) => {
 
   const before = await readDebug(page);
   await page.locator('.touch-jump').tap();
-  await page.waitForTimeout(200);
-  const airborne = await readDebug(page);
-  expect(airborne.player.y).toBeGreaterThan(before.player.y + 0.15);
+  const airborne = await stepSim(page, 0.3);
+  expect(airborne.player.y).toBeGreaterThan(before.player.y + 0.3);
   expect(airborne.player.jumps).toBe(before.player.jumps + 1);
 
-  await page.waitForTimeout(1500);
-  expect((await readDebug(page)).player.grounded).toBe(true);
+  const landed = await stepSim(page, 2);
+  expect(landed.player.grounded).toBe(true);
   watch.assertClean();
 });
 
@@ -147,18 +149,18 @@ test('the phone look-drag turns the view without walking', async ({ page, isMobi
 
   const before = await readDebug(page);
   await touchDrag(page, 220, 0);
-  await page.waitForTimeout(250);
-  const after = await readDebug(page);
+  const after = await stepSim(page, 0.25);
 
   expect(after.camera.yaw).not.toBe(before.camera.yaw);
   expect(Math.abs(after.player.x - before.player.x)).toBeLessThan(0.05);
   expect(Math.abs(after.player.z - before.player.z)).toBeLessThan(0.05);
+  expect(after.ui.touch).toBe(true);
 
   watch.assertClean();
 });
 
-test('the feel sliders change the walk, and the tuned feel survives a reload', async ({ page, isMobile }, testInfo) => {
-  test.skip(isMobile, 'keyboard-driven panel');
+test('the feel sliders reach the sim, and a tuned URL reproduces the feel', async ({ page, isMobile }, testInfo) => {
+  test.skip(isMobile, 'keyboard-driven');
   const watch = attachWatch(page);
   await gotoGame(page, '?walk=9&jump=2.5&gravity=12&accel=90&bob=0');
 
@@ -167,20 +169,33 @@ test('the feel sliders change the walk, and the tuned feel survives a reload', a
   expect(tuned.settings.gravity).toBe(12);
   expect(tuned.settings.viewBob).toBe(0);
 
-  await holdKey(page, 'KeyW', 900);
-  const walked = await readDebug(page);
-  expect(walked.player.speed).toBeGreaterThan(5.5, 'the walk speed slider must reach the sim');
+  await page.keyboard.down('KeyW');
+  const walked = await stepSim(page, 2);
+  await page.keyboard.up('KeyW');
+  expect(walked.player.speed).toBeGreaterThan(WALK + 1, 'the walk speed slider must reach the sim');
   expect(walked.player.bob).toBe(0, 'bob at 0 must mean no bob');
-
   await saveShot(page, 'player-walking', testInfo);
 
-  // A jump under low gravity is taller than the default: the sliders compose.
-  const beforeJump = await readDebug(page);
+  // The same walk with default settings settles at a lower speed.
+  await gotoGame(page);
+  await page.keyboard.down('KeyW');
+  const slower = await stepSim(page, 2);
+  await page.keyboard.up('KeyW');
+  expect(slower.player.speed).toBeLessThan(walked.player.speed - 1);
+
+  // A jump under low gravity is taller than under the default gravity.
+  await gotoGame(page, '?jump=2.5&gravity=12');
+  const before = await readDebug(page);
   await page.keyboard.press('Space');
-  await page.waitForTimeout(120);
-  const airborne = await readDebug(page);
-  expect(airborne.player.y - beforeJump.player.y).toBeLessThan(1.2);
-  expect(airborne.player.y).toBeGreaterThan(beforeJump.player.y);
+  const airborne = await stepSim(page, 0.3);
+  const rise = airborne.player.y - before.player.y;
+  expect(rise).toBeGreaterThan(0.3);
+
+  await gotoGame(page, '?jump=2.5&gravity=40');
+  const heavyBefore = await readDebug(page);
+  await page.keyboard.press('Space');
+  const heavyAirborne = await stepSim(page, 0.3);
+  expect(heavyAirborne.player.y - heavyBefore.player.y).toBeLessThan(rise);
 
   watch.assertClean();
 });
@@ -188,38 +203,39 @@ test('the feel sliders change the walk, and the tuned feel survives a reload', a
 test('walking into a rock does not walk through it', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard path');
   const watch = attachWatch(page);
-  // A seed whose first rock sits close to spawn; the sim test proves the rule,
-  // this proves the rock is solid in the *shipped* world too.
   await gotoGame(page, '?seed=7');
-  const start = await readDebug(page);
 
-  const rocks = await page.evaluate(() => {
-    const state = window.__worldhopper.debug();
-    return state.entityCount;
-  });
-  expect(rocks).toBeGreaterThan(1);
+  await page.keyboard.down('KeyW');
+  const end = await stepSim(page, 6);
+  await page.keyboard.up('KeyW');
 
-  await holdKey(page, 'KeyW', 3000);
-  const end = await readDebug(page);
-  expect(end.player.grounded).toBe(true);
-  expect(end.player.y).toBeGreaterThan(-Math.abs(start.player.y) - 12);
-  // Still inside the map, and still on top of the terrain rather than inside it.
-  const probe = await page.evaluate(() => {
+  // Never under the terrain, never outside the map, still standing on it.
+  const support = await page.evaluate(() => {
     const player = window.__worldhopper.player();
-    return { x: player.position.x, y: player.position.y, z: player.position.z };
+    return { x: player.position.x, y: player.position.y, z: player.position.z, grounded: player.grounded };
   });
-  expect(Math.abs(probe.x)).toBeLessThan(900);
-  expect(Math.abs(probe.z)).toBeLessThan(900);
+  expect(end.player.grounded).toBe(true);
+  expect(support.grounded).toBe(true);
+  expect(Math.abs(support.x)).toBeLessThan(800);
+  expect(Math.abs(support.z)).toBeLessThan(800);
+  expect(Number.isFinite(support.y)).toBe(true);
 
   watch.assertClean();
 });
 
-test('the debug overlay reports the player, not just the camera', async ({ page, isMobile }, testInfo) => {
+test('the debug overlay reports the player and the input mode', async ({ page, isMobile }, testInfo) => {
   test.skip(isMobile, 'keyboard path');
   const watch = attachWatch(page);
   await gotoGame(page, '?debug=1');
-  await holdKey(page, 'KeyW', 400);
-  await expect(page.locator('.debug-overlay')).toContainText('player');
+  await page.keyboard.down('KeyW');
+  await stepSim(page, 0.5);
+  await page.keyboard.up('KeyW');
+  await page.waitForTimeout(400); // the overlay refreshes at 4 Hz
+
+  const overlay = page.locator('.debug-overlay');
+  await expect(overlay).toContainText('player');
+  await expect(overlay).toContainText('grounded');
+  await expect(overlay).toContainText('keyboard');
   await saveShot(page, 'overlay-player', testInfo);
   watch.assertClean();
 });

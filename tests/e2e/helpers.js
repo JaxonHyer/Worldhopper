@@ -54,6 +54,24 @@ export async function readDebug(page) {
   return page.evaluate(() => window.__debug());
 }
 
+/**
+ * Advance the simulation by exactly `seconds` of fixed steps and return the
+ * resulting snapshot.
+ *
+ * Why: on a software renderer the frame loop can only manage a few fps, so
+ * wall-clock assertions end up measuring the renderer (measured: ~52% of real
+ * speed on CI). Real input events, deterministic time — the game still runs
+ * normally, this just freezes and drives it on demand.
+ */
+export async function stepSim(page, seconds) {
+  return page.evaluate((s) => window.__worldhopper.step(s), seconds);
+}
+
+/** Freeze / unfreeze the frame loop's simulation (debug only). */
+export async function pauseSim(page, paused = true) {
+  await page.evaluate((p) => window.__worldhopper.pause(p), paused);
+}
+
 export async function gotoGame(page, query = '') {
   await page.goto(`/${query}`);
   await waitForReady(page);

@@ -117,6 +117,42 @@ function bootstrap() {
     setSetting: (key, raw) => applySetting(key, raw),
     /** Input counters, so a dead drag reports which stage went missing. */
     input: () => input.stats(),
+    /**
+     * Freeze/unfreeze the frame loop's simulation. The renderer keeps drawing,
+     * but nothing advances the world, so a headless test can drive the sim
+     * itself with step() and get the same answer on any machine.
+     */
+    pause: (paused = true) => {
+      pausedSim = Boolean(paused);
+      last = performance.now();
+      return pausedSim;
+    },
+    /**
+     * Advance the simulation by exactly `seconds` of fixed steps, using the
+     * input state as it is right now (a held key, a pushed stick, a queued
+     * jump). Returns a fresh snapshot. This is the deterministic clock the e2e
+     * suite uses; it is inert during normal play.
+     */
+    step: (seconds = 0) => {
+      const steps = Math.max(0, Math.min(3600, Math.round(seconds / clock.step)));
+      const look = input.look();
+      const move = input.move();
+      const jump = input.consumeJump();
+      for (let i = 0; i < steps; i++) {
+        stepWorld(
+          state,
+          clock.step,
+          {
+            move,
+            lookImpulse: i === 0 ? look.impulse : null,
+            lookRate: look.rate,
+            jump: i === 0 ? jump : false,
+          },
+          context,
+        );
+      }
+      return snapshot();
+    },
     player: () => ({ ...state.player, position: { ...state.player.position }, velocity: { ...state.player.velocity } }),
     ui: {
       showOverlay: (visible) => (visible ? debugOverlay.show() : debugOverlay.hide()),
@@ -146,31 +182,35 @@ function bootstrap() {
   let last = performance.now();
   let frames = 0;
   let touchSeen = coarse;
+  let pausedSim = false;
 
   function frame(now) {
     const dtSeconds = Math.min((now - last) / 1000, SIM.maxFrameDelta);
     last = now;
     frameStats.sample(dtSeconds);
 
-    const steps = clock.advance(dtSeconds);
-    const look = input.look();
-    const move = input.move();
-    const jump = input.consumeJump();
+    // Paused (debug only): time stands still, so the sim can be stepped by hand.
+    const steps = pausedSim ? 0 : clock.advance(dtSeconds);
+    if (steps > 0) {
+      const look = input.look();
+      const move = input.move();
+      const jump = input.consumeJump();
 
-    for (let i = 0; i < steps; i++) {
-      stepWorld(
-        state,
-        clock.step,
-        {
-          move,
-          // A drag is a one-shot: apply it on the first substep only, or a fast
-          // flick would be multiplied by the number of substeps this frame.
-          lookImpulse: i === 0 ? look.impulse : null,
-          lookRate: look.rate,
-          jump: i === 0 ? jump : false,
-        },
-        context,
-      );
+      for (let i = 0; i < steps; i++) {
+        stepWorld(
+          state,
+          clock.step,
+          {
+            move,
+            // A drag is a one-shot: apply it on the first substep only, or a
+            // fast flick would be multiplied by the number of substeps.
+            lookImpulse: i === 0 ? look.impulse : null,
+            lookRate: look.rate,
+            jump: i === 0 ? jump : false,
+          },
+          context,
+        );
+      }
     }
 
     // Touch controls appear the first time a finger does anything (or if the
@@ -308,6 +348,7 @@ function bootstrap() {
         credits: credits.visible,
         touch: !hud.jump.hidden,
       },
+      paused: pausedSim,
       input: {
         mode: touchSeen ? 'touch' : 'keyboard',
         stick: stick.active ? { x: round(stick.x, 3), y: round(stick.y, 3), magnitude: round(stick.magnitude, 3) } : null,
