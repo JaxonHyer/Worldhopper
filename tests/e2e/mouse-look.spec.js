@@ -1,18 +1,30 @@
 import { test, expect } from '@playwright/test';
 import { attachWatch, gotoGame, readDebug, saveShot, startFrozen, stepSim } from './helpers.js';
+import { PITCH_LIMIT } from '../../src/core/math.js';
+import { MOUSE_RAD_PER_PIXEL } from '../../src/core/look.js';
 
 /**
  * Desktop look: standard mouse capture (Pointer Lock).
  *
  * Click the world → the mouse is captured → the camera follows mouse movement,
  * no button held. Esc (or a panel that needs the cursor) releases it. Touch and
- * the drag fallback are untouched and are asserted here too, because a browser
- * permission must never decide whether the game is playable.
+ * the drag fallback are untouched, because a browser permission must never
+ * decide whether the game is playable.
  *
- * Whether *this* environment will hand out a pointer lock is not knowable up
- * front, so each test establishes the state first and then asserts the branch
- * that applies — and, when a branch cannot be exercised, says so in an
- * annotation instead of pretending it passed.
+ * How this is verified, and what it deliberately does not claim:
+ *
+ *  - The *state machine* is verified against the real browser: a click requests
+ *    the lock, the game reports `locked` (or the environment refuses it, which
+ *    the test reports as an annotation rather than a fake pass), the crosshair
+ *    and the release hint appear, nothing is counted as a denial, and exit
+ *    hands the cursor back.
+ *  - The *captured path* (event → radians → sim → camera) is verified with
+ *    deltas the test chooses, because a headless browser's own synthetic mouse
+ *    under a locked pointer is not usable for magnitudes: CI has reported
+ *    ~1345 px of movement for a 20 px step, alternating in sign. Real locked
+ *    pointer movement *is* used in the test — it proves deltas arrive and that
+ *    looking never moves the player — but its magnitude proves nothing.
+ *  - How the real mouse *feels* is a human question, and is asked in the PR.
  */
 
 async function clickWorld(page) {
@@ -26,21 +38,53 @@ async function clickWorld(page) {
   return box;
 }
 
-async function captureState(page) {
-  return page.evaluate(() => ({
+const state = (page) =>
+  page.evaluate(() => ({
     element: document.pointerLockElement ? document.pointerLockElement.id : null,
     state: window.__worldhopper.capture(),
     stats: window.__worldhopper.input(),
   }));
-}
 
-/** Move the mouse with the pointer captured and report what the game saw. */
-async function stroke(page, box, dx, dy = 0) {
+const locked = async (page) => (await state(page)).state === 'locked';
+
+/** Real mouse movement through the browser, with the pointer captured. */
+async function browserStroke(page, box, dx, dy = 0) {
   const before = await stepSim(page, 0.05);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
   await page.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2 + dy, { steps: 12 });
   const after = await stepSim(page, 0.05);
-  return { before, after, turn: Math.abs(after.camera.yaw - before.camera.yaw) };
+  return { before, after };
+}
+
+/**
+ * A pointermove with a movement delta the test picks. The listener is the same
+ * one the browser feeds; only the numbers are ours. `movementX`/`movementY` are
+ * part of MouseEventInit, so this is the documented way to say "the mouse moved
+ * this far" without emulating a whole input stack.
+ */
+async function mouseDelta(page, { x = 0, y = 0, times = 1 } = {}) {
+  await page.evaluate(
+    ({ x, y, times }) => {
+      const canvas = document.getElementById('game');
+      const rect = canvas.getBoundingClientRect();
+      for (let i = 0; i < times; i++) {
+        canvas.dispatchEvent(
+          new PointerEvent('pointermove', {
+            pointerId: 1,
+            pointerType: 'mouse',
+            isPrimary: true,
+            bubbles: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+            movementX: x,
+            movementY: y,
+          }),
+        );
+      }
+    },
+    { x, y, times },
+  );
+  return stepSim(page, 0.05);
 }
 
 test('clicking the world captures the mouse, and the game says so', async ({ page, isMobile }, testInfo) => {
@@ -50,10 +94,10 @@ test('clicking the world captures the mouse, and the game says so', async ({ pag
 
   expect(await page.evaluate(() => typeof document.body.requestPointerLock === 'function')).toBe(true);
   const box = await clickWorld(page);
-  const seen = await captureState(page);
-
+  const seen = await state(page);
   expect(seen.stats.captureRequests, `no lock was ever requested: ${JSON.stringify(seen)}`).toBeGreaterThan(0);
 
+  const drag = await stepSim(page, 0.05);
   if (seen.state !== 'locked') {
     // A frame without the `pointer-lock` permission refuses; the game must fall
     // back rather than break, and must say what it is doing.
@@ -64,78 +108,74 @@ test('clicking the world captures the mouse, and the game says so', async ({ pag
     expect(['denied', 'pending']).toContain(seen.state);
     await expect(page.locator('.hud__hint')).toContainText('drag to look');
     await expect(page.locator('.crosshair')).toBeHidden();
+
+    // The drag fallback is deterministic here: no lock is in the way.
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 200, box.y + box.height / 2, { steps: 10 });
+    await page.mouse.up();
+    const dragged = await stepSim(page, 0.2);
+    expect(dragged.camera.yaw, 'dragging did not turn the camera without a lock').not.toBe(drag.camera.yaw);
   } else {
     // Captured: the browser hides the system cursor, so the game has to show
-    // where "straight ahead" is, and stop telling the player to click.
+    // where "straight ahead" is, and how to get the cursor back.
     expect(seen.element).toBe('game');
     expect(seen.stats.captureDenials).toBe(0);
     await expect(page.locator('.crosshair')).toBeVisible();
-    // The cursor is hidden now, so the game says how to get it back.
     await expect(page.locator('.hud__hint')).toContainText('Esc');
-  }
 
-  // Either way the world is playable with the mouse: dragging turns the camera.
-  const drag = await stepSim(page, 0.05);
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 200, box.y + box.height / 2, { steps: 10 });
-  await page.mouse.up();
-  const dragged = await stepSim(page, 0.2);
-  expect(dragged.camera.yaw, `dragging did not turn the camera: ${JSON.stringify(dragged.input)}`).not.toBe(
-    drag.camera.yaw,
-  );
+    const { before, after } = await browserStroke(page, box, 240);
+    const stats = await page.evaluate(() => window.__worldhopper.input());
+    expect(stats.mouseLookSamples, `no movement reached the game while captured: ${JSON.stringify(stats)}`).toBeGreaterThan(0);
+    // Looking must never move the player, whatever the mouse did.
+    expect(after.player.x).toBeCloseTo(before.player.x, 6);
+    expect(after.player.z).toBeCloseTo(before.player.z, 6);
+    expect(after.player.speed).toBe(0);
+    expect(after.input.captured).toBe(true);
+  }
 
   watch.assertClean();
 });
 
-test('the camera follows the mouse while captured, and the player does not move', async ({ page, isMobile }, testInfo) => {
+test('captured movement turns the camera, within the pitch limit', async ({ page, isMobile }, testInfo) => {
   test.skip(isMobile, 'desktop control path');
   const watch = attachWatch(page);
   await startFrozen(page);
   await clickWorld(page);
 
-  if ((await captureState(page)).state !== 'locked') {
-    testInfo.annotations.push({ type: 'note', description: 'Pointer lock refused here; mouselook cannot be exercised.' });
+  if (!(await locked(page))) {
+    testInfo.annotations.push({ type: 'note', description: 'Pointer lock refused here; the captured path cannot be exercised.' });
     watch.assertClean();
     return;
   }
 
-  const { before, after, turn } = await stroke(page, await page.locator('#game').boundingBox(), 240);
-  // The snapshot carries the *state*; the counters live behind input().
-  const stats = await page.evaluate(() => window.__worldhopper.input());
+  testInfo.annotations.push({
+    type: 'note',
+    description: `Captured deltas are driven with known values (${MOUSE_RAD_PER_PIXEL} rad/px); the browser's own synthetic mouse under a locked pointer reports unusable magnitudes.`,
+  });
 
-  if (stats.mouseLookSamples === 0) {
-    // Nothing verifiable about the *movement* path here: a synthetic mouse with
-    // a locked pointer reports neither movement deltas nor a moved cursor.
-    testInfo.annotations.push({
-      type: 'note',
-      description: `Pointer locked, but this browser reports no mouse deltas under lock (samples ${stats.mouseLookSamples}, pixels ${stats.mouseLookPixels}); the capture state machine is verified, the mouselook feel needs a human.`,
-    });
-  } else {
-    expect(stats.mouseLookPixels, `captured movement was not measured: ${JSON.stringify(stats)}`).toBeGreaterThan(100);
-    expect(turn, `the camera did not follow the mouse: ${JSON.stringify(stats)}`).toBeGreaterThan(0.2);
-    // Mouselook turns the camera; it must never move the player.
-    expect(after.player.x).toBeCloseTo(before.player.x, 6);
-    expect(after.player.z).toBeCloseTo(before.player.z, 6);
-    expect(after.player.speed).toBe(0);
+  // 2 × 100 px right: the camera turns right by 200 × 0.0026 rad.
+  const start = await readDebug(page);
+  const turned = await mouseDelta(page, { x: 100, times: 2 });
+  const expected = -200 * MOUSE_RAD_PER_PIXEL;
+  expect(turned.camera.yaw - start.camera.yaw, `captured movement did not turn the camera: ${JSON.stringify(turned.camera)}`).toBeCloseTo(
+    expected,
+    2,
+  );
 
-    // Looking up and down stays clamped, however far the mouse travels.
-    for (let i = 0; i < 8; i++) {
-      await stroke(page, await page.locator('#game').boundingBox(), 0, -300);
-      await stroke(page, await page.locator('#game').boundingBox(), 0, 300);
-    }
-    const swept = await readDebug(page);
-    expect(Math.abs(swept.camera.pitch)).toBeLessThan(1.6);
-  }
+  // Pitch is clamped however far the mouse travels, and it does reach the limit.
+  const up = await mouseDelta(page, { y: -120, times: 40 });
+  expect(up.camera.pitch).toBeCloseTo(PITCH_LIMIT, 2);
+  const down = await mouseDelta(page, { y: 120, times: 80 });
+  expect(down.camera.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
 
-  // Movement still works while captured, and mouselook stays live.
+  // Looking never moves the player, and walking still works while captured.
   const walked = await stepSim(page, 0.05);
-  expect(walked.input.capture).toBe('locked');
   await page.keyboard.down('KeyW');
   const afterWalk = await stepSim(page, 1);
   await page.keyboard.up('KeyW');
   expect(Math.abs(afterWalk.player.z - walked.player.z)).toBeGreaterThan(2);
-  expect(afterWalk.input.captured).toBe(true);
+  expect(afterWalk.input.capture).toBe('locked');
 
   await saveShot(page, 'mouse-look', testInfo);
   watch.assertClean();
@@ -147,14 +187,11 @@ test('releasing the mouse stops mouselook, and drag-look still works', async ({ 
   await startFrozen(page);
   const box = await clickWorld(page);
 
-  if ((await captureState(page)).state !== 'locked') {
+  if (!(await locked(page))) {
     testInfo.annotations.push({ type: 'note', description: 'Pointer lock refused here; nothing to release.' });
     watch.assertClean();
     return;
   }
-
-  await stepSim(page, 0.05);
-  expect((await readDebug(page)).input.captured).toBe(true);
 
   // Esc is the browser's own release gesture; exitPointerLock is what a panel
   // does when it needs the cursor back.
@@ -165,7 +202,7 @@ test('releasing the mouse stops mouselook, and drag-look still works', async ({ 
   expect(released.input.captured).toBe(false);
   expect(released.input.capture).toBe('unlocked');
   await expect(page.locator('.crosshair')).toBeHidden();
-  // And it goes back to telling the player how to capture, not how to release.
+  // It goes back to telling the player how to capture, not how to release.
   await expect(page.locator('.hud__hint')).toContainText('click the world');
 
   // Free cursor: moving the mouse must NOT turn the camera any more...
@@ -174,7 +211,11 @@ test('releasing the mouse stops mouselook, and drag-look still works', async ({ 
   const afterMove = await stepSim(page, 0.2);
   expect(afterMove.camera.yaw).toBe(beforeMove.camera.yaw);
 
-  // ...but dragging still does: the fallback is always live.
+  // ...a synthetic delta must be ignored too (the captured path is off)...
+  const afterDelta = await mouseDelta(page, { x: 200 });
+  expect(afterDelta.camera.yaw).toBe(beforeMove.camera.yaw);
+
+  // ...but dragging still turns the camera: the fallback is always live.
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 500, box.y + box.height / 2, { steps: 10 });
   await page.mouse.up();
@@ -188,37 +229,64 @@ test('the mouse-look sensitivity slider changes how far the camera turns', async
   test.skip(isMobile, 'desktop control path');
   const watch = attachWatch(page);
   await startFrozen(page, '?mouselook=1');
-  const box = await clickWorld(page);
+  await clickWorld(page);
 
-  // The snapshot must agree with the URL, whichever path the lock took: the
-  // tuning panel and the query string are the same settings object.
+  // The tuning panel writes the same settings object the URL feeds, so the
+  // snapshot must agree with the query string.
   expect((await readDebug(page)).settings.lookMouse).toBe(1);
 
-  const state = await captureState(page);
-  if (state.state !== 'locked') {
-    testInfo.annotations.push({ type: 'note', description: 'Pointer lock refused here; sensitivity path not exercised.' });
+  if (!(await locked(page))) {
+    testInfo.annotations.push({ type: 'note', description: 'Pointer lock refused here; the sensitivity path was not exercised.' });
     watch.assertClean();
     return;
   }
 
-  const normal = (await stroke(page, box, 240)).turn;
-  if (normal === 0) {
-    testInfo.annotations.push({
-      type: 'note',
-      description: 'Pointer locked, but this browser reports no mouse deltas under lock; the sensitivity scale is unit-tested instead.',
-    });
-    watch.assertClean();
-    return;
-  }
+  const turn = async (pixels) => {
+    const before = await readDebug(page);
+    const after = await mouseDelta(page, { x: pixels });
+    return Math.abs(after.camera.yaw - before.camera.yaw);
+  };
+
+  const normal = await turn(240);
+  expect(normal).toBeCloseTo(240 * MOUSE_RAD_PER_PIXEL, 3);
 
   await page.evaluate(() => window.__worldhopper.setSetting('lookMouse', 0.5));
   expect((await readDebug(page)).settings.lookMouse).toBe(0.5);
 
-  const half = (await stroke(page, box, 240)).turn;
-  expect(half).toBeGreaterThan(0, 'the slider must not disable looking');
-  const ratio = half / normal;
-  expect(ratio, `240 px at mouselook=0.5 turned ${half} rad vs ${normal} rad at 1`).toBeGreaterThan(0.3);
-  expect(ratio).toBeLessThan(0.7);
+  const half = await turn(240);
+  expect(half, `240 px at mouselook=0.5 turned ${half} rad vs ${normal} rad at 1`).toBeCloseTo(normal / 2, 3);
+
+  // A zero setting must switch mouselook off rather than break it.
+  await page.evaluate(() => window.__worldhopper.setSetting('lookMouse', 0.2));
+  const least = await turn(240);
+  expect(least).toBeGreaterThan(0);
+
+  watch.assertClean();
+});
+
+test('the capture switch gives the cursor back to the player', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'desktop control path');
+  const watch = attachWatch(page);
+  await startFrozen(page, '?capture=off');
+
+  // With capture switched off the game must never take the mouse...
+  await expect(page.locator('.hud__hint')).toContainText('drag to look');
+  const box = await page.locator('#game').boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
+  const after = await state(page);
+  expect(after.stats.captureRequests).toBe(0);
+
+  // ...and dragging must work exactly as it does on a phone.
+  const before = await readDebug(page);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 200, box.y + box.height / 2, { steps: 10 });
+  await page.mouse.up();
+  const dragged = await stepSim(page, 0.2);
+  expect(dragged.camera.yaw).not.toBe(before.camera.yaw);
+  expect(dragged.player.speed).toBe(0);
 
   watch.assertClean();
 });
@@ -229,12 +297,12 @@ test('opening the tuning panel gives the cursor back', async ({ page, isMobile }
   await gotoGame(page);
   await clickWorld(page);
 
-  const locked = (await captureState(page)).state === 'locked';
+  const wasLocked = await locked(page);
   await page.keyboard.press('p');
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(300);
 
   // Sliders need a cursor: the panel must hand it back when it opens.
-  if (locked) expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
+  if (wasLocked) expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
   await expect(page.locator('.tuning-panel')).toBeVisible();
 
   const slider = page.locator('#setting-fog');
