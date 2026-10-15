@@ -76,6 +76,7 @@ export function createDebugOverlay({ mount, onRefresh, now = () => performance.n
     set(
       'input',
       `${input.mode}${input.looking ? ' · looking' : ''}${input.heldKeys ? ` · ${input.heldKeys} key(s)` : ''}` +
+        `${input.capture && input.capture !== 'unknown' ? ` · mouse ${input.capture}` : ''}` +
         `${input.stick ? `\nstick ${input.stick.x.toFixed(2)}, ${input.stick.y.toFixed(2)} (${input.stick.magnitude.toFixed(2)})` : ''}`,
     );
     set('tick', `${snapshot.tick} · ${snapshot.simTime.toFixed(2)} s`);

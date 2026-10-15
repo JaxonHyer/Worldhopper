@@ -265,3 +265,20 @@ this to stay oriented; agents add to it in the same PR as the change.
   unadjustedMovement: true })`), falling back to a plain request, so the camera
   does not inherit the operating system's pointer acceleration when the browser
   can avoid it.
+- **Capture is a preference, not a rule** (`?capture=off`, or the *Mouse
+  capture* control in the panel). Some players hate having their cursor taken;
+  dragging is a perfectly good way to look, and the switch makes the fallback
+  path testable in a browser that *does* support pointer lock.
+- **A refusal is only believed after a grace period** (250 ms). Requesting raw
+  mouse input and falling back to a plain request produces two failure signals
+  for one outcome, and neither says which attempt it belonged to; a lock that
+  lands later cancels the pending refusal, so `capture()` never reports "denied"
+  for a mouse that is captured.
+- **Raw movement is preferred, cursor movement is the substitute.** A locked
+  pointer normally reports movement deltas and freezes the cursor position; a
+  browser or driver that reports neither would silently freeze the camera, so a
+  zero-delta event with a moved cursor is used instead. Real browsers keep the
+  raw path (deltas are non-zero), so this only ever replaces a dead camera.
+- **The tuning panel and the credits release the mouse when they open** — a
+  captured cursor cannot click a slider — and the tests assert the control is
+  focusable straight afterwards.

@@ -10,7 +10,11 @@ import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 test('pointer/touch drag looks around without moving the player', async ({ page, isMobile }) => {
   const watch = attachWatch(page);
-  await gotoGame(page);
+  // Desktop capture is its own suite (mouse-look.spec.js): here the drag maths
+  // is the subject, so the mouse path is pinned with the capture switch off.
+  // That is also the honest way to test it — with capture on, a press turns the
+  // very same gesture into mouselook.
+  await gotoGame(page, isMobile ? '' : '?capture=off');
 
   const before = await readDebug(page);
   const inputBefore = await page.evaluate(() => window.__worldhopper.input());
@@ -29,10 +33,18 @@ test('pointer/touch drag looks around without moving the player', async ({ page,
   expect(inputAfter.pointersMoved, `pointermove never reached the canvas: ${JSON.stringify(inputAfter)}`).toBeGreaterThan(
     inputBefore.pointersMoved,
   );
-  expect(inputAfter.dragRadians, `drag deltas were zero: ${JSON.stringify(inputAfter)}`).toBeGreaterThan(0.2);
+  const radians = inputAfter.lookRadians - inputBefore.lookRadians;
+  expect(radians, `drag deltas were zero: ${JSON.stringify(inputAfter)}`).toBeGreaterThan(0.2);
+  if (!isMobile) {
+    // Capture was switched off, so the drag path must have carried the gesture.
+    expect(inputAfter.captureRequests, 'capture was requested although it is off').toBe(inputBefore.captureRequests);
+    expect(inputAfter.mouseLookSamples).toBe(inputBefore.mouseLookSamples);
+  }
 
   expect(after.camera.yaw).not.toBe(before.camera.yaw);
   expect(Math.abs(after.camera.yaw - before.camera.yaw)).toBeGreaterThan(0.2);
+  // The sim's own angle and the input layer's measured radians must agree.
+  expect(Math.abs(Math.abs(after.camera.yaw - before.camera.yaw) - radians)).toBeLessThan(0.05);
   // M0 has no locomotion: the eye must not have travelled.
   expect(after.camera.x).toBeCloseTo(before.camera.x, 6);
   expect(after.camera.y).toBeCloseTo(before.camera.y, 6);

@@ -30,9 +30,13 @@ live slider in the tuning panel.
   npm run dev     # http://localhost:5173
   ```
 
-**Desktop:** <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys
-walk · <kbd>space</kbd> jump · drag the mouse to look · <kbd>Q</kbd>/<kbd>E</kbd>
-turn without a mouse.
+**Desktop:** **click the world to capture the mouse** — after that the camera
+follows the mouse with no button held, and <kbd>Esc</kbd> releases it (the
+crosshair shows while captured). <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
+or the arrow keys walk · <kbd>space</kbd> jump · <kbd>Q</kbd>/<kbd>E</kbd> turn
+without a mouse. If capture is refused (an embedded frame, for instance) or
+switched off with `?capture=off`, dragging with the button held looks around
+instead — the game is playable either way.
 
 **Phone:** the left half of the screen is a thumb-stick (it appears where your
 thumb lands), drag on the right to look, and the round **jump** button is
@@ -50,7 +54,9 @@ buttons (add `?dev=1` to the URL) give the same tools.
 | `seed` | `?seed=emberdark` or `?seed=4242` | rebuilds the map deterministically |
 | `palette` | `?palette=cold-ridge` | atmosphere variant (`ashen-basin`, `mist-sea`, `cold-ridge`) |
 | `walk`, `jump`, `gravity`, `accel`, `bob` | `?walk=9&jump=2.5&bob=0` | how walking feels |
-| `fog`, `sun`, `ambient`, `fov`, `look` | `?fog=0.0042` | atmosphere and looking |
+| `fog`, `sun`, `ambient`, `fov` | `?fog=0.0042` | atmosphere |
+| `look`, `mouselook` | `?mouselook=1.4` | look sensitivity: dragging, and the captured mouse |
+| `capture` | `?capture=off` | `off` = never capture the mouse; drag to look instead |
 | `debug` | `?debug=1` | open the debug overlay immediately |
 | `dev` | `?dev=1` | show the on-screen dev buttons (phone-friendly) |
 | `touch` | `?touch=1` | force the touch controls on (for testing on a desktop) |

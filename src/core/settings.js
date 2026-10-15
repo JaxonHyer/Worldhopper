@@ -118,6 +118,16 @@ export const SETTING_DEFS = Object.freeze([
     default: 1,
     phase: 'm1',
   },
+  {
+    key: 'captureMouse',
+    param: 'capture',
+    kind: 'enum',
+    values: ['on', 'off'],
+    label: 'Mouse capture (click to lock)',
+    help: 'Desktop only. on = click the world to capture the mouse, Esc releases. off = drag to look, as on a phone.',
+    default: 'on',
+    phase: 'm1',
+  },
   // --- M1: how walking feels. Everything here changes the sim immediately. ---
   {
     key: 'walkSpeed',

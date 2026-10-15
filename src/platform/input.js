@@ -17,6 +17,10 @@ import { normalizeMove, stickKnob, stickVector } from '../core/stick.js';
 import { DRAG_RAD_PER_PIXEL, MOUSE_RAD_PER_PIXEL, dragToLook, pixelsToLook } from '../core/look.js';
 
 const KEY_LOOK_RATE = 1.9; // rad/s while a look key (Q/E) is held
+// A refusal is only believed once no attempt could still land: requesting raw
+// mouse input and falling back to a plain request produces two failure signals
+// for one outcome, and neither says which attempt it belonged to.
+const DENIAL_GRACE_MS = 250;
 const STICK_RADIUS = 62; // px of travel = full deflection
 const LOOK_ZONE = 0.45; // right 55% of the screen is the look zone (touch)
 
@@ -45,12 +49,14 @@ export const CAPTURE = Object.freeze({
   denied: 'denied',
 });
 
-export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, sensitivity }) {
+export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, sensitivity, captureEnabled }) {
   /**
    * Sensitivity is a property of the *device*, so it is applied here, where we
    * know whether a delta came from a captured mouse, a drag, or a finger.
    */
   const sens = () => sensitivity?.() ?? { drag: 1, mouse: 1 };
+  /** Capture is a preference, not a rule: a player may prefer dragging. */
+  const captureWanted = () => (captureEnabled ? captureEnabled() !== false : true);
   const keys = new Set();
   const hotkeys = { overlay: '`', panel: 'p', credits: 'c', palette: 'v', resetView: 'r' };
 
@@ -58,16 +64,18 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     pointersDown: 0,
     pointersMoved: 0,
     dragSamples: 0,
-    dragRadians: 0,
+    lookRadians: 0,
     hotkeys: 0,
     stickSamples: 0,
     stickDistance: 0,
     jumps: 0,
     touchPointers: 0,
     captureRequests: 0,
+    captureFallbacks: 0,
     captureDenials: 0,
     mouseLookSamples: 0,
     mouseLookPixels: 0,
+    mouseLookFallbackSamples: 0,
   };
 
   const supported =
@@ -77,6 +85,10 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
 
   let capture = supported ? CAPTURE.unlocked : CAPTURE.unsupported;
   let captureError = null;
+  let attempt = null; // 'raw' | 'plain' | null — the lifecycle of one request
+  let denialTimer = null; // see DENIAL_GRACE_MS
+  let capturedX = null; // last cursor position while captured (see onPointerMove)
+  let capturedY = null;
 
   // --- look ---------------------------------------------------------------
   let lookYaw = 0; // accumulated radians, consumed once per frame
@@ -119,40 +131,79 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     const wasCaptured = capture === CAPTURE.locked;
     capture = next;
     captureError = error;
-    if (error) counters.captureDenials++;
+    if (next !== CAPTURE.pending) attempt = null;
+    if (next === CAPTURE.denied) counters.captureDenials++;
     const captured = next === CAPTURE.locked;
+    if (captured) {
+      if (denialTimer !== null) {
+        clearTimeout(denialTimer);
+        denialTimer = null;
+      }
+      // Resync on the first event: the cursor position before the lock says
+      // nothing about movement during it.
+      capturedX = null;
+      capturedY = null;
+      // A drag started by the same press that captured the mouse is over: the
+      // cursor is frozen now, so only movement deltas make sense.
+      if (lookPointerId !== null) {
+        lookPointerId = null;
+        canvas.classList.remove('is-dragging');
+      }
+    }
     canvas.classList.toggle('is-captured', captured);
     if (wasCaptured !== captured || next === CAPTURE.denied) onCaptureChange?.(captured, next, error);
   }
 
   function requestCapture() {
-    if (!supported || isCaptured()) return;
+    if (!supported || !captureWanted() || isCaptured() || attempt !== null) return;
     counters.captureRequests++;
     setCapture(CAPTURE.pending);
-    const failed = (error) => {
-      // Mark first, then let the fallback stay silent: the browser will not tell
-      // us *why* (embedded frame without the permission, Esc rate-limit, no
-      // user gesture from a synthetic click).
-      setCapture(CAPTURE.denied, error?.name ?? String(error ?? 'PointerLockError'));
-    };
+
+    // Raw mouse input where the browser offers it: the camera then does not
+    // inherit the operating system's pointer acceleration. Browsers that do not
+    // support it reject the request, which is a *fallback*, not a failure.
+    attempt = 'raw';
     try {
-      // Raw mouse input where the browser offers it: no OS pointer acceleration.
       const result = canvas.requestPointerLock({ unadjustedMovement: true });
-      if (result && typeof result.then === 'function') {
-        result.catch(() => requestCapturePlain(failed));
-      }
+      if (result && typeof result.then === 'function') result.catch(() => fallbackOrFail('raw'));
     } catch {
-      requestCapturePlain(failed);
+      fallbackOrFail('raw');
     }
   }
 
-  function requestCapturePlain(failed) {
+  function requestCapturePlain() {
+    attempt = 'plain';
     try {
       const result = canvas.requestPointerLock();
-      if (result && typeof result.then === 'function') result.catch(failed);
+      if (result && typeof result.then === 'function') result.catch(() => fail('plain'));
     } catch (error) {
-      failed(error);
+      fail(String(error?.name ?? error));
     }
+  }
+
+  /**
+   * A raw-input request that did not land: try a plain request once. Some
+   * browsers report the failure through the promise, others only through the
+   * `pointerlockerror` event, so both paths come here.
+   */
+  function fallbackOrFail(kind) {
+    if (isCaptured()) return; // it worked after all
+    if (kind === 'raw' && attempt === 'raw') {
+      counters.captureFallbacks++;
+      requestCapturePlain();
+      return;
+    }
+    fail('denied');
+  }
+
+  function fail(reason) {
+    if (isCaptured() || capture === CAPTURE.locked || denialTimer !== null) return;
+    denialTimer = setTimeout(() => {
+      denialTimer = null;
+      if (isCaptured()) return; // a later attempt landed after all
+      attempt = null;
+      setCapture(CAPTURE.denied, reason);
+    }, DENIAL_GRACE_MS);
   }
 
   /** Release capture (Esc does this too, but panels need it programmatically). */
@@ -175,7 +226,10 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       }
     });
     document.addEventListener('pointerlockerror', () => {
-      if (!isCaptured()) setCapture(CAPTURE.denied, 'PointerLockError');
+      if (isCaptured()) return;
+      // Some browsers only report the failure as an event: treat it like the
+      // rejected promise, so the plain request still gets its chance.
+      fallbackOrFail(attempt ?? 'denied');
     });
   }
 
@@ -266,7 +320,7 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     lookPitch += delta.pitch;
     counters.pointersMoved++;
     counters.dragSamples++;
-    counters.dragRadians += Math.abs(delta.yaw) + Math.abs(delta.pitch);
+    counters.lookRadians += Math.abs(delta.yaw) + Math.abs(delta.pitch);
     if (kind === 'mouse' || kind === 'captured') {
       counters.mouseLookSamples++;
       counters.mouseLookPixels += Math.abs(pixels.x) + Math.abs(pixels.y);
@@ -287,9 +341,10 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     }
 
     // Mouse: capture the pointer so the camera follows the mouse from now on.
-    // The drag fallback still starts, because the request may be refused.
-    if (!isCaptured()) requestCapture();
-    beginLook(event);
+    // The drag fallback still starts, because the request may be refused (or
+    // because capture is switched off in the tuning panel).
+    if (!isCaptured() && captureWanted()) requestCapture();
+    if (!isCaptured()) beginLook(event);
   }
 
   function onPointerMove(event) {
@@ -311,8 +366,23 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
 
     // Captured mouse: the browser hands us raw movement, cursor frozen.
     if (isCaptured() && event.pointerType === 'mouse') {
-      const dx = event.movementX ?? 0;
-      const dy = event.movementY ?? 0;
+      let dx = event.movementX ?? 0;
+      let dy = event.movementY ?? 0;
+      if (dx === 0 && dy === 0 && capturedX !== null) {
+        // A locked pointer normally reports movement and freezes the cursor
+        // position. When it reports neither — a browser or driver that cannot
+        // supply raw deltas — fall back to how far the cursor moved instead of
+        // freezing the camera.
+        const movedX = event.clientX - capturedX;
+        const movedY = event.clientY - capturedY;
+        if (movedX !== 0 || movedY !== 0) {
+          dx = movedX;
+          dy = movedY;
+          counters.mouseLookFallbackSamples++;
+        }
+      }
+      capturedX = event.clientX;
+      capturedY = event.clientY;
       accumulate(pixelsToLook(dx, dy, { radPerPixel: MOUSE_RAD_PER_PIXEL }), { x: dx, y: dy }, 'captured');
       return;
     }
@@ -405,6 +475,9 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       jumpQueued = false;
       return queued;
     },
+
+    /** Whether capture is possible in this browser *and* wanted by the player. */
+    canCapture: () => supported && captureWanted(),
 
     /** Ask the browser to capture the mouse (used by tests and by the HUD). */
     requestCapture,

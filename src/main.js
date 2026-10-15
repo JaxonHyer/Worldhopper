@@ -80,6 +80,7 @@ function bootstrap() {
     onHotkey,
     onCaptureChange: (captured) => hud.setCaptured(captured),
     sensitivity: () => ({ drag: settings.look, mouse: settings.lookMouse }),
+    captureEnabled: () => settings.captureMouse !== 'off',
     elements: { stick: hud.stick, knob: hud.knob, jump: hud.jump },
   });
 
@@ -242,7 +243,7 @@ function bootstrap() {
   hud.setTouchControls(coarse);
   // Tell the owner what the mouse is doing: capture it, or drag instead.
   if (coarse) hud.setHint(HINTS.touch);
-  else if (input.captureState() === input.CAPTURE.unsupported) hud.setHint(HINTS.desktopNoCapture);
+  else if (!input.canCapture()) hud.setHint(HINTS.desktopNoCapture);
   else hud.setHint(HINTS.desktopUncaptured);
   requestAnimationFrame(frame);
 
