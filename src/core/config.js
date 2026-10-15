@@ -9,7 +9,7 @@ export const APP = Object.freeze({
   title: 'Worldhopper',
   subtitle: 'working title',
   version: '0.1.0',
-  milestone: 'M0 · foundation',
+  milestone: 'M1 · the player',
   /** Required by AGENT_PROMPT.md §9: in-game + README notice. */
   notice:
     'Unofficial, non-commercial fan work. Not affiliated with, endorsed by, or sponsored by ' +
@@ -115,6 +115,28 @@ export const SIM = Object.freeze({
 export const REALMS = Object.freeze({
   physical: 'physical',
   cognitive: 'cognitive',
+});
+
+/**
+ * The Cognitive lens (M2). Same world, second rendering: orthographic,
+ * high-angle, diagrammatic (AGENT_PROMPT.md §2, §4 — "not a second engine").
+ *
+ * These are structural numbers (what makes it *a lens*), not taste: the look —
+ * palette, fog, what objects and living things become — is per-world data in
+ * the map's `cognitiveSkin`. The pitch is fixed and the look pitch is ignored:
+ * a diagram you can tilt is not a diagram.
+ */
+export const LENS = Object.freeze({
+  /** radians, negative = looking down at the world */
+  pitch: -1.05,
+  /** metres the lens floats above the point it looks at */
+  height: 38,
+  /** default visible height in metres (the zoom), overridable by settings */
+  defaultSpan: 46,
+  minSpan: 16,
+  maxSpan: 140,
+  /** metres above the terrain the lens is never allowed to sink below */
+  clearance: 6,
 });
 
 /** Renderer budgets — frame-loop hygiene, not visual taste. */

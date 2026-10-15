@@ -125,8 +125,37 @@ blocky characters.)*
 - [x] The girl's long hair is drawn into her textures — no geometry; she has
       the boy's box count and the boy's texture set
 - [x] Sprint default is 2.20× (the owner's number), still under the stride cap
-- [ ] **M1.8 sign-off — needs the owner's playtest** (does the hair look right
-      now, and does 2.20× feel like a sprint?)
+- [x] **M1.8 sign-off — accepted by the owner** ("It's good. All of it.")
+
+### M2 — the Cognitive Realm (the realm switch)
+
+**Plan:** the same world, a second rendering (§2/§4 — never a second engine).
+
+- [x] `state.realm` + `toggleRealm()`: a lens flag the sim never reads; a unit
+      test walks the same seed in both realms to the same entity hash, and the
+      e2e test checks tick, entity hash and player position across a shift
+- [x] The Cognitive lens: an orthographic, high-angle camera in the same scene,
+      same coordinates, yaw following the player, fixed diagram pitch, visible
+      height from `Cognitive lens height` (`?realmzoom=`, 16–140 m)
+- [x] Input on both devices: <kbd>F</kbd> on desktop, a **realm** button on the
+      phone; consumed as an edge, never a held state; a HUD badge that says which
+      realm you are in
+- [ ] The look: palette, fog and the abstracted forms (what objects and living
+      things *become*) — per-world `cognitiveSkin` data, with the canon guard
+      that beads are Rosharan-only; presented to the owner as screenshot options
+- [ ] Something solvable only in the lens (§2 step 4): one hidden thing that the
+      Cognitive realm reveals, and a gate that only opens because of it
+- [ ] **M2 sign-off — needs the owner's playtest**
+
+### Later — the owner's requests (not yet scheduled)
+
+- **Swappable input bindings per magic kit** (owner, 2026-10-15): "multiple
+  different input bindings that the player can swap between ... for different
+  magic sets. (Like windrunner and mist born.)" Today's controls are the
+  permanent default set; kits add their own binding tables, and the swap changes
+  the bindings *and* the HUD legend. Belongs with the `MagicKit` contract (M6
+  in the brief), together with the attunement swap window already declared in the
+  tuning panel.
 
 ### Blocked on the owner
 

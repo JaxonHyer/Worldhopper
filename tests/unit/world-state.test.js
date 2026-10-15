@@ -5,11 +5,15 @@ import {
   countEntities,
   createWorldState,
   distanceFromOrigin,
+  entityHash,
   findEntity,
   scaleFenceStatus,
+  setRealm,
   stepWorld,
   terrainHeight,
+  toggleRealm,
 } from '../../src/core/world-state.js';
+import { REALMS } from '../../src/core/config.js';
 import { eyePosition, PLAYER } from '../../src/core/player.js';
 import { PITCH_LIMIT } from '../../src/core/math.js';
 import { createFixedClock } from '../../src/core/clock.js';
@@ -132,4 +136,46 @@ test('look input is clamped, wrapped and NaN-proof', () => {
 test('distance from origin is measured on the position itself', () => {
   assert.equal(distanceFromOrigin({ x: 0, y: 0, z: 0 }), 0);
   assert.equal(distanceFromOrigin({ x: 3, y: 4, z: 0 }), 5);
+});
+
+// --- the realm switch (M2) --------------------------------------------------
+
+test('shifting realm changes the lens and nothing else', () => {
+  // The architecture rule (§2): one world state, two renderings. If a realm
+  // switch ever moves an entity, changes the tick, or perturbs the player, the
+  // design has failed — so it is asserted, not trusted.
+  const state = createWorldState({ map, seed: 99 });
+  const before = JSON.stringify({ ...state, realm: null });
+  const hashBefore = entityHash(state);
+  const tickBefore = state.tick;
+
+  assert.equal(state.realm, REALMS.physical);
+  assert.equal(toggleRealm(state), REALMS.cognitive);
+  assert.equal(state.realm, REALMS.cognitive);
+  assert.equal(JSON.stringify({ ...state, realm: null }), before, 'a shift may not touch the world');
+  assert.equal(entityHash(state), hashBefore);
+  assert.equal(state.tick, tickBefore, 'a shift is not a simulation step');
+
+  // Simulating *in* the Cognitive realm is the same simulation.
+  const physical = createWorldState({ map, seed: 99 });
+  const belief = createWorldState({ map, seed: 99 });
+  setRealm(belief, REALMS.cognitive);
+  for (let i = 0; i < 120; i++) {
+    stepWorld(physical, 1 / 60, { move: { x: 0, y: 1 }, jump: i === 30 });
+    stepWorld(belief, 1 / 60, { move: { x: 0, y: 1 }, jump: i === 30 });
+  }
+  assert.equal(entityHash(belief), entityHash(physical));
+  assert.equal(belief.player.position.x, physical.player.position.x);
+  assert.equal(belief.player.position.z, physical.player.position.z);
+  assert.equal(belief.player.distanceWalked, physical.player.distanceWalked);
+});
+
+test('the realm is a two-value flag, and junk cannot invent a third', () => {
+  const state = createWorldState({ map, seed: 7 });
+  for (const junk of [undefined, null, 'Cognitive', 'physical ', 42, {}]) {
+    assert.equal(setRealm(state, junk), REALMS.physical, `setRealm(${String(junk)})`);
+  }
+  assert.equal(setRealm(state, REALMS.cognitive), REALMS.cognitive);
+  assert.equal(toggleRealm(state), REALMS.physical);
+  assert.equal(toggleRealm(state), REALMS.cognitive);
 });

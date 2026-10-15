@@ -15,7 +15,7 @@
  * frame loop allocation-free.
  */
 
-import { CAMERA, PLAYER } from './config.js';
+import { CAMERA, LENS, PLAYER, REALMS } from './config.js';
 import { PITCH_LIMIT, clamp } from './math.js';
 import { terrainHeight } from './terrain.js';
 import { eyePosition } from './player.js';
@@ -30,6 +30,10 @@ export function normalizeView(view) {
 export function createCameraState() {
   return {
     mode: VIEW.third,
+    /** 'perspective' (both person views) or 'orthographic' (the Cognitive lens) */
+    projection: 'perspective',
+    /** visible height of the orthographic lens, in metres (0 in perspective) */
+    span: 0,
     x: 0,
     y: 0,
     z: 0,
@@ -63,13 +67,70 @@ function isClear(x, y, z, { map, seed, obstacles, clearance }) {
 }
 
 /**
+ * The Cognitive lens: high-angle, orthographic, centred on the player.
+ *
+ * Same coordinates as the physical camera — the lens is a second *rendering* of
+ * one world, so it may not invent a position of its own. What it does own is
+ * the projection (that is what makes it read as 2D) and the fixed diagram
+ * pitch: the look controls still turn the *player*, and the lens turns with
+ * them, but tilting the view is not a thing a diagram does.
+ *
+ * It never looks through the ground: the same lift guard as the boom camera.
+ */
+function resolveLens(player, settings, map, seed, out) {
+  const yaw = Number.isFinite(player.yaw) ? player.yaw : 0;
+  const x = Number.isFinite(player.position.x) ? player.position.x : 0;
+  const y = Number.isFinite(player.position.y) ? player.position.y : 0;
+  const z = Number.isFinite(player.position.z) ? player.position.z : 0;
+
+  const span = clamp(
+    Number.isFinite(settings?.realmZoom) ? settings.realmZoom : LENS.defaultSpan,
+    LENS.minSpan,
+    LENS.maxSpan,
+  );
+  const pitch = LENS.pitch;
+  const distance = LENS.height / Math.max(0.2, Math.sin(-pitch));
+  const cosPitch = Math.cos(pitch);
+  // Yaw 0 looks down -Z; the lens sits back along the same axis as the boom.
+  const backX = Math.sin(yaw) * cosPitch;
+  const backZ = Math.cos(yaw) * cosPitch;
+
+  out.mode = VIEW.third;
+  out.projection = 'orthographic';
+  out.span = span;
+  out.yaw = yaw;
+  out.pitch = pitch;
+  out.distance = distance;
+  out.clipped = false;
+  out.avatarVisible = true;
+  out.targetHeight = PLAYER.eyeHeight;
+  out.x = x + backX * distance;
+  out.y = y - Math.sin(pitch) * distance;
+  out.z = z + backZ * distance;
+
+  if (map) {
+    const floor = terrainHeight(map, seed, out.x, out.z) + LENS.clearance;
+    if (out.y < floor) {
+      out.y = floor;
+      out.clipped = true;
+    }
+  }
+  return out;
+}
+
+/**
  * Resolve the camera for this frame.
  *
  * @param {object} args {player, settings, map, seed, obstacles}
  * @param {object} [out] reusable state (see createCameraState)
  */
-export function resolveCamera({ player, settings, map = null, seed = 0, obstacles = null }, out = createCameraState()) {
+export function resolveCamera({ player, settings, map = null, seed = 0, obstacles = null, realm = REALMS.physical }, out = createCameraState()) {
   const mode = normalizeView(settings?.view);
+  // The realm is a lens over the same world: read it first, so everything below
+  // is talking about the same player in the same coordinates either way.
+  if (realm === REALMS.cognitive) return resolveLens(player, settings, map, seed, out);
+  out.projection = 'perspective';
+  out.span = 0;
   // Never let a NaN anywhere reach the renderer: a camera with a NaN position
   // renders nothing at all, which looks like the game crashing.
   const yaw = Number.isFinite(player.yaw) ? player.yaw : 0;

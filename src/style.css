@@ -590,3 +590,47 @@ body:has(.hud.is-touch) .dock {
   accent-color: #78a894;
   justify-self: start;
 }
+
+/* --- the realm (M2) ------------------------------------------------------ */
+
+.touch-realm {
+  position: absolute;
+  right: calc(18px + var(--safe-right));
+  bottom: calc(180px + var(--safe-bottom));
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 2px solid rgba(198, 214, 224, 0.34);
+  background: rgba(12, 17, 22, 0.72);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.hud__realm {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(14px + var(--safe-bottom));
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(230, 236, 240, 0.4);
+  background: rgba(10, 12, 16, 0.6);
+  color: var(--ui-text);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* The Cognitive realm is a different *place*: tint the UI so a screenshot (or a
+   glance) says which one you are in even before the world does. */
+.hud.is-cognitive {
+  --ui-text: #dfe7ff;
+}

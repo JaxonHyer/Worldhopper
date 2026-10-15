@@ -105,6 +105,10 @@ export function buildSnapshot({
       yaw: round(view.yaw, 4),
       pitch: round(view.pitch, 4),
       mode: view.mode,
+      /** 'perspective' or 'orthographic' — which camera drew this frame */
+      projection: view.projection ?? 'perspective',
+      /** visible height of the Cognitive lens in metres (0 in the physical realm) */
+      span: round(view.span ?? 0, 2),
       /** metres above the feet the boom is aimed at (the point it looks at) */
       aimHeight: round(view.targetHeight, 3),
       distance: round(view.distance, 3),

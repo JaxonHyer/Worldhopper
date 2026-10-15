@@ -403,3 +403,38 @@ this to stay oriented; agents add to it in the same PR as the change.
 - **Boxes are named** (`girl-left-arm`, `boy-head`, …). The girl-differs test
   needs to ask the *body* how wide its arms are; counting children and guessing
   which box is an arm is the kind of test that passes for the wrong reason.
+
+## M2 — the Cognitive Realm (owner, 2026-10-15: "Now M2 I think. Right?")
+
+- **The realm is a lens, never a second world.** `state.realm` is a two-value
+  flag and the sim never reads it: switching realms cannot move an entity,
+  change the tick, or perturb the player's walk. Two tests hold that line — a
+  unit test simulates the same seed in both realms to the same entity hash, and
+  the browser test checks tick, entity hash and player position across a shift.
+  This is the architecture rule from §2 turned into a test instead of a promise.
+- **Orthographic, high-angle, and the pitch is fixed.** The lens is the same
+  scene through an `OrthographicCamera`: the yaw follows the player (so the map
+  reads the same way you are walking), the look pitch is deliberately ignored
+  (a diagram you can tilt is not a diagram), and the visible height is a setting
+  (`Cognitive lens height (m)`, `?realmzoom=`, 16–140 m, default 46). Both
+  cameras live in the renderer and the frame loop drives whichever is active, so
+  there is one scene, one set of coordinates, one source of truth.
+- **One key, one button — and no gesture.** <kbd>F</kbd> on a desktop; a round
+  **realm** button above jump on a phone (taps are safe near the stick; a swipe
+  is not). The switch is an *edge*: it is consumed once per press, so a
+  double-shift cannot fall out of one key press. A badge at the bottom of the
+  HUD says which realm you are in, because that is the one thing the screen must
+  never leave ambiguous.
+- **The look is per-world data, and the first authored world is not here yet.**
+  `cognitiveSkin` (beads / flames / water / land / light) already exists per map,
+  with the canon guard that glass beads require `system: 'rosharan'`. The M0/M1
+  test range is deliberately non-canonical (`system: 'unassigned'`), so M2 ships
+  the *machinery* and leaves the appearance to the map that asks for it — no
+  canon invented to make a screenshot look better.
+- **Input bindings are data, on purpose (owner's PS).** The owner wants to
+  *swap* binding sets per magic kit later ("like windrunner and mist born"), with
+  today's controls as the permanent default set. So the realm shift is a named
+  action (`consumeRealm`) rather than a raw key check inside game code, hotkeys
+  stay in one table, and no game logic reads a key directly. The swap UI and the
+  kit binding tables are M6 work (the brief's `MagicKit` contract); the ground is
+  being kept ready for them now.
