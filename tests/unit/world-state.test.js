@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getMap, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import {
-  EYE_HEIGHT,
   countEntities,
   createWorldState,
   distanceFromOrigin,
@@ -11,8 +10,10 @@ import {
   stepWorld,
   terrainHeight,
 } from '../../src/core/world-state.js';
+import { eyePosition, PLAYER } from '../../src/core/player.js';
 import { PITCH_LIMIT } from '../../src/core/math.js';
 import { createFixedClock } from '../../src/core/clock.js';
+import { defaultSettings } from '../../src/core/settings.js';
 
 const map = getMap(DEFAULT_MAP_ID);
 
@@ -56,10 +57,13 @@ test('the landmark is always placed, and props keep their distance from it', () 
   }
 });
 
-test('the spawn apron is flat and the eye sits at eye height', () => {
+test('the spawn apron is flat, and the player starts standing on it at eye height', () => {
   const state = createWorldState({ map, seed: 4242 });
   assert.equal(terrainHeight(map, 4242, 0, 0), 0);
-  assert.equal(state.observer.position.y, EYE_HEIGHT);
+  assert.equal(state.player.position.y, 0, 'the player spawns with their feet on the ground');
+  assert.equal(state.player.grounded, true);
+  const eye = eyePosition(state.player);
+  assert.equal(eye.y, PLAYER.eyeHeight, 'the camera sits one eye height above the feet');
   assert.ok(Math.abs(terrainHeight(map, 4242, 300, 120)) <= map.ground.amplitude + 1e-9);
   assert.equal(countEntities(state), map.landmarks.length + state.entities.filter((e) => e.kind === 'rock').length);
 });
@@ -72,13 +76,26 @@ test('every entity is inside the scale fence', () => {
 });
 
 test('simulating the same input twice gives the same state', () => {
-  const input = { lookRate: { x: 1.9, y: 0 }, lookImpulse: { yaw: 0.3, pitch: -0.1 }, sensitivity: 1 };
+  const settings = defaultSettings();
   const run = () => {
     const state = createWorldState({ map, seed: 4242 });
+    const context = { map, seed: state.seed, obstacles: state.obstacles, settings };
     const clock = createFixedClock({ stepHz: 60 });
     for (let frame = 0; frame < 120; frame++) {
       const steps = clock.advance(1 / 60);
-      for (let i = 0; i < steps; i++) stepWorld(state, clock.step, i === 0 ? input : { lookRate: input.lookRate });
+      for (let i = 0; i < steps; i++) {
+        stepWorld(
+          state,
+          clock.step,
+          {
+            move: { x: Math.sin(frame * 0.05), y: 1 },
+            jump: frame === 40,
+            lookRate: { x: 1.9, y: 0 },
+            lookImpulse: i === 0 ? { yaw: 0.3, pitch: -0.1 } : null,
+          },
+          context,
+        );
+      }
     }
     return state;
   };
@@ -99,16 +116,17 @@ test('tick and sim time advance with the fixed step, not the frame rate', () => 
 
 test('look input is clamped, wrapped and NaN-proof', () => {
   const state = createWorldState({ map, seed: 1 });
-  for (let i = 0; i < 600; i++) stepWorld(state, 1 / 60, { lookRate: { x: 0, y: 100 } });
-  assert.ok(state.observer.pitch <= PITCH_LIMIT, 'pitch escaped its clamp');
-  assert.ok(state.observer.pitch >= -PITCH_LIMIT, 'pitch escaped its clamp (down)');
+  const context = { map, seed: state.seed, obstacles: state.obstacles, settings: defaultSettings() };
+  for (let i = 0; i < 600; i++) stepWorld(state, 1 / 60, { lookRate: { x: 0, y: 100 } }, context);
+  assert.ok(state.player.pitch <= PITCH_LIMIT, 'pitch escaped its clamp');
+  assert.ok(state.player.pitch >= -PITCH_LIMIT, 'pitch escaped its clamp (down)');
 
-  for (let i = 0; i < 600; i++) stepWorld(state, 1 / 60, { lookRate: { x: 100, y: 0 } });
-  assert.ok(state.observer.yaw > -Math.PI && state.observer.yaw <= Math.PI, 'yaw must stay wrapped');
+  for (let i = 0; i < 600; i++) stepWorld(state, 1 / 60, { lookRate: { x: 100, y: 0 } }, context);
+  assert.ok(state.player.yaw > -Math.PI && state.player.yaw <= Math.PI, 'yaw must stay wrapped');
 
-  const before = { ...state.observer };
-  stepWorld(state, 1 / 60, { lookRate: { x: Number.NaN, y: Number.NaN } });
-  assert.deepEqual(state.observer, before, 'NaN input must not move the camera');
+  const before = { ...state.player };
+  stepWorld(state, 1 / 60, { move: { x: Number.NaN, y: Number.NaN }, lookRate: { x: Number.NaN, y: Number.NaN } }, context);
+  assert.deepEqual({ ...state.player }, before, 'NaN input must not move the player');
 });
 
 test('distance from origin is measured on the position itself', () => {

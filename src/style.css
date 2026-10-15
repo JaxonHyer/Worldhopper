@@ -393,3 +393,100 @@ html[data-ready='true'] .boot-note {
     max-height: 62vh;
   }
 }
+
+/* --- HUD: control hint + touch controls --------------------------------- */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hud > * {
+  pointer-events: none;
+}
+
+.hud__hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(12px + var(--safe-bottom));
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: rgba(12, 17, 22, 0.6);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The stick is placed where the thumb lands, so it is positioned in JS. */
+.touch-stick {
+  position: absolute;
+  width: 148px;
+  height: 148px;
+  margin: -74px 0 0 -74px;
+  border-radius: 50%;
+  border: 2px solid rgba(198, 214, 224, 0.28);
+  background: radial-gradient(circle at center, rgba(159, 208, 232, 0.1), rgba(12, 17, 22, 0.25));
+}
+
+.touch-stick__knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(159, 208, 232, 0.5);
+  border: 2px solid rgba(223, 231, 236, 0.7);
+  transform: translate(-50%, -50%);
+}
+
+.touch-jump {
+  position: absolute;
+  right: calc(18px + var(--safe-right));
+  bottom: calc(84px + var(--safe-bottom));
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  pointer-events: auto;
+  background: rgba(12, 17, 22, 0.72);
+  border: 2px solid rgba(198, 214, 224, 0.34);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.touch-jump.is-pressed {
+  background: rgba(159, 208, 232, 0.35);
+}
+
+/* On touch hardware the dock moves to the top-right, out of the thumb's way. */
+.hud.is-touch ~ .dock,
+body:has(.hud.is-touch) .dock {
+  bottom: auto;
+  top: calc(10px + var(--safe-top));
+}
+
+@media (pointer: coarse) {
+  .dock {
+    bottom: auto;
+    top: calc(10px + var(--safe-top));
+  }
+
+  .hud__hint {
+    bottom: calc(6px + var(--safe-bottom));
+    font-size: 11px;
+  }
+}

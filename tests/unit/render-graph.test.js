@@ -64,7 +64,7 @@ test('switching palette variant recolours in place', () => {
   assert.equal(world.scene.fog.color.getHex(), new THREE.Color(misty.fog.color).getHex());
 });
 
-test('sync mirrors state positions and still works after a seed change', () => {
+test('sync follows the player and still works after a seed change', () => {
   const { settings } = buildWorld();
   const first = createWorldState({ map, seed: 111 });
   const second = createWorldState({ map, seed: 222 });

@@ -174,3 +174,38 @@ this to stay oriented; agents add to it in the same PR as the change.
   determinism, palette containment, ramp direction, neighbour smoothness, jitter
   spread and NaN-immunity, because this is exactly the class of bug that only
   shows up in an image.
+
+## M1 — the player (2026-10-14)
+
+- **Collision is a vertical capsule against the heightfield plus cylinder
+  obstacles — still no physics engine.** Six ring samples under the capsule find
+  the ground; rocks and the landmark plinth become cylinders derived from the
+  same entities the renderer draws, so a rock can never be visible in one place
+  and solid in another. Every rule is asserted in `tests/unit/player.test.js`.
+- **`src/core/terrain.js` split out of `world-state.js`** so the player sim can
+  sample terrain without importing the whole world (and without an import cycle).
+- **Jump height is the slider, gravity is the spring rate:** jump velocity is
+  `sqrt(2 * gravity * jumpHeight)`, so the owner can make gravity floaty without
+  changing how high the player jumps. Verified to ±8% for 0.8/1.5/3 m.
+- **Coyote time (0.12 s) and a jump buffer (0.15 s).** Two small graces that stop
+  a jump press near an edge from being silently dropped; both are unit-tested.
+- **The sim normalises movement input itself.** A caller passing (1,1) used to
+  walk 1.41x faster; diagonals are now unit-length in `stepPlayer`, not just in
+  the keyboard path.
+- **Touch is the primary input path, and the stick appears where the thumb
+  lands.** Left 45% is the movement zone, right 55% is look-drag, and the jump
+  button is a real DOM button (88 px) so it is reachable and testable. Desktop
+  keeps W/A/S/D + space + drag-look; both produce the same intent object, so the
+  simulation never knows which is in use.
+- **Arrow keys now walk instead of looking.** Arrows are movement keys on every
+  device the owner uses; looking is a drag, or Q/E for keyboard-only sessions.
+- **Touch controls are enabled by `navigator.maxTouchPoints`, `(pointer: coarse)`
+  or `(hover: none)`, and also switch on the first touch that arrives.** A
+  hybrid laptop that gets touched starts showing the stick immediately.
+- **On touch hardware the dev dock moves to the top-right**, out of the way of
+  the thumb and the jump button.
+- **View bob is a slider (default 0.035 m) and freezes at 0 in the air.** It is
+  the only camera motion in M1, so it is the easiest thing to switch off if it
+  turns out to bother the owner.
+- **The camera is derived, never stored:** `eye = feet + eyeHeight + bob`. The
+  sky follows the player's feet so the bob cannot make the skyline jitter.

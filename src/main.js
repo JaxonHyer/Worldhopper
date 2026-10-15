@@ -1,18 +1,20 @@
 /**
- * Entry point: wires settings, world state, the renderer, the sim loop and the
- * dev UI together.
+ * Entry point: wires settings, world state, the player, the renderer, the sim
+ * loop and the dev UI together.
  *
- * M0 scope: a blank (non-interactive) world with a sky, a faceted ground, a
- * landmark silhouette and fog — plus the harness the whole project is graded
- * on (debug overlay, tuning panel, `window.__debug()`).
+ * M1 scope: you can walk a world — W/A/S/D or a thumb-stick, drag to look,
+ * space or a button to jump, with capsule-vs-heightfield collision, and every
+ * feel number live in the tuning panel. One world state, one camera derived
+ * from it.
  */
 
 import './style.css';
-import { APP, SIM } from './core/config.js';
+import { APP, SIM, PLAYER } from './core/config.js';
 import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
-import { createWorldState, stepWorld } from './core/world-state.js';
+import { createWorldState, countEntities, entityHash, stepWorld } from './core/world-state.js';
 import { buildSnapshot } from './core/snapshot.js';
+import { eyePosition } from './core/player.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from './core/maps/index.js';
 import {
   parseSettings,
@@ -22,7 +24,6 @@ import {
   saveSettings,
   loadSettings,
   clearStoredSettings,
-  describeSettings,
   parseFlag,
 } from './core/settings.js';
 import { createView } from './render/renderer.js';
@@ -32,6 +33,7 @@ import { createDebugOverlay } from './ui/debug-overlay.js';
 import { createTuningPanel } from './ui/tuning-panel.js';
 import { createCredits } from './ui/credits.js';
 import { createDock } from './ui/dock.js';
+import { createHud } from './ui/hud.js';
 
 const canvas = document.getElementById('game');
 const uiMount = document.getElementById('ui');
@@ -45,6 +47,7 @@ function bootstrap() {
   const flags = {
     debug: parseFlag(params, 'debug'),
     dev: parseFlag(params, 'dev'),
+    touch: parseFlag(params, 'touch'),
   };
 
   const map = getMap(DEFAULT_MAP_ID);
@@ -66,14 +69,16 @@ function bootstrap() {
 
   const clock = createFixedClock({ stepHz: SIM.fixedStepHz, maxSubsteps: SIM.maxSubsteps, maxFrameDelta: SIM.maxFrameDelta });
   const frameStats = createFrameStats();
-  const input = createInput({ canvas, onHotkey });
+  const input = createInput({
+    canvas,
+    mount: uiMount,
+    onHotkey,
+  });
 
   const debugOverlay = createDebugOverlay({ mount: uiMount });
   const panel = createTuningPanel({
     mount: uiMount,
     settings,
-    // Quiet while a range input is dragged: replacing the URL on every pixel
-    // would both churn history and drop the tool's own ?debug/?dev flags.
     onChange: (key, raw, options) => applySetting(key, raw, options),
     onReset: resetSettings,
     onRerollSeed: () => applySetting('seed', Math.floor(Math.random() * 2147483646) + 1),
@@ -89,6 +94,18 @@ function bootstrap() {
   dock.setDevVisible(flags.dev);
   if (flags.debug) debugOverlay.show();
 
+  const coarse = detectTouch();
+  function detectTouch() {
+    if (flags.touch) return true;
+    if (typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0) return true;
+    if (typeof matchMedia === 'function') {
+      if (matchMedia('(pointer: coarse)').matches) return true;
+      if (matchMedia('(hover: none)').matches) return true;
+    }
+    return false;
+  }
+  const hud = createHud({ mount: uiMount, coarsePointer: coarse, onJump: () => {} });
+
   // Expose the debug surface the headless smoke test asserts against (§8).
   const debugApi = {
     ready: false,
@@ -96,10 +113,11 @@ function bootstrap() {
     milestone: APP.milestone,
     debug: () => snapshot(),
     settings: () => ({ ...settings }),
-    describe: () => describeSettings(settings),
+    describe: () => describeSettingsSafe(settings),
     setSetting: (key, raw) => applySetting(key, raw),
     /** Input counters, so a dead drag reports which stage went missing. */
     input: () => input.stats(),
+    player: () => ({ ...state.player, position: { ...state.player.position }, velocity: { ...state.player.velocity } }),
     ui: {
       showOverlay: (visible) => (visible ? debugOverlay.show() : debugOverlay.hide()),
       showPanel: (visible) => (visible ? panel.show() : panel.hide()),
@@ -117,9 +135,17 @@ function bootstrap() {
     if (!document.hidden) input.reset();
   });
 
+  // Context the fixed-step simulation needs, rebuilt whenever the map or the
+  // settings change — the sim itself never reaches for globals.
+  let context = { map, seed: state.seed, obstacles: state.obstacles, settings };
+  const refreshContext = () => {
+    context = { map, seed: state.seed, obstacles: state.obstacles, settings };
+  };
+
   // --- sim loop -----------------------------------------------------------
   let last = performance.now();
   let frames = 0;
+  let touchSeen = coarse;
 
   function frame(now) {
     const dtSeconds = Math.min((now - last) / 1000, SIM.maxFrameDelta);
@@ -127,21 +153,38 @@ function bootstrap() {
     frameStats.sample(dtSeconds);
 
     const steps = clock.advance(dtSeconds);
-    const lookRate = input.keyLook();
-    const drag = steps > 0 ? input.consumeDrag() : { yaw: 0, pitch: 0 };
+    const look = input.look();
+    const move = input.move();
+    const jump = input.consumeJump();
 
     for (let i = 0; i < steps; i++) {
-      stepWorld(state, clock.step, {
-        lookRate,
-        lookImpulse: i === 0 ? drag : null,
-        sensitivity: settings.look,
-      });
+      stepWorld(
+        state,
+        clock.step,
+        {
+          move,
+          // A drag is a one-shot: apply it on the first substep only, or a fast
+          // flick would be multiplied by the number of substeps this frame.
+          lookImpulse: i === 0 ? look.impulse : null,
+          lookRate: look.rate,
+          jump: i === 0 ? jump : false,
+        },
+        context,
+      );
+    }
+
+    // Touch controls appear the first time a finger does anything (or if the
+    // device says it is coarse), and never on a plain desktop session.
+    if (!touchSeen && input.touchMode()) {
+      touchSeen = true;
+      hud.setTouchControls(true);
     }
 
     view.setFov(settings.fov);
     view.resize();
-    view.camera.position.set(state.observer.position.x, state.observer.position.y, state.observer.position.z);
-    view.camera.rotation.set(state.observer.pitch, state.observer.yaw, 0);
+    const eye = eyePosition(state.player);
+    view.camera.position.set(eye.x, eye.y, eye.z);
+    view.camera.rotation.set(state.player.pitch, state.player.yaw, 0);
     world.sync(state);
     view.render(world.scene);
 
@@ -154,6 +197,8 @@ function bootstrap() {
     }
     requestAnimationFrame(frame);
   }
+
+  hud.setTouchControls(coarse);
   requestAnimationFrame(frame);
 
   // --- settings plumbing --------------------------------------------------
@@ -180,6 +225,7 @@ function bootstrap() {
         variant = getVariant(map.id, value);
       }
       world.applySettings(settings, variant);
+      refreshContext();
     }
     if (persist) {
       saveSettings(storage, settings);
@@ -197,6 +243,7 @@ function bootstrap() {
     state = createWorldState({ map, seed: settings.seed });
     rebuildWorld();
     world.applySettings(settings, variant);
+    refreshContext();
     panel.sync(settings);
     syncUrl();
   }
@@ -210,6 +257,7 @@ function bootstrap() {
   function rebuildWorld() {
     world.dispose();
     world = createWorldView({ map, state, variant, settings });
+    refreshContext();
   }
 
   function syncUrl() {
@@ -236,14 +284,15 @@ function bootstrap() {
     else if (action === 'credits') credits.toggle();
     else if (action === 'palette') cyclePalette();
     else if (action === 'resetView') {
-      state.observer.yaw = 0;
-      state.observer.pitch = -0.04;
+      state.player.yaw = 0;
+      state.player.pitch = -0.04;
     }
   }
 
   /** The one shape shared by window.__debug(), the overlay and the reports. */
   function snapshot() {
     const info = view.info();
+    const stick = input.stickState();
     return buildSnapshot({
       app: APP,
       state,
@@ -257,10 +306,30 @@ function bootstrap() {
         overlay: debugOverlay.visible,
         panel: panel.visible,
         credits: credits.visible,
+        touch: !hud.jump.hidden,
+      },
+      input: {
+        mode: touchSeen ? 'touch' : 'keyboard',
+        stick: stick.active ? { x: round(stick.x, 3), y: round(stick.y, 3), magnitude: round(stick.magnitude, 3) } : null,
+        looking: input.isDragging(),
+        heldKeys: input.heldKeys().length,
       },
       ready: debugApi.ready,
     });
   }
+}
+
+function round(value, decimals) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function describeSettingsSafe(settings) {
+  const parts = [];
+  for (const [key, def] of Object.entries(SETTING_BY_KEY)) {
+    if (settings[key] !== def.default) parts.push(`${def.param}=${settings[key]}`);
+  }
+  return parts.length > 0 ? parts.join(' ') : 'all defaults';
 }
 
 // --- helpers --------------------------------------------------------------

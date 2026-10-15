@@ -11,6 +11,7 @@
 
 import { countEntities, entityHash, scaleFenceStatus } from './world-state.js';
 import { describeSettings } from './settings.js';
+import { eyePosition, horizontalSpeed } from './player.js';
 
 /** Every key the overlay and the tests are allowed to rely on. */
 export const SNAPSHOT_KEYS = Object.freeze([
@@ -30,6 +31,8 @@ export const SNAPSHOT_KEYS = Object.freeze([
   'worstFrameMs',
   'longFrames',
   'camera',
+  'player',
+  'input',
   'distanceFromOrigin',
   'scaleFence',
   'entityCount',
@@ -53,10 +56,13 @@ export function buildSnapshot({
   frameStats,
   render,
   ui,
+  input,
   ready,
 }) {
   const scale = scaleFenceStatus(state);
   const stats = clock.stats();
+  const player = state.player;
+  const eye = eyePosition(player);
   return {
     ready: Boolean(ready),
     version: app.version,
@@ -74,12 +80,32 @@ export function buildSnapshot({
     worstFrameMs: round(frameStats.worstMs(), 2),
     longFrames: frameStats.longFrames,
     camera: {
-      x: round(state.observer.position.x, 3),
-      y: round(state.observer.position.y, 3),
-      z: round(state.observer.position.z, 3),
-      yaw: round(state.observer.yaw, 4),
-      pitch: round(state.observer.pitch, 4),
+      x: round(eye.x, 3),
+      y: round(eye.y, 3),
+      z: round(eye.z, 3),
+      yaw: round(player.yaw, 4),
+      pitch: round(player.pitch, 4),
     },
+    player: {
+      x: round(player.position.x, 3),
+      y: round(player.position.y, 3),
+      z: round(player.position.z, 3),
+      speed: round(horizontalSpeed(player), 3),
+      vy: round(player.velocity.y, 3),
+      grounded: player.grounded,
+      bob: round(player.bob, 4),
+      jumps: player.jumps,
+      landings: player.landings,
+      distanceWalked: round(player.distanceWalked, 2),
+    },
+    input: input
+      ? {
+          mode: input.mode,
+          stick: input.stick,
+          looking: input.looking,
+          heldKeys: input.heldKeys,
+        }
+      : { mode: 'unknown', stick: null, looking: false, heldKeys: 0 },
     distanceFromOrigin: round(scale.distance, 3),
     scaleFence: { worst: round(scale.worst, 2), limit: scale.limit, warn: scale.warn },
     entityCount: countEntities(state),
@@ -88,7 +114,7 @@ export function buildSnapshot({
     drawCalls: render.drawCalls,
     triangles: render.triangles,
     gl: { version: render.gl.version, gpu: render.gl.gpu },
-    ui: { overlay: ui.overlay, panel: ui.panel, credits: ui.credits },
+    ui: { overlay: ui.overlay, panel: ui.panel, credits: ui.credits, touch: Boolean(ui.touch) },
     settings: { ...settings },
     settingsHint: describeSettings(settings),
   };
@@ -96,6 +122,7 @@ export function buildSnapshot({
 
 /** Keep the payload JSON-clean: no NaN, no -0, no long floats. */
 function round(value, decimals) {
+  if (!Number.isFinite(value)) return 0;
   const factor = 10 ** decimals;
   const rounded = Math.round(value * factor) / factor;
   return rounded === 0 ? 0 : rounded;

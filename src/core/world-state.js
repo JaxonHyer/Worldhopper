@@ -8,26 +8,12 @@
 
 import { REALMS, FENCE } from './config.js';
 import { createRng, normalizeSeed } from './rng.js';
-import { fbm2 } from './noise.js';
 import { clamp, distanceFromOrigin } from './math.js';
-import { applyLook } from './look.js';
+import { terrainHeight } from './terrain.js';
+import { createPlayer, stepPlayer } from './player.js';
 
-/** Metres above the surface the observer's eye sits at (M1 player starts here). */
+export { terrainHeight, clamp, distanceFromOrigin };
 export const EYE_HEIGHT = 1.7;
-
-export { clamp, distanceFromOrigin };
-
-/** Terrain height at a world position (metres). Deterministic per seed. */
-export function terrainHeight(map, seed, x, z) {
-  const g = map.ground;
-  const raw = fbm2(x * g.frequency, z * g.frequency, normalizeSeed(seed), g.octaves);
-  const centred = (raw - 0.5) * 2; // [-1, 1]
-  const dist = Math.hypot(x, z);
-  // Flatten the spawn apron so the first thing the player sees is not a fold.
-  const blend = dist >= g.flatRadius ? 1 : Math.max(0, dist / g.flatRadius - 0.15);
-  const height = centred * g.amplitude * blend;
-  return height === 0 ? 0 : height; // normalise -0 so state comparisons stay clean
-}
 
 function placeProps(map, seed) {
   const rng = createRng(seed ^ 0x5bf03635);
@@ -61,6 +47,37 @@ function placeProps(map, seed) {
 }
 
 /**
+ * Collision shapes derived from the entities: upright cylinders.
+ *
+ * Derived, never authored twice — the renderer builds its meshes from the same
+ * entities, so a rock can never be visible in one place and solid in another.
+ */
+export function buildObstacles(entities) {
+  const obstacles = [];
+  for (const entity of entities) {
+    if (entity.kind === 'rock') {
+      obstacles.push({
+        id: entity.id,
+        x: entity.position.x,
+        z: entity.position.z,
+        radius: Math.max(entity.scale.x, entity.scale.z) * 0.85,
+        // Rocks are sunk a quarter of their height, so their top sits here.
+        topY: entity.position.y + entity.scale.y * 0.72,
+      });
+    } else if (entity.kind === 'landmark') {
+      obstacles.push({
+        id: entity.id,
+        x: entity.position.x,
+        z: entity.position.z,
+        radius: entity.baseRadius * 1.45,
+        topY: entity.position.y + entity.height * 0.07,
+      });
+    }
+  }
+  return obstacles;
+}
+
+/**
  * Build a map's state from its seed. Called on load and on every seed change;
  * never mutated by rendering.
  */
@@ -86,6 +103,8 @@ export function createWorldState({ map, seed, environment = { seed: 0, time: 0 }
   }
   entities.push(...placeProps(map, normalized));
 
+  const obstacles = buildObstacles(entities);
+
   return {
     mapId: map.id,
     seed: normalized,
@@ -94,13 +113,8 @@ export function createWorldState({ map, seed, environment = { seed: 0, time: 0 }
     simTime: 0,
     environment: { ...environment },
     entities,
-    observer: {
-      // Eyes at the origin apron, facing the landmark (-Z) so the very first
-      // frame already shows the world's silhouette.
-      position: { x: 0, y: terrainHeight(map, normalized, 0, 0) + EYE_HEIGHT, z: 0 },
-      yaw: 0,
-      pitch: -0.04,
-    },
+    obstacles,
+    player: createPlayer({ map, seed: normalized, look: { yaw: 0, pitch: -0.04 } }),
   };
 }
 
@@ -108,21 +122,16 @@ export function createWorldState({ map, seed, environment = { seed: 0, time: 0 }
  * Advance the simulation one *fixed* step. Same input => same state, which is
  * what makes seeded runs reproducible.
  */
-export function stepWorld(state, dt, input = null) {
+export function stepWorld(state, dt, intent = null, context = null) {
   state.tick += 1;
   state.simTime += dt;
-  if (input) {
-    applyLook(state.observer, input, dt, {
-      sensitivity: input.sensitivity ?? 1,
-      invertY: input.invertY ?? false,
-    });
-  }
+  if (intent && context) stepPlayer(state.player, intent, context, dt);
   return state;
 }
 
 /** The scale-fence canary (AGENT_PROMPT.md §8). */
 export function scaleFenceStatus(state) {
-  const distance = distanceFromOrigin(state.observer.position);
+  const distance = distanceFromOrigin(state.player.position);
   const maxEntityDistance = state.entities.reduce(
     (acc, e) => Math.max(acc, Math.hypot(e.position.x, e.position.z)),
     0,

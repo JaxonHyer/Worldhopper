@@ -41,25 +41,29 @@ test('pointer/touch drag looks around without moving the player', async ({ page,
   watch.assertClean();
 });
 
-test('arrow keys look at a controlled rate and pitch stays clamped', async ({ page, isMobile }) => {
+test('arrow keys walk, the same as WASD, and pitch stays clamped when looking', async ({ page, isMobile }) => {
   test.skip(isMobile, 'no keyboard on the phone project');
   const watch = attachWatch(page);
   await gotoGame(page);
 
   const before = await readDebug(page);
-  await holdKey(page, 'ArrowLeft', 400);
-  const afterLeft = await readDebug(page);
-  expect(afterLeft.camera.yaw).toBeGreaterThan(before.camera.yaw);
+  await holdKey(page, 'ArrowUp', 700);
+  const walked = await readDebug(page);
+  expect(walked.player.z).toBeLessThan(before.player.z - 1);
+  expect(walked.camera.pitch).toBeCloseTo(before.camera.pitch, 3);
 
-  await holdKey(page, 'ArrowUp', 3000);
-  const afterUp = await readDebug(page);
-  // The clamp itself (PI/2 - 0.02), not a hand-picked number that sits below it.
-  expect(Math.abs(afterUp.camera.pitch)).toBeLessThanOrEqual(PITCH_LIMIT + 1e-3);
+  // Looking far up and far down must stop at the clamp, never flip over.
+  for (const dy of [-600, 1200]) {
+    await dragLook(page, 0, dy);
+    await page.waitForTimeout(120);
+  }
+  const looked = await readDebug(page);
+  expect(Math.abs(looked.camera.pitch)).toBeLessThanOrEqual(PITCH_LIMIT + 1e-3);
+  expect(looked.player.grounded).toBe(true);
 
   await page.keyboard.press('r');
   await page.waitForTimeout(200);
-  const afterReset = await readDebug(page);
-  expect(afterReset.camera.yaw).toBeCloseTo(0, 3);
+  expect((await readDebug(page)).camera.yaw).toBeCloseTo(0, 3);
   watch.assertClean();
 });
 
