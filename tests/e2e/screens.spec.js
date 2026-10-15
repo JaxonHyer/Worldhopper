@@ -10,6 +10,9 @@ import { attachWatch, gotoGame, openStick, readDebug, saveShot } from './helpers
 
 test('captures the deliverable screenshots', async ({ page, isMobile }, testInfo) => {
   const watch = attachWatch(page);
+  // Eight page loads and several seconds of walking each; CI renders with
+  // SwiftShader, so give the gallery room rather than measuring its patience.
+  test.setTimeout(240_000);
 
   if (isMobile) {
     await gotoGame(page);

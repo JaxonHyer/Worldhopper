@@ -197,7 +197,8 @@ test('the phone look-drag turns the view without walking', async ({ page, isMobi
   await touchDrag(page, 220, 0);
   const after = await stepSim(page, 0.25);
 
-  expect(after.camera.yaw).not.toBe(before.camera.yaw);
+  expect(after.player.yaw).not.toBe(before.player.yaw);
+  expect(after.camera.yaw).toBe(after.player.yaw);
   expect(Math.abs(after.player.x - before.player.x)).toBeLessThan(0.05);
   expect(Math.abs(after.player.z - before.player.z)).toBeLessThan(0.05);
   expect(after.ui.touch).toBe(true);

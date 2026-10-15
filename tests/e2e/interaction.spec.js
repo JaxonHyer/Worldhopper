@@ -174,20 +174,24 @@ test('palette variants change the atmosphere and the picture', async ({ page, is
   await gotoGame(page);
 
   const before = await readDebug(page);
-  expect(before.palette).toBe('ashen-basin');
+  expect(before.palette).toBe(SETTING_BY_KEY.palette.default);
   const firstShot = await saveShot(page, `palette-${before.palette}`, testInfo);
 
+  // Whichever variant the defaults picked, the test switches to a *different*
+  // one, and both the setting and the bytes on screen must change.
+  const variants = SETTING_BY_KEY.palette.values;
+  const other = variants.find((id) => id !== before.palette);
   let expected;
   if (isMobile) {
     // The phone drives it from the dev dock: cycles to the next variant.
     await page.goto('/?dev=1');
     await page.waitForFunction(() => window.__worldhopper?.ready === true);
     await page.locator('.dock__button[aria-label*="palette"]').tap();
-    expected = 'mist-sea';
+    expected = variants[(variants.indexOf(before.palette) + 1) % variants.length];
   } else {
     await page.keyboard.press('p');
-    await page.locator('#setting-palette').selectOption('cold-ridge');
-    expected = 'cold-ridge';
+    await page.locator('#setting-palette').selectOption(other);
+    expected = other;
   }
   await page.waitForTimeout(350);
 

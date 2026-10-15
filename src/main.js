@@ -370,7 +370,6 @@ function bootstrap() {
         credits: credits.visible,
         touch: !hud.jump.hidden,
       },
-      camera,
       paused: pausedSim,
       input: {
         mode: touchSeen ? 'touch' : 'keyboard',

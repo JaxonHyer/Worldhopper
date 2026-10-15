@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { attachWatch, gotoGame, readDebug, saveShot, waitForReady } from './helpers.js';
+import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 /**
  * The M0 gate: the built game loads, renders, reports state through
@@ -15,7 +16,8 @@ test('loads, renders, and reports state through the debug hook', async ({ page }
   expect(debug.ready).toBe(true);
   expect(debug.realm).toBe('physical');
   expect(debug.mapId).toBe('blank-basin');
-  expect(debug.seed).toBe(20261014);
+  // Whatever the tuned default seed is, the built game must load it.
+  expect(debug.seed).toBe(SETTING_BY_KEY.seed.default);
   expect(debug.entityCount).toBeGreaterThan(0);
   expect(debug.drawCalls).toBeGreaterThan(0);
   expect(debug.triangles).toBeGreaterThan(0);

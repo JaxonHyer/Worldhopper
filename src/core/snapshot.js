@@ -12,7 +12,7 @@
 import { countEntities, entityHash, scaleFenceStatus } from './world-state.js';
 import { describeSettings } from './settings.js';
 import { horizontalSpeed } from './player.js';
-import { resolveCamera } from './camera.js';
+import { createCameraState, resolveCamera } from './camera.js';
 
 /** Every key the overlay and the tests are allowed to rely on. */
 export const SNAPSHOT_KEYS = Object.freeze([
@@ -49,6 +49,8 @@ export const SNAPSHOT_KEYS = Object.freeze([
   'settingsHint',
 ]);
 
+const cameraScratch = createCameraState();
+
 export function buildSnapshot({
   app,
   state,
@@ -60,19 +62,18 @@ export function buildSnapshot({
   render,
   ui,
   input,
-  camera = null,
   paused,
   ready,
 }) {
   const scale = scaleFenceStatus(state);
   const stats = clock.stats();
   const player = state.player;
-  // The frame loop passes the camera it just resolved; anything else (a unit
-  // test) gets it derived here, so the snapshot can never disagree with the
-  // view the player is actually looking through.
-  const view =
-    camera ??
-    resolveCamera({ player, settings, map, seed: state.seed, obstacles: state.obstacles }, undefined);
+  // The camera is resolved here, from the player in *this* snapshot. Passing in
+  // the frame loop's camera looked equivalent and was not: a debug step() moves
+  // the player without waiting for a rendered frame, so the snapshot reported a
+  // camera that belonged to the previous position. Derived, never borrowed.
+  // (The scratch object is reused: the values are copied out below.)
+  const view = resolveCamera({ player, settings, map, seed: state.seed, obstacles: state.obstacles }, cameraScratch);
   return {
     ready: Boolean(ready),
     version: app.version,
