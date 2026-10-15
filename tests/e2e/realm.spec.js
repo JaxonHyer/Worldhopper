@@ -38,8 +38,18 @@ test('F shifts the realm, and the world does not change with it', async ({ page,
   expect(shifted.mapId).toBe(before.mapId);
   // The lens is above the player, looking down.
   expect(shifted.camera.y).toBeGreaterThan(shifted.player.y + 10);
-  // And the HUD says which realm you are in.
-  await expect(page.locator('.hud__realm')).toBeVisible();
+  // And the HUD says which realm you are in — *visibly*: the badge and the
+  // control hint both live at the bottom centre, and the first version of this
+  // badge was painted over by the hint while still passing toBeVisible().
+  const badge = page.locator('.hud__realm');
+  await expect(badge).toBeVisible();
+  const badgeBox = await badge.boundingBox();
+  const hintBox = await page.locator('.hud__hint').boundingBox();
+  if (hintBox) {
+    const overlaps = badgeBox.y < hintBox.y + hintBox.height && badgeBox.y + badgeBox.height > hintBox.y;
+    expect(overlaps, 'the realm badge is hidden behind the hint line').toBe(false);
+  }
+  await expect(page.locator('.hud')).toHaveClass(/is-cognitive/);
 
   // Pressing it again is the way back, and it leaves the lens fields behind.
   await page.keyboard.press('f');
@@ -103,5 +113,16 @@ test('captures both realms for the owner to compare', async ({ page, isMobile },
   await expect.poll(async () => (await readDebug(page)).realm, { timeout: 5_000 }).toBe('cognitive');
   await page.waitForTimeout(300);
   await saveShot(page, 'realm-cognitive', testInfo);
+
+  // How close the lens sits is a taste call, so it is a choice, not a number I
+  // pick quietly: three span options, plus the default, from the same spot the
+  // player is standing in when they press F.
+  for (const span of [20, 30, 46, 90]) {
+    await gotoGame(page, `?realmzoom=${span}&debug=0`);
+    await page.keyboard.press('f');
+    await expect.poll(async () => (await readDebug(page)).realm, { timeout: 5_000 }).toBe('cognitive');
+    await page.waitForTimeout(200);
+    await saveShot(page, `realm-lens-${span}m`, testInfo);
+  }
   watch.assertClean();
 });

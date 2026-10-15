@@ -617,7 +617,9 @@ body:has(.hud.is-touch) .dock {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(14px + var(--safe-bottom));
+  /* Above the hint line: both live at the bottom centre, and the hint is
+     appended last, so at the same offset the badge was painted over. */
+  bottom: calc(46px + var(--safe-bottom));
   padding: 3px 10px;
   border-radius: 999px;
   border: 1px solid rgba(230, 236, 240, 0.4);
