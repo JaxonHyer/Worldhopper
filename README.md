@@ -13,9 +13,11 @@ dangers, attune to different magic systems, and open each world's
 - Anti-reference: *No Man's Sky* — infinite scale, crafting and grind are
   explicitly out of scope.
 
-**Status: M0 — foundation.** A blank world (sky gradient, faceted ground, fog,
-one landmark silhouette), the verification harness, and GitHub Pages
-deployment. There is no player yet: dragging just looks around.
+**Status: M1 — the player.** You can walk a world: a capsule against the terrain
+heightfield, solid rocks and landmark, jump with coyote time and a jump buffer,
+and a phone-first control scheme (thumb-stick, look-drag, jump button). Every
+feel number — walk speed, jump height, gravity, acceleration, view bob — is a
+live slider in the tuning panel.
 
 ---
 
@@ -28,12 +30,18 @@ deployment. There is no player yet: dragging just looks around.
   npm run dev     # http://localhost:5173
   ```
 
-Controls: **drag** (mouse or finger) or **arrow keys** to look around ·
-<kbd>`</kbd> debug overlay · <kbd>p</kbd> tuning panel · <kbd>v</kbd> cycle
-palette · <kbd>c</kbd> credits and the fan-work notice · <kbd>r</kbd> reset view.
+**Desktop:** <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys
+walk · <kbd>space</kbd> jump · drag the mouse to look · <kbd>Q</kbd>/<kbd>E</kbd>
+turn without a mouse.
 
-On a phone: drag to look; the ⓘ button (always) and the ⚙/▤/◐ buttons (add
-`?dev=1` to the URL) give the same harness.
+**Phone:** the left half of the screen is a thumb-stick (it appears where your
+thumb lands), drag on the right to look, and the round **jump** button is
+bottom-right. It also works with a mouse if you just want to test the layout.
+
+Dev keys: <kbd>`</kbd> debug overlay · <kbd>p</kbd> tuning panel ·
+<kbd>v</kbd> cycle palette · <kbd>c</kbd> credits and the fan-work notice ·
+<kbd>r</kbd> reset the view. On a phone the ⓘ button (always) and the ⚙/▤/◐
+buttons (add `?dev=1` to the URL) give the same tools.
 
 ### URL parameters
 
@@ -41,9 +49,11 @@ On a phone: drag to look; the ⓘ button (always) and the ⚙/▤/◐ buttons (a
 |---|---|---|
 | `seed` | `?seed=emberdark` or `?seed=4242` | rebuilds the map deterministically |
 | `palette` | `?palette=cold-ridge` | atmosphere variant (`ashen-basin`, `mist-sea`, `cold-ridge`) |
-| `fog`, `sun`, `ambient`, `fov`, `look` | `?fog=0.0042` | tunables, same as the in-game panel |
+| `walk`, `jump`, `gravity`, `accel`, `bob` | `?walk=9&jump=2.5&bob=0` | how walking feels |
+| `fog`, `sun`, `ambient`, `fov`, `look` | `?fog=0.0042` | atmosphere and looking |
 | `debug` | `?debug=1` | open the debug overlay immediately |
 | `dev` | `?dev=1` | show the on-screen dev buttons (phone-friendly) |
+| `touch` | `?touch=1` | force the touch controls on (for testing on a desktop) |
 
 The tuning panel mirrors every change into the URL and into `localStorage`, and
 has a **copy link** button — paste that link back to the agent to hand over a
@@ -61,6 +71,7 @@ tuned feel as a value, not as a description.
 | Runtime network | **none** — no CDNs, no web fonts, no analytics, no external requests |
 | Tests | `node --test` for logic + Playwright/Chromium for the headless smoke test |
 | Simulation | fixed 60 Hz timestep, seeded RNG, reproducible from `?seed=` |
+| Player | capsule vs heightfield + cylinder obstacles; no physics dependency |
 
 Not used on purpose: `SharedArrayBuffer`, wasm threads, COOP/COEP headers (Pages
 cannot send them), physics engines, floating-origin precision systems (the
@@ -90,18 +101,23 @@ artifacts on every run.
 index.html                 the canvas + boot note
 src/main.js                bootstrap: settings -> state -> renderer -> sim loop -> UI
 src/core/                  logic only, no DOM, no three.js (all headless-tested)
-  config.js                app constants + the scale fence numbers
+  config.js                app constants, the scale fence, the player's constants
   rng.js / noise.js        seeded RNG and deterministic noise
   clock.js                 fixed-timestep sim clock (spiral-of-death guarded)
-  world-state.js           THE world state: entities, observer, seeded rebuild
+  world-state.js           THE world state: entities, player, seeded rebuild
+  player.js                movement, gravity, jump, collision (no physics engine)
+  terrain.js               terrain height sampling
+  stick.js                 virtual-stick + move-intent maths
   look.js / math.js        look maths, clamped and NaN-proof
   settings.js              tunables: schema, URL/localStorage, clamping
   maps/index.js            map data: palettes, landmark, prop policy, cognitiveSkin
+  terrain-color.js         per-facet ground colouring (world-space, tested)
+  snapshot.js              the debug snapshot shape (window.__debug, overlay, reports)
   frame-stats.js           frame-spike counters for the overlay
 src/render/                three.js only; reads state, never owns it
   renderer.js  sky.js  world-view.js
-src/platform/input.js      pointer/touch/keyboard -> intent (no sim access)
-src/ui/                    debug overlay, tuning panel, credits, dev dock
+src/platform/input.js      keyboard/touch/pointer -> one intent stream (no sim access)
+src/ui/                    HUD (touch controls), debug overlay, tuning panel, credits, dock
 tests/unit/                node --test, no browser
 tests/e2e/                 Playwright smoke, interaction, mobile and screenshot specs
 scripts/check-dist.mjs     static assertions on the built output
@@ -118,9 +134,11 @@ Design rules that are enforced by tests rather than by memory:
   `tests/unit/scale-fence.test.js` fails the build if any of that drifts.
 - **Per-world appearance is data.** `cognitiveSkin` lives in the map, and glass
   beads are only legal over the Rosharan system.
-- **The debug surface is a contract.** `window.__debug()` returns realm,
+- **The debug surface is a contract.** `window.__debug()` returns realm, player
   position, seed, entity count and the distance-from-origin canary; the smoke
-  test asserts against it.
+  test asserts against it. `window.__worldhopper.step(seconds)` advances the sim
+  deterministically, which is how the headless tests avoid measuring CI's frame
+  rate instead of the game.
 
 ---
 

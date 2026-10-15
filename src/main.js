@@ -234,6 +234,8 @@ function bootstrap() {
   }
 
   hud.setTouchControls(coarse);
+  // The hint is for the first few seconds only; after that it is clutter.
+  hud.scheduleHintHide();
   requestAnimationFrame(frame);
 
   // --- settings plumbing --------------------------------------------------

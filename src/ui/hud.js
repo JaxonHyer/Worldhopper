@@ -36,7 +36,7 @@ export function createHud({ mount, onJump, coarsePointer = false }) {
   hint.className = 'hud__hint';
   hint.textContent = coarsePointer
     ? 'left thumb: move · right thumb: look · tap jump'
-    : 'W A S D move · space jump · drag to look · shift-free walking';
+    : 'W A S D move · space jump · drag to look';
 
   root.append(stick, jump, hint);
   mount.appendChild(root);

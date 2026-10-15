@@ -61,6 +61,22 @@ playtesting.)*
 - [x] Phone layout + touch look path, and on-screen dev buttons behind `?dev=1`
 - [ ] **M0 sign-off — needs the owner's playtest** (three questions in the PR)
 
+### M1 — the player — **in review, awaiting playtest**
+
+*Scope note: the roadmap has no milestone list yet (see Open questions), so M1 is
+scoped from the brief: "touch input required from M1 onward", M0 was explicitly
+non-interactive, and M2 is the Cognitive Realm.*
+
+- [x] Player: capsule-vs-heightfield movement with solid rocks and landmark,
+      step height, slide-along-walls, world bounds
+- [x] Jump with coyote time (0.12 s) and a jump buffer (0.15 s)
+- [x] Phone-first touch: thumb-stick, right-side look-drag, jump button
+- [x] Desktop: WASD/arrows, space, drag-look, Q/E turn
+- [x] Live feel sliders: walk speed, jump height, gravity, acceleration, view bob
+- [x] Debug overlay reports the player and the input mode
+- [x] 105 headless unit tests + 48 e2e tests on desktop and phone projects
+- [ ] **M1 sign-off — needs the owner's playtest** (checklist in the PR)
+
 ### Blocked on the owner
 
 - **GitHub Pages cannot deploy while this repository is private.** Pages requires
