@@ -312,3 +312,35 @@ this to stay oriented; agents add to it in the same PR as the change.
 - **The owner's playtested numbers are the defaults** (seed, palette, fog, sun,
   ambient, fov, both look sensitivities, walk, jump, gravity, accel, bob), pinned
   by a unit test so a later edit cannot quietly reset the feel they approved.
+
+## M1.6 — the animation cap, the pixel skins, generic clothes (owner, 2026-10-15)
+
+- **The stride rate is capped, and speed widens the swing instead.** At the
+  owner's 7.9 m/s over a 1.6 m stride, an uncapped walk cycle swings the legs
+  4.9 times a second — "too quick / jittery" (their words). The cap is a live
+  slider (`Animation speed cap`, 2 cycles/second by default, `?striderate=`);
+  past the speed where it bites (strideLength × cap ≈ 3.2 m/s) extra speed goes
+  into how *far* the limbs swing, not how fast. The sim owns both numbers, so
+  the rule is unit-tested rather than eyeballed.
+- **Easing is per second, not per frame.** The avatar's pose blending used a
+  per-frame factor, which meant a 120 Hz phone animated its arms faster than a
+  60 Hz one. It is `1 - exp(-rate·dt)` now, and a test walks both frame rates to
+  the same pose.
+- **Characters are textured with real pixels, not a filter.** New
+  `src/core/pixel-art.js` authors the skin as data (8×8 face, 8×12 shirt, 4×12
+  limbs), and the renderer turns it into `DataTexture`s with
+  `NearestFilter` magnification and mipmapped minification — hard-edged pixels
+  up close, no shimmer at distance. The art is data so a unit test can assert
+  "exactly two eyes, in the upper half", "the trousers have a belt row", or
+  "no pixel outside the palette"; a typo in the art fails the build instead of
+  appearing as a magenta square on the owner's phone.
+- **Textures are stored bottom-up**, so nothing depends on `flipY` — an
+  upside-down face is a bug that only shows up on someone else's device.
+- **The head is the only thing textured per face** (one face, hair on the other
+  five); sleeves, legs and boots read fine with one texture on every face
+  because their patterns are horizontal bands. A face on the back of the head is
+  the classic give-away.
+- **Generic clothes, by request.** The M1.5 "field scholar" (coat trim, back
+  pack, belt box) is gone: a plain shirt, plain trousers, boots, and the detail
+  that remains is in the texture (collar, buttons, hem, belt, cuffs, sole).
+  Ten boxes instead of seventeen.

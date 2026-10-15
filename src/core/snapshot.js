@@ -120,6 +120,7 @@ export function buildSnapshot({
       yaw: round(player.yaw, 4),
       pitch: round(player.pitch, 4),
       stridePhase: round(player.stridePhase ?? 0, 3),
+      strideAmplitude: round(player.strideAmplitude ?? 0, 3),
       bob: round(player.bob, 4),
       jumps: player.jumps,
       landings: player.landings,

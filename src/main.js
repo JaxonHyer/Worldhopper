@@ -232,7 +232,7 @@ function bootstrap() {
     resolveCamera({ player: state.player, settings, map, seed: state.seed, obstacles: state.obstacles }, camera);
     view.camera.position.set(camera.x, camera.y, camera.z);
     view.camera.rotation.set(camera.pitch, camera.yaw, 0);
-    world.sync(state, camera);
+    world.sync(state, camera, dtSeconds);
     view.render(world.scene);
 
     debugOverlay.refresh(snapshot());

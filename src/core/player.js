@@ -76,6 +76,8 @@ export function createPlayer({ map, seed, spawn = map.spawn ?? { x: 0, z: 0 }, l
     jumpBuffer: 0,
     /** metres walked, wrapped: drives the view bob *and* the avatar's limbs */
     stridePhase: 0,
+    /** how far the limbs should swing, 1 = a normal walk (the view reads this) */
+    strideAmplitude: 0,
     bobPhase: 0,
     bob: 0,
     stepCycle: 0,
@@ -247,10 +249,24 @@ export function stepPlayer(player, intent, context, dt) {
   // The phase advances whenever the player is walking, *whatever the bob
   // slider says*: bob 0 means "stop moving my camera", not "stop moving your
   // legs" (the avatar's limbs are animated from this same phase).
+  //
+  // The *rate* is capped (PLAYER.maxStrideRate, the owner's "Animation speed"
+  // slider). A walk speed of 7.9 m/s over a 1.6 m stride would swing the legs
+  // 4.9 times a second and read as a jitter, so past the cap the speed goes
+  // into the *swing length* instead: the legs stride further, not faster.
   const speed = horizontalSpeed(player);
+  const rateCap = Math.max(0.1, settings.strideRate ?? PLAYER.maxStrideRate);
+  // The speed at which the cap starts to bite: below it the legs follow the
+  // ground exactly, above it they stop quickening.
+  const capSpeed = PLAYER.strideLength * rateCap;
   if (player.grounded && speed > 0.15) {
-    player.stridePhase = wrapAngle(player.stridePhase + (speed / PLAYER.strideLength) * 2 * Math.PI * dt);
+    const cyclesPerSecond = Math.min(speed / PLAYER.strideLength, rateCap);
+    player.stridePhase = wrapAngle(player.stridePhase + cyclesPerSecond * 2 * Math.PI * dt);
   }
+  // How far the limbs swing. Tied to speed over the *capped* speed, so a slow
+  // walk takes short steps, a sprint takes long ones, and neither outruns the
+  // cap. The view multiplies its base swing by this and nothing else.
+  player.strideAmplitude = clamp(speed / Math.max(0.001, capSpeed), 0, PLAYER.strideStretchMax);
   player.bobPhase = player.stridePhase;
   player.stepCycle = player.stridePhase;
 

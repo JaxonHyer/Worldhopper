@@ -97,6 +97,17 @@ blocky characters.)*
 - [ ] **M1.5 sign-off — needs the owner's playtest** (third person distance and
       height, the blocky look, and whether the avatar's walk reads well)
 
+### M1.6 — animation, pixels, plain clothes (owner's playtest notes, 2026-10-15)
+
+- [x] Walk-cycle rate capped (2 cycles/s default) with a live slider; extra
+      speed widens the swing instead of quickening it
+- [x] Pose easing is frame-rate independent (30 fps and 120 fps agree)
+- [x] Characters carry real pixel textures (nearest-filtered, mip-mapped),
+      authored as data and asserted by tests
+- [x] Ordinary clothes: plain shirt, trousers and boots; ten boxes; no pack
+- [ ] **M1.6 sign-off — needs the owner's playtest** (does the walk look calm
+      now, and does the character read as pixelated on their screen?)
+
 ### Blocked on the owner
 
 - **M1 sign-off** — the checklist in PR #2 needs a playtest (phone first: stick,

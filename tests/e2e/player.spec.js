@@ -206,6 +206,50 @@ test('the phone look-drag turns the view without walking', async ({ page, isMobi
   watch.assertClean();
 });
 
+test('the walk animation does not jitter at the owner’s walk speed', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard path');
+  const watch = attachWatch(page);
+  const start = await startFrozen(page);
+  const walkSpeed = start.settings.walkSpeed;
+  const cap = start.settings.strideRate;
+  expect(walkSpeed).toBeGreaterThan(3.2); // the owner's 7.9 m/s is well past the cap
+
+  // Walk at full speed and count how many times the legs cycle, from the sim's
+  // own stride phase: 3 s at a 2 cycles/second cap is at most 6 swings.
+  await page.keyboard.down('KeyW');
+  await stepSim(page, 3); // reach top speed
+  let cycles = 0;
+  let previous = (await readDebug(page)).player.stridePhase;
+  for (let i = 0; i < 30; i++) {
+    const snap = await stepSim(page, 0.1);
+    const delta = snap.player.stridePhase - previous;
+    cycles += Math.abs(Math.atan2(Math.sin(delta), Math.cos(delta))) / (2 * Math.PI);
+    previous = snap.player.stridePhase;
+  }
+  await page.keyboard.up('KeyW');
+
+  const rate = cycles / 3;
+  expect(rate, `legs swung ${rate.toFixed(2)} times a second (cap ${cap})`).toBeLessThanOrEqual(cap + 0.15);
+  // Without a cap this would be walkSpeed / strideLength ≈ 4.9 cycles/second:
+  // the jitter the owner complained about.
+  const uncapped = walkSpeed / 1.6;
+  expect(uncapped).toBeGreaterThan(cap * 2);
+
+  // The swing widens instead, so a sprint still reads as faster than a walk.
+  await page.keyboard.down('KeyW');
+  const sprint = await stepSim(page, 1);
+  await page.keyboard.up('KeyW');
+  expect(sprint.player.strideAmplitude).toBeGreaterThan(1);
+  const stroll = await startFrozen(page, '?walk=1.5&striderate=2');
+  await page.keyboard.down('KeyW');
+  const slow = await stepSim(page, 2);
+  await page.keyboard.up('KeyW');
+  expect(slow.player.strideAmplitude).toBeLessThan(0.6);
+  expect(stroll.settings.strideRate).toBe(2);
+
+  watch.assertClean();
+});
+
 test('the feel sliders reach the sim, and a tuned URL reproduces the feel', async ({ page, isMobile }, testInfo) => {
   test.skip(isMobile, 'keyboard-driven');
   const watch = attachWatch(page);
