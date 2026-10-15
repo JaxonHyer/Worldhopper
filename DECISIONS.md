@@ -229,3 +229,8 @@ this to stay oriented; agents add to it in the same PR as the change.
   ran. With the loop frozen, real input events still arrive; only time is under
   the test's control. The clock-invariant test deliberately stays unfrozen,
   because the frame loop is exactly what it is testing.
+- **Two e2e expectations were wrong, not the game:** releasing a movement key
+  does not stop the player dead (the acceleration slider decides), and a jump is
+  the *same height* under any gravity because gravity is used as the spring rate
+  — so the test now asserts the apex, and that heavier gravity shortens the
+  flight instead of lowering the jump.

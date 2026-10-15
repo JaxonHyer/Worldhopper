@@ -25,6 +25,19 @@ async function startFrozen(page, query = '') {
   return readDebug(page);
 }
 
+/** Step in slices and track the highest point, for apex assertions. */
+async function jumpPeak(page, { seconds = 1.6, slice = 0.05 } = {}) {
+  const start = await readDebug(page);
+  let peak = start.player.y;
+  let airborneSlices = 0;
+  for (let i = 0; i < Math.round(seconds / slice); i++) {
+    const snap = await stepSim(page, slice);
+    if (!snap.player.grounded) airborneSlices++;
+    peak = Math.max(peak, snap.player.y);
+  }
+  return { startY: start.player.y, peak, rise: peak - start.player.y, airborneSeconds: airborneSlices * slice };
+}
+
 test('walking moves the player, and stopping stops them', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard path; the phone path is covered below');
   const watch = attachWatch(page);
@@ -87,7 +100,10 @@ test('the camera follows the player and drag-look does not move them', async ({ 
   await page.keyboard.down('KeyW');
   await stepSim(page, 0.6);
   await page.keyboard.up('KeyW');
-  const walked = await stepSim(page, 0.001);
+  // Releasing a key does not stop the player dead: the acceleration slider
+  // decides how long the momentum lasts. Let them settle before measuring.
+  const walked = await stepSim(page, 0.6);
+  expect(walked.player.speed).toBeLessThan(0.05);
 
   // The camera is derived from the player at snapshot time: same numbers, one
   // eye height above the feet. (Comparing across two snapshots is what drifted
@@ -183,17 +199,27 @@ test('the feel sliders reach the sim, and a tuned URL reproduces the feel', asyn
   await page.keyboard.up('KeyW');
   expect(slower.player.speed).toBeLessThan(walked.player.speed - 1);
 
-  // A jump under low gravity is taller than under the default gravity.
-  const before = await startFrozen(page, '?jump=2.5&gravity=12');
+  // Jump height is the slider; gravity is the spring rate. So a 2.5 m jump is
+  // 2.5 m under any gravity — what gravity changes is how long the flight takes.
+  await startFrozen(page, '?jump=2.5&gravity=12');
   await page.keyboard.press('Space');
-  const airborne = await stepSim(page, 0.3);
-  const rise = airborne.player.y - before.player.y;
-  expect(rise).toBeGreaterThan(0.3);
+  const floaty = await jumpPeak(page);
+  expect(Math.abs(floaty.rise - 2.5) / 2.5).toBeLessThan(0.1);
 
-  const heavyBefore = await startFrozen(page, '?jump=2.5&gravity=40');
+  await startFrozen(page, '?jump=2.5&gravity=40');
   await page.keyboard.press('Space');
-  const heavyAirborne = await stepSim(page, 0.3);
-  expect(heavyAirborne.player.y - heavyBefore.player.y).toBeLessThan(rise);
+  const heavy = await jumpPeak(page);
+  expect(Math.abs(heavy.rise - 2.5) / 2.5).toBeLessThan(0.1);
+  expect(heavy.airborneSeconds).toBeLessThan(floaty.airborneSeconds - 0.1);
+
+  // ...and a taller jump really is taller.
+  await startFrozen(page, '?jump=0.8&gravity=18');
+  await page.keyboard.press('Space');
+  const low = await jumpPeak(page);
+  await startFrozen(page, '?jump=3&gravity=18');
+  await page.keyboard.press('Space');
+  const high = await jumpPeak(page);
+  expect(high.rise).toBeGreaterThan(low.rise + 1.5);
 
   watch.assertClean();
 });
