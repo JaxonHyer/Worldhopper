@@ -63,23 +63,25 @@ async function browserStroke(page, box, dx, dy = 0) {
  * this far" without emulating a whole input stack.
  */
 /**
- * Baseline for a measurement. Engaging the lock makes the browser emit one
- * last burst of movement (the cursor is being taken away, and its deltas are
- * computed against a position that no longer exists), so anything pending is
- * stepped away first, and given a moment to arrive before the baseline is read.
+ * Measure a captured-mouse turn inside a single synchronous page task: drain
+ * whatever is pending, remember the camera, dispatch movement deltas with
+ * values the test chose, step the sim once and report what changed.
+ *
+ * One task matters. A browser refuses to deliver events while script runs, so
+ * a real pointer event cannot land between the baseline and the measurement —
+ * which is the only way this can be exact. (Engaging the lock makes the browser
+ * emit one last burst of movement, and letting that into the measurement is how
+ * an earlier version of this test measured +1.56 rad where -0.52 was expected.)
+ *
+ * `movementX`/`movementY` are part of MouseEventInit, so this is the documented
+ * way to say "the mouse moved this far" without emulating an input stack.
  */
-async function settle(page) {
-  await stepSim(page, 0.1);
-  await page.waitForTimeout(120);
-  return stepSim(page, 0.1);
-}
-
-/** A yaw difference that survives the wrap at ±π. */
-const wrapped = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-
-async function mouseDelta(page, { x = 0, y = 0, times = 1 } = {}) {
-  await page.evaluate(
+async function measuredTurn(page, { x = 0, y = 0, times = 1 } = {}) {
+  return page.evaluate(
     ({ x, y, times }) => {
+      const api = window.__worldhopper;
+      api.step(0.1); // drain the pending impulse without measuring it
+      const before = api.debug();
       const canvas = document.getElementById('game');
       const rect = canvas.getBoundingClientRect();
       for (let i = 0; i < times; i++) {
@@ -96,10 +98,13 @@ async function mouseDelta(page, { x = 0, y = 0, times = 1 } = {}) {
           }),
         );
       }
+      const after = api.step(0.05);
+      // Wrapped, so a turn across ±π is still measured as the turn it is.
+      const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+      return { yaw: wrap(after.camera.yaw - before.camera.yaw), pitch: after.camera.pitch };
     },
     { x, y, times },
   );
-  return stepSim(page, 0.05);
 }
 
 test('clicking the world captures the mouse, and the game says so', async ({ page, isMobile }, testInfo) => {
@@ -169,20 +174,18 @@ test('captured movement turns the camera, within the pitch limit', async ({ page
     description: `Captured deltas are driven with known values (${MOUSE_RAD_PER_PIXEL} rad/px); the browser's own synthetic mouse under a locked pointer reports unusable magnitudes.`,
   });
 
-  // 2 × 100 px right: the camera turns right by 200 × 0.0026 rad.
-  const start = await settle(page);
-  const turned = await mouseDelta(page, { x: 100, times: 2 });
-  const expected = -200 * MOUSE_RAD_PER_PIXEL;
-  expect(
-    wrapped(turned.camera.yaw - start.camera.yaw),
-    `captured movement did not turn the camera: ${JSON.stringify(turned.camera)}`,
-  ).toBeCloseTo(expected, 2);
+  // 2 × 100 px right: the camera turns right by exactly 200 × 0.0026 rad.
+  const turned = await measuredTurn(page, { x: 100, times: 2 });
+  expect(turned.yaw, `captured movement did not turn the camera: ${JSON.stringify(turned)}`).toBeCloseTo(
+    -200 * MOUSE_RAD_PER_PIXEL,
+    3,
+  );
 
   // Pitch is clamped however far the mouse travels, and it does reach the limit.
-  const up = await mouseDelta(page, { y: -120, times: 40 });
-  expect(up.camera.pitch).toBeCloseTo(PITCH_LIMIT, 2);
-  const down = await mouseDelta(page, { y: 120, times: 80 });
-  expect(down.camera.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
+  const up = await measuredTurn(page, { y: -120, times: 40 });
+  expect(up.pitch).toBeCloseTo(PITCH_LIMIT, 2);
+  const down = await measuredTurn(page, { y: 120, times: 80 });
+  expect(down.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
 
   // Looking never moves the player, and walking still works while captured.
   // The sweeps above left the camera pointing anywhere, so face the spawn
@@ -233,9 +236,9 @@ test('releasing the mouse stops mouselook, and drag-look still works', async ({ 
   const afterMove = await stepSim(page, 0.2);
   expect(afterMove.camera.yaw).toBe(beforeMove.camera.yaw);
 
-  // ...a synthetic delta must be ignored too (the captured path is off)...
-  const afterDelta = await mouseDelta(page, { x: 200 });
-  expect(afterDelta.camera.yaw).toBe(beforeMove.camera.yaw);
+  // ...a mouse movement delta must be ignored too (the captured path is off)...
+  const afterDelta = await measuredTurn(page, { x: 200 });
+  expect(afterDelta.yaw).toBe(0);
 
   // ...but dragging still turns the camera: the fallback is always live.
   await page.mouse.down();
@@ -263,11 +266,7 @@ test('the mouse-look sensitivity slider changes how far the camera turns', async
     return;
   }
 
-  const turn = async (pixels) => {
-    const before = await settle(page);
-    const after = await mouseDelta(page, { x: pixels });
-    return Math.abs(wrapped(after.camera.yaw - before.camera.yaw));
-  };
+  const turn = async (pixels) => Math.abs((await measuredTurn(page, { x: pixels })).yaw);
 
   const normal = await turn(240);
   expect(normal).toBeCloseTo(240 * MOUSE_RAD_PER_PIXEL, 3);
@@ -278,10 +277,10 @@ test('the mouse-look sensitivity slider changes how far the camera turns', async
   const half = await turn(240);
   expect(half, `240 px at mouselook=0.5 turned ${half} rad vs ${normal} rad at 1`).toBeCloseTo(normal / 2, 3);
 
-  // A zero setting must switch mouselook off rather than break it.
+  // The lowest setting must still look, just slowly.
   await page.evaluate(() => window.__worldhopper.setSetting('lookMouse', 0.2));
   const least = await turn(240);
-  expect(least).toBeGreaterThan(0);
+  expect(least).toBeCloseTo(240 * MOUSE_RAD_PER_PIXEL * 0.2, 3);
 
   watch.assertClean();
 });
