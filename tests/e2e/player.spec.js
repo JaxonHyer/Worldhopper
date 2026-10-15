@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { attachWatch, gotoGame, holdKey, openStick, readDebug, saveShot, stepSim, touchDrag } from './helpers.js';
+import { attachWatch, gotoGame, openStick, pauseSim, readDebug, saveShot, stepSim, touchDrag } from './helpers.js';
 import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 /**
@@ -14,12 +14,21 @@ import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 const WALK = SETTING_BY_KEY.walkSpeed.default;
 
+/**
+ * Load the game and freeze the frame loop's simulation, so every subsequent
+ * assertion is about the sim, not about how fast the machine renders. Real
+ * input events still arrive normally; only time is under test control.
+ */
+async function startFrozen(page, query = '') {
+  await gotoGame(page, query);
+  await pauseSim(page, true);
+  return readDebug(page);
+}
+
 test('walking moves the player, and stopping stops them', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard path; the phone path is covered below');
   const watch = attachWatch(page);
-  await gotoGame(page);
-
-  const before = await readDebug(page);
+  const before = await startFrozen(page);
   await page.keyboard.down('KeyW');
   // yaw 0 looks down -Z, so forward is -Z. 1.5 s at 5.5 m/s is ~7.5 m.
   const after = await stepSim(page, 1.5);
@@ -40,7 +49,7 @@ test('walking moves the player, and stopping stops them', async ({ page, isMobil
 test('the simulation never runs ahead of the clock, even on a slow renderer', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard path');
   const watch = attachWatch(page);
-  await gotoGame(page);
+  await gotoGame(page); // deliberately NOT frozen: this tests the frame loop
   await stepSim(page, 2);
   const debug = await readDebug(page);
 
@@ -55,9 +64,7 @@ test('the simulation never runs ahead of the clock, even on a slow renderer', as
 test('a jump leaves the ground and lands again', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard path; the phone button is covered below');
   const watch = attachWatch(page);
-  await gotoGame(page);
-
-  const before = await readDebug(page);
+  const before = await startFrozen(page);
   await page.keyboard.press('Space');
   const airborne = await stepSim(page, 0.25);
   expect(airborne.player.y).toBeGreaterThan(before.player.y + 0.3);
@@ -75,17 +82,18 @@ test('a jump leaves the ground and lands again', async ({ page, isMobile }) => {
 test('the camera follows the player and drag-look does not move them', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard path');
   const watch = attachWatch(page);
-  await gotoGame(page);
+  await startFrozen(page);
 
   await page.keyboard.down('KeyW');
   await stepSim(page, 0.6);
   await page.keyboard.up('KeyW');
   const walked = await stepSim(page, 0.001);
 
-  // The camera is derived from the player, one eye height above the feet
-  // (never snapshotted separately, which is what drifted before the hold).
-  expect(walked.camera.x).toBeCloseTo(walked.player.x, 6);
-  expect(walked.camera.z).toBeCloseTo(walked.player.z, 6);
+  // The camera is derived from the player at snapshot time: same numbers, one
+  // eye height above the feet. (Comparing across two snapshots is what drifted
+  // before — the sim keeps running between calls.)
+  expect(walked.camera.x).toBe(walked.player.x);
+  expect(walked.camera.z).toBe(walked.player.z);
   const eyeHeight = walked.camera.y - walked.player.y;
   expect(eyeHeight).toBeGreaterThan(1.4);
   expect(eyeHeight).toBeLessThan(1.9);
@@ -102,9 +110,7 @@ test('the camera follows the player and drag-look does not move them', async ({ 
 test('the thumb-stick walks the player, and releasing stops them', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch path');
   const watch = attachWatch(page);
-  await gotoGame(page);
-
-  const before = await readDebug(page);
+  const before = await startFrozen(page);
   expect(before.ui.touch).toBe(true);
   const jump = page.locator('.touch-jump');
   await expect(jump).toBeVisible();
@@ -129,9 +135,7 @@ test('the thumb-stick walks the player, and releasing stops them', async ({ page
 test('the jump button jumps on a phone', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch path');
   const watch = attachWatch(page);
-  await gotoGame(page);
-
-  const before = await readDebug(page);
+  const before = await startFrozen(page);
   await page.locator('.touch-jump').tap();
   const airborne = await stepSim(page, 0.3);
   expect(airborne.player.y).toBeGreaterThan(before.player.y + 0.3);
@@ -145,9 +149,7 @@ test('the jump button jumps on a phone', async ({ page, isMobile }) => {
 test('the phone look-drag turns the view without walking', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch path');
   const watch = attachWatch(page);
-  await gotoGame(page);
-
-  const before = await readDebug(page);
+  const before = await startFrozen(page);
   await touchDrag(page, 220, 0);
   const after = await stepSim(page, 0.25);
 
@@ -162,9 +164,7 @@ test('the phone look-drag turns the view without walking', async ({ page, isMobi
 test('the feel sliders reach the sim, and a tuned URL reproduces the feel', async ({ page, isMobile }, testInfo) => {
   test.skip(isMobile, 'keyboard-driven');
   const watch = attachWatch(page);
-  await gotoGame(page, '?walk=9&jump=2.5&gravity=12&accel=90&bob=0');
-
-  const tuned = await readDebug(page);
+  const tuned = await startFrozen(page, '?walk=9&jump=2.5&gravity=12&accel=90&bob=0');
   expect(tuned.settings.walkSpeed).toBe(9);
   expect(tuned.settings.gravity).toBe(12);
   expect(tuned.settings.viewBob).toBe(0);
@@ -177,22 +177,20 @@ test('the feel sliders reach the sim, and a tuned URL reproduces the feel', asyn
   await saveShot(page, 'player-walking', testInfo);
 
   // The same walk with default settings settles at a lower speed.
-  await gotoGame(page);
+  await startFrozen(page);
   await page.keyboard.down('KeyW');
   const slower = await stepSim(page, 2);
   await page.keyboard.up('KeyW');
   expect(slower.player.speed).toBeLessThan(walked.player.speed - 1);
 
   // A jump under low gravity is taller than under the default gravity.
-  await gotoGame(page, '?jump=2.5&gravity=12');
-  const before = await readDebug(page);
+  const before = await startFrozen(page, '?jump=2.5&gravity=12');
   await page.keyboard.press('Space');
   const airborne = await stepSim(page, 0.3);
   const rise = airborne.player.y - before.player.y;
   expect(rise).toBeGreaterThan(0.3);
 
-  await gotoGame(page, '?jump=2.5&gravity=40');
-  const heavyBefore = await readDebug(page);
+  const heavyBefore = await startFrozen(page, '?jump=2.5&gravity=40');
   await page.keyboard.press('Space');
   const heavyAirborne = await stepSim(page, 0.3);
   expect(heavyAirborne.player.y - heavyBefore.player.y).toBeLessThan(rise);
@@ -203,7 +201,7 @@ test('the feel sliders reach the sim, and a tuned URL reproduces the feel', asyn
 test('walking into a rock does not walk through it', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard path');
   const watch = attachWatch(page);
-  await gotoGame(page, '?seed=7');
+  await startFrozen(page, '?seed=7');
 
   await page.keyboard.down('KeyW');
   const end = await stepSim(page, 6);
@@ -226,7 +224,7 @@ test('walking into a rock does not walk through it', async ({ page, isMobile }) 
 test('the debug overlay reports the player and the input mode', async ({ page, isMobile }, testInfo) => {
   test.skip(isMobile, 'keyboard path');
   const watch = attachWatch(page);
-  await gotoGame(page, '?debug=1');
+  await gotoGame(page, '?debug=1'); // unpaused: this test is about the overlay
   await page.keyboard.down('KeyW');
   await stepSim(page, 0.5);
   await page.keyboard.up('KeyW');

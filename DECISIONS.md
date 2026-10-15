@@ -221,3 +221,11 @@ this to stay oriented; agents add to it in the same PR as the change.
   tested instead of assumed.
 - **The debug overlay shows the player and the input mode**, not just the camera;
   "which mode does the game think I'm in" is otherwise invisible.
+- **`step()` records its time in the fixed-step clock, and the e2e suite freezes
+  the frame loop (`pause(true)`) wherever input→time must be exact.** Two flakes
+  came from the same root cause: the frame loop was still simulating between two
+  `evaluate()` calls, so a "camera follows the player" comparison drifted 2 cm
+  and a tapped jump had already been consumed-and-landed before the assertion
+  ran. With the loop frozen, real input events still arrive; only time is under
+  the test's control. The clock-invariant test deliberately stays unfrozen,
+  because the frame loop is exactly what it is testing.

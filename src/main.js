@@ -135,6 +135,7 @@ function bootstrap() {
      */
     step: (seconds = 0) => {
       const steps = Math.max(0, Math.min(3600, Math.round(seconds / clock.step)));
+      clock.recordManualSteps(steps);
       const look = input.look();
       const move = input.move();
       const jump = input.consumeJump();

@@ -63,6 +63,18 @@ export function createFixedClock({ stepHz = SIM.fixedStepHz, maxSubsteps = SIM.m
       return steps;
     },
 
+    /**
+     * Record simulation that was driven outside the frame loop (the debug
+     * `step()` used by the headless tests). Keeps `simTime` a true measure of
+     * "how much time has been simulated", whatever drove it.
+     */
+    recordManualSteps(steps) {
+      if (!Number.isFinite(steps) || steps <= 0) return;
+      const whole = Math.floor(steps);
+      tick += whole;
+      simTime += whole * step;
+    },
+
     /** Snapshot for the debug overlay and for tests. */
     stats() {
       return { step, tick, simTime, leftover, frames, droppedSubsteps, clampedFrames, longestFrame };
