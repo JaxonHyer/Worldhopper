@@ -61,13 +61,33 @@ playtesting.)*
 - [x] Phone layout + touch look path, and on-screen dev buttons behind `?dev=1`
 - [ ] **M0 sign-off — needs the owner's playtest** (three questions in the PR)
 
+### M1 — the player — **in review, awaiting playtest**
+
+*Scope note: the roadmap has no milestone list yet (see Open questions), so M1 is
+scoped from the brief: "touch input required from M1 onward", M0 was explicitly
+non-interactive, and M2 is the Cognitive Realm.*
+
+- [x] Player: capsule-vs-heightfield movement with solid rocks and landmark,
+      step height, slide-along-walls, world bounds
+- [x] Jump with coyote time (0.12 s) and a jump buffer (0.15 s)
+- [x] Phone-first touch: thumb-stick, right-side look-drag, jump button
+- [x] Desktop: **click the world to capture the mouse** (Esc releases it; the
+      camera then follows the mouse with no button held), WASD/arrows, space,
+      Q/E turn. Drag-look is the fallback and can be forced with `?capture=off`
+      (also a switch in the tuning panel)
+- [x] Live feel sliders: walk speed, jump height, gravity, acceleration, view bob
+- [x] Debug overlay reports the player and the input mode
+- [x] 118 headless unit tests + 60 e2e tests on desktop and phone projects
+- [ ] **M1 sign-off — needs the owner's playtest** (checklist in the PR)
+
 ### Blocked on the owner
 
-- **GitHub Pages cannot deploy while this repository is private.** Pages requires
-  a public repository (or a paid plan), and `main` has never been pushed, so
-  nothing is live yet. Also note `main` currently has **no commit at all** — it
-  has no files, so merging this branch would be the first commit on it. Making
-  the repo public and merging the M0 PR turns the deploy workflow on.
+- **M1 sign-off** — the checklist in PR #2 needs a playtest (phone first: stick,
+  jump button, look sensitivity, view bob; desktop second: does the mouse
+  capture feel standard?).
+- (Resolved) Pages deploys: the repository is public and M0 is merged
+  (`main` = `93d9147`), so <https://jaxonhyer.github.io/Worldhopper/> is live
+  and updates from `main`.
 
 ### Open questions for the owner
 

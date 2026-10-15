@@ -98,8 +98,27 @@ test('every setting formats to something a human can read', () => {
   }
 });
 
-test('later-milestone controls are declared but not live', () => {
+test('mouse capture has an escape hatch, and it is on by default', () => {
+  assert.equal(SETTING_BY_KEY.captureMouse.default, 'on');
+  assert.equal(parseSettings({ search: '?capture=on' }).captureMouse, 'on');
+  assert.equal(parseSettings({ search: '?capture=off' }).captureMouse, 'off');
+  // Junk must not silently switch a control off; it falls back to the default.
+  assert.equal(parseSettings({ search: '?capture=maybe' }).captureMouse, 'on');
+  assert.equal(parseSettings({ search: '' }).captureMouse, 'on');
+});
+
+test('controls for milestones that have not started are declared but not live', () => {
   const future = SETTING_DEFS.filter((d) => d.live === false);
-  assert.ok(future.length >= 3, 'expected the M1 feel controls to be declared');
-  assert.ok(future.every((d) => d.phase !== 'm0'));
+  assert.ok(future.length >= 1, 'expected the attunement swap window to be declared ahead of M6');
+  assert.ok(future.every((d) => d.phase !== 'm1'), 'M1 controls must be live once M1 ships');
+});
+
+test('the M1 feel controls are live', () => {
+  for (const key of ['walkSpeed', 'jumpHeight', 'gravity', 'accel', 'viewBob']) {
+    const def = SETTING_BY_KEY[key];
+    assert.ok(def, `${key} is missing from the schema`);
+    assert.notEqual(def.live, false, `${key} should be wired up in M1`);
+    assert.equal(def.phase, 'm1');
+    assert.ok(def.default >= def.min && def.default <= def.max, `${key} default outside its range`);
+  }
 });

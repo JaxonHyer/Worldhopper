@@ -35,6 +35,29 @@ export const FENCE = Object.freeze({
   fogHideDistanceMax: 5000,
 });
 
+/**
+ * The player. Metres, seconds. Feel numbers (speed, jump, gravity, view bob)
+ * are settings the owner tunes; these are structural.
+ */
+export const PLAYER = Object.freeze({
+  /** capsule radius (m) — also the ring used for ground sampling */
+  radius: 0.35,
+  /** camera height above the feet (m) */
+  eyeHeight: 1.7,
+  /** how tall a bump can be before it becomes a wall (m) */
+  stepHeight: 0.45,
+  /** terminal fall speed (m/s) */
+  maxFallSpeed: 32,
+  /** grace period for jumping just after walking off an edge (s) */
+  coyoteTime: 0.12,
+  /** grace period for pressing jump just before landing (s) */
+  jumpBufferTime: 0.15,
+  /** fraction of ground acceleration available in the air */
+  airControl: 0.35,
+  /** metres per full view-bob cycle */
+  strideLength: 1.6,
+});
+
 /** Simulation loop. Fixed timestep so runs are reproducible from a seed. */
 export const SIM = Object.freeze({
   fixedStepHz: 60,

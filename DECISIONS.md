@@ -174,3 +174,111 @@ this to stay oriented; agents add to it in the same PR as the change.
   determinism, palette containment, ramp direction, neighbour smoothness, jitter
   spread and NaN-immunity, because this is exactly the class of bug that only
   shows up in an image.
+
+## M1 — the player (2026-10-14)
+
+- **Collision is a vertical capsule against the heightfield plus cylinder
+  obstacles — still no physics engine.** Six ring samples under the capsule find
+  the ground; rocks and the landmark plinth become cylinders derived from the
+  same entities the renderer draws, so a rock can never be visible in one place
+  and solid in another. Every rule is asserted in `tests/unit/player.test.js`.
+- **`src/core/terrain.js` split out of `world-state.js`** so the player sim can
+  sample terrain without importing the whole world (and without an import cycle).
+- **Jump height is the slider, gravity is the spring rate:** jump velocity is
+  `sqrt(2 * gravity * jumpHeight)`, so the owner can make gravity floaty without
+  changing how high the player jumps. Verified to ±8% for 0.8/1.5/3 m.
+- **Coyote time (0.12 s) and a jump buffer (0.15 s).** Two small graces that stop
+  a jump press near an edge from being silently dropped; both are unit-tested.
+- **The sim normalises movement input itself.** A caller passing (1,1) used to
+  walk 1.41x faster; diagonals are now unit-length in `stepPlayer`, not just in
+  the keyboard path.
+- **Touch is the primary input path, and the stick appears where the thumb
+  lands.** Left 45% is the movement zone, right 55% is look-drag, and the jump
+  button is a real DOM button (88 px) so it is reachable and testable. Desktop
+  keeps W/A/S/D + space + drag-look; both produce the same intent object, so the
+  simulation never knows which is in use.
+- **Arrow keys now walk instead of looking.** Arrows are movement keys on every
+  device the owner uses; looking is a drag, or Q/E for keyboard-only sessions.
+- **Touch controls are enabled by `navigator.maxTouchPoints`, `(pointer: coarse)`
+  or `(hover: none)`, and also switch on the first touch that arrives.** A
+  hybrid laptop that gets touched starts showing the stick immediately.
+- **On touch hardware the dev dock moves to the top-right**, out of the way of
+  the thumb and the jump button.
+- **View bob is a slider (default 0.035 m) and freezes at 0 in the air.** It is
+  the only camera motion in M1, so it is the easiest thing to switch off if it
+  turns out to bother the owner.
+- **The camera is derived, never stored:** `eye = feet + eyeHeight + bob`. The
+  sky follows the player's feet so the bob cannot make the skyline jitter.
+- **The headless tests drive sim time directly (`window.__worldhopper.step(seconds)`)
+  instead of sleeping.** CI's software renderer runs at ~6 fps, where the
+  fixed-step clock can only simulate ~50% of wall-clock time, so seven M1 tests
+  failed on *speed* rather than on logic. Real input events, deterministic time:
+  input still comes from real key presses and real touch events, then the sim is
+  advanced by hand. The frame loop can be frozen with `pause(true)` for screenshots.
+- **`clockTime` is in the snapshot, and `simTime <= clockTime` is asserted.** The
+  sim is allowed to fall behind the clock (long frames are clamped by design),
+  never to run ahead of it — that invariant is the real guarantee, and it is now
+  tested instead of assumed.
+- **The debug overlay shows the player and the input mode**, not just the camera;
+  "which mode does the game think I'm in" is otherwise invisible.
+- **`step()` records its time in the fixed-step clock, and the e2e suite freezes
+  the frame loop (`pause(true)`) wherever input→time must be exact.** Two flakes
+  came from the same root cause: the frame loop was still simulating between two
+  `evaluate()` calls, so a "camera follows the player" comparison drifted 2 cm
+  and a tapped jump had already been consumed-and-landed before the assertion
+  ran. With the loop frozen, real input events still arrive; only time is under
+  the test's control. The clock-invariant test deliberately stays unfrozen,
+  because the frame loop is exactly what it is testing.
+- **Two e2e expectations were wrong, not the game:** releasing a movement key
+  does not stop the player dead (the acceleration slider decides), and a jump is
+  the *same height* under any gravity because gravity is used as the spring rate
+  — so the test now asserts the apex, and that heavier gravity shortens the
+  flight instead of lowering the jump.
+- **The HUD is built before the input layer, and input receives its elements
+  explicitly.** `createInput` used to query the DOM for `.touch-jump` and the
+  stick, and it ran before the HUD existed — so on a real phone the jump button
+  did nothing at all and the stick ring never appeared. The headless test caught
+  the dead button; the new visibility assertion catches the missing ring.
+- **Desktop look is standard mouse capture (Pointer Lock); touch is untouched.**
+  Click the world to capture, the camera then follows mouse movement with no
+  button held, Esc releases it. A crosshair appears while captured (the system
+  cursor is hidden, so nothing else says which way is forward) and the hint line
+  says how to release. This is what "desktop controls" means to a player.
+- **Capture is a small explicit state machine** (`unsupported → unlocked →
+  pending → locked | denied`) exposed through `window.__worldhopper.capture()`.
+  A browser or an embedded frame can refuse the lock, so the state is *reported*
+  rather than assumed: the overlay and the tests can both see it.
+- **Drag-to-look stays live as the fallback.** It is what a finger uses, and it
+  is what a mouse uses when the lock is refused (an iframe without the
+  `pointer-lock` permission, for instance). A browser permission must never be
+  the difference between playable and not.
+- **Two sensitivity sliders instead of one:** *Look sensitivity (drag)* and
+  *Mouse look (captured)*. They are different devices — a finger travels across
+  the glass and a captured mouse reports raw movement — so they get different
+  base factors (0.0042 and 0.0026 rad/px) and can be tuned apart. Sensitivity is
+  applied by the input layer, which is the only place that knows which device a
+  delta came from; the sim just clamps and wraps.
+- **Opening the tuning panel or the credits releases the mouse.** A captured
+  cursor cannot click a slider, so the panel hands it back (and the tests assert
+  the slider can be focused immediately afterwards).
+- **Raw mouse input where the browser supports it** (`requestPointerLock({
+  unadjustedMovement: true })`), falling back to a plain request, so the camera
+  does not inherit the operating system's pointer acceleration when the browser
+  can avoid it.
+- **Capture is a preference, not a rule** (`?capture=off`, or the *Mouse
+  capture* control in the panel). Some players hate having their cursor taken;
+  dragging is a perfectly good way to look, and the switch makes the fallback
+  path testable in a browser that *does* support pointer lock.
+- **A refusal is only believed after a grace period** (250 ms). Requesting raw
+  mouse input and falling back to a plain request produces two failure signals
+  for one outcome, and neither says which attempt it belonged to; a lock that
+  lands later cancels the pending refusal, so `capture()` never reports "denied"
+  for a mouse that is captured.
+- **Raw movement is preferred, cursor movement is the substitute.** A locked
+  pointer normally reports movement deltas and freezes the cursor position; a
+  browser or driver that reports neither would silently freeze the camera, so a
+  zero-delta event with a moved cursor is used instead. Real browsers keep the
+  raw path (deltas are non-zero), so this only ever replaces a dead camera.
+- **The tuning panel and the credits release the mouse when they open** — a
+  captured cursor cannot click a slider — and the tests assert the control is
+  focusable straight afterwards.

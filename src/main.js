@@ -1,18 +1,20 @@
 /**
- * Entry point: wires settings, world state, the renderer, the sim loop and the
- * dev UI together.
+ * Entry point: wires settings, world state, the player, the renderer, the sim
+ * loop and the dev UI together.
  *
- * M0 scope: a blank (non-interactive) world with a sky, a faceted ground, a
- * landmark silhouette and fog — plus the harness the whole project is graded
- * on (debug overlay, tuning panel, `window.__debug()`).
+ * M1 scope: you can walk a world — W/A/S/D or a thumb-stick, drag to look,
+ * space or a button to jump, with capsule-vs-heightfield collision, and every
+ * feel number live in the tuning panel. One world state, one camera derived
+ * from it.
  */
 
 import './style.css';
-import { APP, SIM } from './core/config.js';
+import { APP, SIM, PLAYER } from './core/config.js';
 import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
-import { createWorldState, stepWorld } from './core/world-state.js';
+import { createWorldState, countEntities, entityHash, stepWorld } from './core/world-state.js';
 import { buildSnapshot } from './core/snapshot.js';
+import { eyePosition } from './core/player.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from './core/maps/index.js';
 import {
   parseSettings,
@@ -22,7 +24,6 @@ import {
   saveSettings,
   loadSettings,
   clearStoredSettings,
-  describeSettings,
   parseFlag,
 } from './core/settings.js';
 import { createView } from './render/renderer.js';
@@ -32,6 +33,7 @@ import { createDebugOverlay } from './ui/debug-overlay.js';
 import { createTuningPanel } from './ui/tuning-panel.js';
 import { createCredits } from './ui/credits.js';
 import { createDock } from './ui/dock.js';
+import { HINTS, createHud } from './ui/hud.js';
 
 const canvas = document.getElementById('game');
 const uiMount = document.getElementById('ui');
@@ -45,6 +47,7 @@ function bootstrap() {
   const flags = {
     debug: parseFlag(params, 'debug'),
     dev: parseFlag(params, 'dev'),
+    touch: parseFlag(params, 'touch'),
   };
 
   const map = getMap(DEFAULT_MAP_ID);
@@ -66,14 +69,25 @@ function bootstrap() {
 
   const clock = createFixedClock({ stepHz: SIM.fixedStepHz, maxSubsteps: SIM.maxSubsteps, maxFrameDelta: SIM.maxFrameDelta });
   const frameStats = createFrameStats();
-  const input = createInput({ canvas, onHotkey });
+
+  // The HUD owns the touch surfaces; input drives them. Build the HUD first —
+  // it used to be the other way round, which left the jump button dead on a
+  // phone because the element did not exist yet when input looked for it.
+  const coarse = detectTouch(flags.touch);
+  const hud = createHud({ mount: uiMount, coarsePointer: coarse, onJump: () => {} });
+  const input = createInput({
+    canvas,
+    onHotkey,
+    onCaptureChange: (captured) => hud.setCaptured(captured),
+    sensitivity: () => ({ drag: settings.look, mouse: settings.lookMouse }),
+    captureEnabled: () => settings.captureMouse !== 'off',
+    elements: { stick: hud.stick, knob: hud.knob, jump: hud.jump },
+  });
 
   const debugOverlay = createDebugOverlay({ mount: uiMount });
   const panel = createTuningPanel({
     mount: uiMount,
     settings,
-    // Quiet while a range input is dragged: replacing the URL on every pixel
-    // would both churn history and drop the tool's own ?debug/?dev flags.
     onChange: (key, raw, options) => applySetting(key, raw, options),
     onReset: resetSettings,
     onRerollSeed: () => applySetting('seed', Math.floor(Math.random() * 2147483646) + 1),
@@ -96,10 +110,52 @@ function bootstrap() {
     milestone: APP.milestone,
     debug: () => snapshot(),
     settings: () => ({ ...settings }),
-    describe: () => describeSettings(settings),
+    describe: () => describeSettingsSafe(settings),
     setSetting: (key, raw) => applySetting(key, raw),
     /** Input counters, so a dead drag reports which stage went missing. */
     input: () => input.stats(),
+    /** Mouse capture, for the desktop-look tests. */
+    capture: () => input.captureState(),
+    requestCapture: () => input.requestCapture(),
+    releaseCapture: () => input.releaseCapture(),
+    /**
+     * Freeze/unfreeze the frame loop's simulation. The renderer keeps drawing,
+     * but nothing advances the world, so a headless test can drive the sim
+     * itself with step() and get the same answer on any machine.
+     */
+    pause: (paused = true) => {
+      pausedSim = Boolean(paused);
+      last = performance.now();
+      return pausedSim;
+    },
+    /**
+     * Advance the simulation by exactly `seconds` of fixed steps, using the
+     * input state as it is right now (a held key, a pushed stick, a queued
+     * jump). Returns a fresh snapshot. This is the deterministic clock the e2e
+     * suite uses; it is inert during normal play.
+     */
+    step: (seconds = 0) => {
+      const steps = Math.max(0, Math.min(3600, Math.round(seconds / clock.step)));
+      clock.recordManualSteps(steps);
+      const look = input.look();
+      const move = input.move();
+      const jump = input.consumeJump();
+      for (let i = 0; i < steps; i++) {
+        stepWorld(
+          state,
+          clock.step,
+          {
+            move,
+            lookImpulse: i === 0 ? look.impulse : null,
+            lookRate: look.rate,
+            jump: i === 0 ? jump : false,
+          },
+          context,
+        );
+      }
+      return snapshot();
+    },
+    player: () => ({ ...state.player, position: { ...state.player.position }, velocity: { ...state.player.velocity } }),
     ui: {
       showOverlay: (visible) => (visible ? debugOverlay.show() : debugOverlay.hide()),
       showPanel: (visible) => (visible ? panel.show() : panel.hide()),
@@ -117,31 +173,60 @@ function bootstrap() {
     if (!document.hidden) input.reset();
   });
 
+  // Context the fixed-step simulation needs, rebuilt whenever the map or the
+  // settings change — the sim itself never reaches for globals.
+  let context = { map, seed: state.seed, obstacles: state.obstacles, settings };
+  const refreshContext = () => {
+    context = { map, seed: state.seed, obstacles: state.obstacles, settings };
+  };
+
   // --- sim loop -----------------------------------------------------------
   let last = performance.now();
   let frames = 0;
+  let touchSeen = coarse;
+  let pausedSim = false;
 
   function frame(now) {
     const dtSeconds = Math.min((now - last) / 1000, SIM.maxFrameDelta);
     last = now;
     frameStats.sample(dtSeconds);
 
-    const steps = clock.advance(dtSeconds);
-    const lookRate = input.keyLook();
-    const drag = steps > 0 ? input.consumeDrag() : { yaw: 0, pitch: 0 };
+    // Paused (debug only): time stands still, so the sim can be stepped by hand.
+    const steps = pausedSim ? 0 : clock.advance(dtSeconds);
+    if (steps > 0) {
+      const look = input.look();
+      const move = input.move();
+      const jump = input.consumeJump();
 
-    for (let i = 0; i < steps; i++) {
-      stepWorld(state, clock.step, {
-        lookRate,
-        lookImpulse: i === 0 ? drag : null,
-        sensitivity: settings.look,
-      });
+      for (let i = 0; i < steps; i++) {
+        stepWorld(
+          state,
+          clock.step,
+          {
+            move,
+            // A drag is a one-shot: apply it on the first substep only, or a
+            // fast flick would be multiplied by the number of substeps.
+            lookImpulse: i === 0 ? look.impulse : null,
+            lookRate: look.rate,
+            jump: i === 0 ? jump : false,
+          },
+          context,
+        );
+      }
+    }
+
+    // Touch controls appear the first time a finger does anything (or if the
+    // device says it is coarse), and never on a plain desktop session.
+    if (!touchSeen && input.touchMode()) {
+      touchSeen = true;
+      hud.setTouchControls(true);
     }
 
     view.setFov(settings.fov);
     view.resize();
-    view.camera.position.set(state.observer.position.x, state.observer.position.y, state.observer.position.z);
-    view.camera.rotation.set(state.observer.pitch, state.observer.yaw, 0);
+    const eye = eyePosition(state.player);
+    view.camera.position.set(eye.x, eye.y, eye.z);
+    view.camera.rotation.set(state.player.pitch, state.player.yaw, 0);
     world.sync(state);
     view.render(world.scene);
 
@@ -154,6 +239,12 @@ function bootstrap() {
     }
     requestAnimationFrame(frame);
   }
+
+  hud.setTouchControls(coarse);
+  // Tell the owner what the mouse is doing: capture it, or drag instead.
+  if (coarse) hud.setHint(HINTS.touch);
+  else if (!input.canCapture()) hud.setHint(HINTS.desktopNoCapture);
+  else hud.setHint(HINTS.desktopUncaptured);
   requestAnimationFrame(frame);
 
   // --- settings plumbing --------------------------------------------------
@@ -180,6 +271,7 @@ function bootstrap() {
         variant = getVariant(map.id, value);
       }
       world.applySettings(settings, variant);
+      refreshContext();
     }
     if (persist) {
       saveSettings(storage, settings);
@@ -197,6 +289,7 @@ function bootstrap() {
     state = createWorldState({ map, seed: settings.seed });
     rebuildWorld();
     world.applySettings(settings, variant);
+    refreshContext();
     panel.sync(settings);
     syncUrl();
   }
@@ -210,6 +303,7 @@ function bootstrap() {
   function rebuildWorld() {
     world.dispose();
     world = createWorldView({ map, state, variant, settings });
+    refreshContext();
   }
 
   function syncUrl() {
@@ -232,18 +326,30 @@ function bootstrap() {
 
   function onHotkey(action) {
     if (action === 'overlay') debugOverlay.toggle();
-    else if (action === 'panel') panel.toggle();
-    else if (action === 'credits') credits.toggle();
-    else if (action === 'palette') cyclePalette();
+    else if (action === 'panel') {
+      // A captured mouse cannot click sliders: give the cursor back.
+      if (panel.visible) panel.hide();
+      else {
+        input.releaseCapture();
+        panel.show();
+      }
+    } else if (action === 'credits') {
+      if (credits.visible) credits.hide();
+      else {
+        input.releaseCapture();
+        credits.show();
+      }
+    } else if (action === 'palette') cyclePalette();
     else if (action === 'resetView') {
-      state.observer.yaw = 0;
-      state.observer.pitch = -0.04;
+      state.player.yaw = 0;
+      state.player.pitch = -0.04;
     }
   }
 
   /** The one shape shared by window.__debug(), the overlay and the reports. */
   function snapshot() {
     const info = view.info();
+    const stick = input.stickState();
     return buildSnapshot({
       app: APP,
       state,
@@ -257,13 +363,47 @@ function bootstrap() {
         overlay: debugOverlay.visible,
         panel: panel.visible,
         credits: credits.visible,
+        touch: !hud.jump.hidden,
+      },
+      paused: pausedSim,
+      input: {
+        mode: touchSeen ? 'touch' : 'keyboard',
+        capture: input.captureState(),
+        captured: input.isCaptured(),
+        stick: stick.active ? { x: round(stick.x, 3), y: round(stick.y, 3), magnitude: round(stick.magnitude, 3) } : null,
+        looking: input.isDragging(),
+        heldKeys: input.heldKeys().length,
       },
       ready: debugApi.ready,
     });
   }
 }
 
+function round(value, decimals) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function describeSettingsSafe(settings) {
+  const parts = [];
+  for (const [key, def] of Object.entries(SETTING_BY_KEY)) {
+    if (settings[key] !== def.default) parts.push(`${def.param}=${settings[key]}`);
+  }
+  return parts.length > 0 ? parts.join(' ') : 'all defaults';
+}
+
 // --- helpers --------------------------------------------------------------
+
+/** Touch-first detection: hardware capability, plus the ?touch=1 override. */
+function detectTouch(force = false) {
+  if (force) return true;
+  if (typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0) return true;
+  if (typeof matchMedia === 'function') {
+    if (matchMedia('(pointer: coarse)').matches) return true;
+    if (matchMedia('(hover: none)').matches) return true;
+  }
+  return false;
+}
 
 function safeStorage() {
   try {

@@ -70,7 +70,9 @@ export function createWorldView({ map, state, variant, settings }) {
     entityObjects,
     /** Mirror state -> scene. Called once per rendered frame, allocates nothing. */
     sync(currentState) {
-      sky.follow(currentState.observer.position);
+      // The sky follows the player's feet, not the eye: the bob is a camera
+      // effect and must not make the skyline jitter against the world.
+      sky.follow(currentState.player.position);
       for (const entity of currentState.entities) {
         const object = entityObjects.get(entity.id);
         if (!object) continue;

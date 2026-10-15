@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { attachWatch, dragLook, gotoGame, holdKey, readDebug, saveShot, touchDrag } from './helpers.js';
+import { attachWatch, dragLook, gotoGame, readDebug, saveShot, startFrozen, stepSim, touchDrag } from './helpers.js';
 import { PITCH_LIMIT } from '../../src/core/math.js';
 import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
@@ -10,7 +10,11 @@ import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 test('pointer/touch drag looks around without moving the player', async ({ page, isMobile }) => {
   const watch = attachWatch(page);
-  await gotoGame(page);
+  // Desktop capture is its own suite (mouse-look.spec.js): here the drag maths
+  // is the subject, so the mouse path is pinned with the capture switch off.
+  // That is also the honest way to test it — with capture on, a press turns the
+  // very same gesture into mouselook.
+  await gotoGame(page, isMobile ? '' : '?capture=off');
 
   const before = await readDebug(page);
   const inputBefore = await page.evaluate(() => window.__worldhopper.input());
@@ -29,10 +33,18 @@ test('pointer/touch drag looks around without moving the player', async ({ page,
   expect(inputAfter.pointersMoved, `pointermove never reached the canvas: ${JSON.stringify(inputAfter)}`).toBeGreaterThan(
     inputBefore.pointersMoved,
   );
-  expect(inputAfter.dragRadians, `drag deltas were zero: ${JSON.stringify(inputAfter)}`).toBeGreaterThan(0.2);
+  const radians = inputAfter.lookRadians - inputBefore.lookRadians;
+  expect(radians, `drag deltas were zero: ${JSON.stringify(inputAfter)}`).toBeGreaterThan(0.2);
+  if (!isMobile) {
+    // Capture was switched off, so the drag path must have carried the gesture.
+    expect(inputAfter.captureRequests, 'capture was requested although it is off').toBe(inputBefore.captureRequests);
+    expect(inputAfter.mouseLookSamples).toBe(inputBefore.mouseLookSamples);
+  }
 
   expect(after.camera.yaw).not.toBe(before.camera.yaw);
   expect(Math.abs(after.camera.yaw - before.camera.yaw)).toBeGreaterThan(0.2);
+  // The sim's own angle and the input layer's measured radians must agree.
+  expect(Math.abs(Math.abs(after.camera.yaw - before.camera.yaw) - radians)).toBeLessThan(0.05);
   // M0 has no locomotion: the eye must not have travelled.
   expect(after.camera.x).toBeCloseTo(before.camera.x, 6);
   expect(after.camera.y).toBeCloseTo(before.camera.y, 6);
@@ -41,25 +53,53 @@ test('pointer/touch drag looks around without moving the player', async ({ page,
   watch.assertClean();
 });
 
-test('arrow keys look at a controlled rate and pitch stays clamped', async ({ page, isMobile }) => {
+test('arrow keys walk exactly like WASD, and pitch stays clamped when looking', async ({ page, isMobile }) => {
   test.skip(isMobile, 'no keyboard on the phone project');
   const watch = attachWatch(page);
-  await gotoGame(page);
+  // Capture off, so a drag is a drag here: the captured path has its own suite.
+  await startFrozen(page, '?capture=off');
+  // Each scripted input event is a round trip that queues behind a rendered
+  // frame, and CI renders with SwiftShader on two cores. The assertions below
+  // are about the sim, not about how fast the machine answers.
+  test.setTimeout(120_000);
+  const settings = (await readDebug(page)).settings;
 
-  const before = await readDebug(page);
-  await holdKey(page, 'ArrowLeft', 400);
-  const afterLeft = await readDebug(page);
-  expect(afterLeft.camera.yaw).toBeGreaterThan(before.camera.yaw);
+  // Two short laps, the first of which proves the ground is clear, so a rock
+  // cannot quietly explain a difference between the two keys. Driven by the
+  // sim's own clock: how fast the machine renders has no say.
+  const lap = async (key) => {
+    const before = await stepSim(page, 0.05);
+    await page.keyboard.down(key);
+    const during = await stepSim(page, 0.4);
+    await page.keyboard.up(key);
+    await stepSim(page, 0.4); // come to rest
+    return { speed: during.player.speed, walked: before.player.z - during.player.z };
+  };
 
-  await holdKey(page, 'ArrowUp', 3000);
-  const afterUp = await readDebug(page);
-  // The clamp itself (PI/2 - 0.02), not a hand-picked number that sits below it.
-  expect(Math.abs(afterUp.camera.pitch)).toBeLessThanOrEqual(PITCH_LIMIT + 1e-3);
+  const wasd = await lap('KeyW');
+  const arrows = await lap('ArrowUp');
+  expect(wasd.speed).toBeCloseTo(settings.walkSpeed, 1);
+  expect(wasd.walked).toBeGreaterThan(1);
+  expect(arrows.walked).toBeGreaterThan(1);
+  expect(Math.abs(arrows.speed - wasd.speed), 'arrow keys must drive the sim exactly like WASD').toBeLessThan(0.01);
+
+  // Looking far up and far down must stop at the clamp, never flip over. Big
+  // drags in one step each: the sweep needs distance, not smoothness.
+  const dragPitch = async (dy, times) => {
+    for (let i = 0; i < times; i++) {
+      await dragLook(page, 0, dy, 1);
+      await stepSim(page, 0.05);
+    }
+    return (await readDebug(page)).camera.pitch;
+  };
+  expect(await dragPitch(-400, 2)).toBeCloseTo(PITCH_LIMIT, 2);
+  expect(await dragPitch(400, 3)).toBeCloseTo(-PITCH_LIMIT, 2);
+  expect((await readDebug(page)).player.grounded).toBe(true);
 
   await page.keyboard.press('r');
-  await page.waitForTimeout(200);
-  const afterReset = await readDebug(page);
-  expect(afterReset.camera.yaw).toBeCloseTo(0, 3);
+  const reset = await stepSim(page, 0.05);
+  expect(reset.camera.yaw).toBeCloseTo(0, 3);
+  expect(reset.camera.pitch).toBeCloseTo(-0.04, 3);
   watch.assertClean();
 });
 
