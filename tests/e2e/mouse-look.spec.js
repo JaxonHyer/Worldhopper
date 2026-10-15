@@ -3,6 +3,7 @@ import { attachWatch, gotoGame, readDebug, saveShot, startFrozen, stepSim } from
 import { CAMERA } from '../../src/core/config.js';
 import { PITCH_LIMIT } from '../../src/core/math.js';
 import { MOUSE_RAD_PER_PIXEL } from '../../src/core/look.js';
+import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
 /**
  * Desktop look: standard mouse capture (Pointer Lock).
@@ -175,12 +176,21 @@ test('captured movement turns the camera, within the pitch limit', async ({ page
     description: `Captured deltas are driven with known values (${MOUSE_RAD_PER_PIXEL} rad/px); the browser's own synthetic mouse under a locked pointer reports unusable magnitudes.`,
   });
 
-  // 2 × 100 px right: the camera turns right by exactly 200 × 0.0026 rad.
+  // 2 × 100 px right: the camera turns right by exactly the base radians per
+  // pixel × the sensitivity the game ships with (the owner's playtested number,
+  // not a test's idea of a nice value).
+  const sensitivity = SETTING_BY_KEY.lookMouse.default;
   const turned = await measuredTurn(page, { x: 100, times: 2 });
   expect(turned.yaw, `captured movement did not turn the camera: ${JSON.stringify(turned)}`).toBeCloseTo(
-    -200 * MOUSE_RAD_PER_PIXEL,
+    -200 * MOUSE_RAD_PER_PIXEL * sensitivity,
     3,
   );
+  // ...and the same stroke turns *less* when the player lowers the setting.
+  await page.evaluate(() => window.__worldhopper.setSetting('lookMouse', 1));
+  const atOne = await measuredTurn(page, { x: 100, times: 2 });
+  expect(atOne.yaw).toBeCloseTo(-200 * MOUSE_RAD_PER_PIXEL, 3);
+  expect(Math.abs(atOne.yaw)).toBeLessThan(Math.abs(turned.yaw));
+  await page.evaluate((value) => window.__worldhopper.setSetting('lookMouse', value), sensitivity);
 
   // Pitch is clamped however far the mouse travels, and it does reach the
   // limit — the third-person limit, which stops short of straight up.
