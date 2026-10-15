@@ -70,7 +70,8 @@ test('clicking the world captures the mouse, and the game says so', async ({ pag
     expect(seen.element).toBe('game');
     expect(seen.stats.captureDenials).toBe(0);
     await expect(page.locator('.crosshair')).toBeVisible();
-    await expect(page.locator('.hud__hint')).toBeHidden();
+    // The cursor is hidden now, so the game says how to get it back.
+    await expect(page.locator('.hud__hint')).toContainText('Esc');
   }
 
   // Either way the world is playable with the mouse: dragging turns the camera.
@@ -100,7 +101,8 @@ test('the camera follows the mouse while captured, and the player does not move'
   }
 
   const { before, after, turn } = await stroke(page, await page.locator('#game').boundingBox(), 240);
-  const stats = after.input;
+  // The snapshot carries the *state*; the counters live behind input().
+  const stats = await page.evaluate(() => window.__worldhopper.input());
 
   if (stats.mouseLookSamples === 0) {
     // Nothing verifiable about the *movement* path here: a synthetic mouse with
@@ -128,6 +130,7 @@ test('the camera follows the mouse while captured, and the player does not move'
 
   // Movement still works while captured, and mouselook stays live.
   const walked = await stepSim(page, 0.05);
+  expect(walked.input.capture).toBe('locked');
   await page.keyboard.down('KeyW');
   const afterWalk = await stepSim(page, 1);
   await page.keyboard.up('KeyW');
@@ -162,6 +165,8 @@ test('releasing the mouse stops mouselook, and drag-look still works', async ({ 
   expect(released.input.captured).toBe(false);
   expect(released.input.capture).toBe('unlocked');
   await expect(page.locator('.crosshair')).toBeHidden();
+  // And it goes back to telling the player how to capture, not how to release.
+  await expect(page.locator('.hud__hint')).toContainText('click the world');
 
   // Free cursor: moving the mouse must NOT turn the camera any more...
   const beforeMove = await readDebug(page);

@@ -12,7 +12,7 @@ const HINT_AUTO_HIDE_MS = 12000;
 export const HINTS = Object.freeze({
   touch: 'left thumb: move · right thumb: look · tap jump',
   desktopUncaptured: 'click the world to capture the mouse · Esc to release · W A S D move · space jump',
-  desktopCaptured: 'Esc releases the mouse',
+  desktopCaptured: 'mouse captured · Esc releases it',
   desktopNoCapture: 'drag to look · W A S D move · space jump',
 });
 
@@ -78,7 +78,8 @@ export function createHud({ mount, onJump, coarsePointer = false }) {
     setCaptured(captured) {
       root.classList.toggle('is-captured', captured);
       crosshair.hidden = !captured;
-      if (captured) api.hideHint();
+      // The cursor is gone: say how to get it back, then get out of the way.
+      if (captured) api.setHint(HINTS.desktopCaptured);
       else api.setHint(coarsePointer ? HINTS.touch : HINTS.desktopUncaptured);
     },
     /** Tell the player what the mouse is doing, in one line. */
