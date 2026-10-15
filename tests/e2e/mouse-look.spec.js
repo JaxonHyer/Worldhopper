@@ -62,6 +62,21 @@ async function browserStroke(page, box, dx, dy = 0) {
  * part of MouseEventInit, so this is the documented way to say "the mouse moved
  * this far" without emulating a whole input stack.
  */
+/**
+ * Baseline for a measurement. Engaging the lock makes the browser emit one
+ * last burst of movement (the cursor is being taken away, and its deltas are
+ * computed against a position that no longer exists), so anything pending is
+ * stepped away first, and given a moment to arrive before the baseline is read.
+ */
+async function settle(page) {
+  await stepSim(page, 0.1);
+  await page.waitForTimeout(120);
+  return stepSim(page, 0.1);
+}
+
+/** A yaw difference that survives the wrap at ±π. */
+const wrapped = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
 async function mouseDelta(page, { x = 0, y = 0, times = 1 } = {}) {
   await page.evaluate(
     ({ x, y, times }) => {
@@ -155,13 +170,13 @@ test('captured movement turns the camera, within the pitch limit', async ({ page
   });
 
   // 2 × 100 px right: the camera turns right by 200 × 0.0026 rad.
-  const start = await readDebug(page);
+  const start = await settle(page);
   const turned = await mouseDelta(page, { x: 100, times: 2 });
   const expected = -200 * MOUSE_RAD_PER_PIXEL;
-  expect(turned.camera.yaw - start.camera.yaw, `captured movement did not turn the camera: ${JSON.stringify(turned.camera)}`).toBeCloseTo(
-    expected,
-    2,
-  );
+  expect(
+    wrapped(turned.camera.yaw - start.camera.yaw),
+    `captured movement did not turn the camera: ${JSON.stringify(turned.camera)}`,
+  ).toBeCloseTo(expected, 2);
 
   // Pitch is clamped however far the mouse travels, and it does reach the limit.
   const up = await mouseDelta(page, { y: -120, times: 40 });
@@ -242,9 +257,9 @@ test('the mouse-look sensitivity slider changes how far the camera turns', async
   }
 
   const turn = async (pixels) => {
-    const before = await readDebug(page);
+    const before = await settle(page);
     const after = await mouseDelta(page, { x: pixels });
-    return Math.abs(after.camera.yaw - before.camera.yaw);
+    return Math.abs(wrapped(after.camera.yaw - before.camera.yaw));
   };
 
   const normal = await turn(240);
