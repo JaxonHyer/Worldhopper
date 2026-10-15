@@ -75,7 +75,13 @@ export function buildSnapshot({
   // the player without waiting for a rendered frame, so the snapshot reported a
   // camera that belonged to the previous position. Derived, never borrowed.
   // (The scratch object is reused: the values are copied out below.)
-  const view = resolveCamera({ player, settings, map, seed: state.seed, obstacles: state.obstacles }, cameraScratch);
+  // The realm comes from the state, not from the frame loop: a snapshot is a
+  // description of the world, and it must not be able to disagree with it about
+  // which lens is in use (the same lesson as aimHeight in M1).
+  const view = resolveCamera(
+    { player, settings, map, seed: state.seed, obstacles: state.obstacles, realm: state.realm },
+    cameraScratch,
+  );
   return {
     ready: Boolean(ready),
     version: app.version,
