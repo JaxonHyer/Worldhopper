@@ -10,10 +10,11 @@
 const HINT_AUTO_HIDE_MS = 12000;
 
 export const HINTS = Object.freeze({
-  touch: 'left thumb: move · right thumb: look · tap jump',
-  desktopUncaptured: 'click the world to capture the mouse · Esc to release · W A S D move · space jump',
-  desktopCaptured: 'mouse captured · Esc releases it',
-  desktopNoCapture: 'drag to look · W A S D move · space jump',
+  touch: 'left thumb: move · right thumb: look · tap jump · sprint to run',
+  desktopUncaptured:
+    'click the world to capture the mouse · Esc to release · W A S D move · shift run · space jump',
+  desktopCaptured: 'mouse captured · Esc releases it · shift runs',
+  desktopNoCapture: 'drag to look · W A S D move · shift run · space jump',
 });
 
 export function createHud({ mount, onJump, coarsePointer = false }) {
@@ -40,6 +41,17 @@ export function createHud({ mount, onJump, coarsePointer = false }) {
     onJump?.();
   });
 
+  // Sprint, bottom-left: a *toggle*, because the thumb that would hold it is
+  // already on the stick. Desktop holds shift instead, so this is touch chrome
+  // and is hidden the moment the touch controls are.
+  const sprint = document.createElement('button');
+  sprint.type = 'button';
+  sprint.className = 'touch-sprint';
+  sprint.textContent = 'sprint';
+  sprint.setAttribute('aria-label', 'Sprint (tap to toggle)');
+  sprint.setAttribute('aria-pressed', 'false');
+  sprint.hidden = !coarsePointer;
+
   // --- mouse capture cue --------------------------------------------------
   // A small crosshair, shown only while the mouse is captured: with the system
   // cursor hidden there is otherwise no way to tell where "straight ahead" is.
@@ -53,7 +65,7 @@ export function createHud({ mount, onJump, coarsePointer = false }) {
   hint.className = 'hud__hint';
   hint.textContent = coarsePointer ? HINTS.touch : HINTS.desktopUncaptured;
 
-  root.append(stick, jump, crosshair, hint);
+  root.append(stick, jump, sprint, crosshair, hint);
   mount.appendChild(root);
 
   let hideTimer = null;
@@ -63,6 +75,7 @@ export function createHud({ mount, onJump, coarsePointer = false }) {
     stick,
     knob,
     jump,
+    sprint,
     crosshair,
     get hintVisible() {
       return !hint.hidden;
@@ -72,6 +85,7 @@ export function createHud({ mount, onJump, coarsePointer = false }) {
     },
     setTouchControls(visible) {
       jump.hidden = !visible;
+      sprint.hidden = !visible;
       root.classList.toggle('is-touch', visible);
       if (visible) api.hideHint();
     },

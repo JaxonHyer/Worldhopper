@@ -85,7 +85,7 @@ function bootstrap() {
     onCaptureChange: (captured) => hud.setCaptured(captured),
     sensitivity: () => ({ drag: settings.look, mouse: settings.lookMouse }),
     captureEnabled: () => settings.captureMouse !== 'off',
-    elements: { stick: hud.stick, knob: hud.knob, jump: hud.jump },
+    elements: { stick: hud.stick, knob: hud.knob, jump: hud.jump, sprint: hud.sprint },
   });
 
   const debugOverlay = createDebugOverlay({ mount: uiMount });
@@ -144,6 +144,7 @@ function bootstrap() {
       const look = input.look();
       const move = input.move();
       const jump = input.consumeJump();
+      const sprint = input.sprinting();
       for (let i = 0; i < steps; i++) {
         stepWorld(
           state,
@@ -153,6 +154,7 @@ function bootstrap() {
             lookImpulse: i === 0 ? look.impulse : null,
             lookRate: look.rate,
             jump: i === 0 ? jump : false,
+            sprint,
           },
           context,
         );
@@ -201,6 +203,7 @@ function bootstrap() {
       const look = input.look();
       const move = input.move();
       const jump = input.consumeJump();
+      const sprint = input.sprinting();
 
       for (let i = 0; i < steps; i++) {
         stepWorld(
@@ -213,6 +216,7 @@ function bootstrap() {
             lookImpulse: i === 0 ? look.impulse : null,
             lookRate: look.rate,
             jump: i === 0 ? jump : false,
+            sprint,
           },
           context,
         );
@@ -246,6 +250,9 @@ function bootstrap() {
   }
 
   hud.setTouchControls(coarse);
+  // A button nobody can see must not still be sprinting: the phone toggle only
+  // counts while its button exists.
+  if (!coarse) input.setSprint(false);
   // Tell the owner what the mouse is doing: capture it, or drag instead.
   if (coarse) hud.setHint(HINTS.touch);
   else if (!input.canCapture()) hud.setHint(HINTS.desktopNoCapture);
@@ -363,7 +370,13 @@ function bootstrap() {
       settings,
       clock,
       frameStats,
-      render: { ...info, gl: view.contextInfo() },
+      render: {
+        ...info,
+        // The renderer's own answer to "which body is on screen", not the
+        // setting read back: the test is that the swap happened.
+        avatarVariant: world.stats().avatarVariant,
+        gl: view.contextInfo(),
+      },
       ui: {
         overlay: debugOverlay.visible,
         panel: panel.visible,
@@ -378,6 +391,7 @@ function bootstrap() {
         stick: stick.active ? { x: round(stick.x, 3), y: round(stick.y, 3), magnitude: round(stick.magnitude, 3) } : null,
         looking: input.isDragging(),
         heldKeys: input.heldKeys().length,
+        sprint: input.sprinting(),
       },
       ready: debugApi.ready,
     });

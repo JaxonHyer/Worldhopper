@@ -555,3 +555,38 @@ body:has(.hud.is-touch) .dock {
   margin-top: 0;
   border-top: none;
 }
+
+/* --- sprint button (touch) ---------------------------------------------- */
+
+.touch-sprint {
+  position: absolute;
+  left: calc(18px + var(--safe-left));
+  bottom: calc(18px + var(--safe-bottom));
+  pointer-events: auto;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  background: rgba(18, 24, 30, 0.42);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.touch-sprint.is-on {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(120, 168, 148, 0.55);
+  box-shadow: 0 0 0 2px rgba(120, 168, 148, 0.25);
+}
+
+.tuning-row__checkbox {
+  width: 22px;
+  height: 22px;
+  accent-color: #78a894;
+  justify-self: start;
+}

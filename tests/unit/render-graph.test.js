@@ -11,7 +11,8 @@ import { createWorldView } from '../../src/render/world-view.js';
 import { createSky, sunDirection } from '../../src/render/sky.js';
 import { createWorldState } from '../../src/core/world-state.js';
 import { createCameraState, resolveCamera } from '../../src/core/camera.js';
-import { AVATAR } from '../../src/render/player-view.js';
+import { AVATAR, nextFacing } from '../../src/render/player-view.js';
+import { wrapAngle } from '../../src/core/math.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
 
@@ -141,7 +142,8 @@ test('the player is a blocky, pixelated figure in ten boxes', () => {
 test('the avatar follows the sim: position, facing, and swinging limbs', () => {
   const { settings, state, world } = buildWorld();
   const camera = createCameraState();
-  const limb = world.scene.getObjectByName('player-avatar').children.find((child) => child.geometry.type === 'BoxGeometry');
+  const avatar = world.scene.getObjectByName('player-avatar');
+  const limb = avatar.children.find((child) => child.geometry.type === 'BoxGeometry');
 
   state.player.position.x = 12;
   state.player.position.z = -7;
@@ -157,14 +159,113 @@ test('the avatar follows the sim: position, facing, and swinging limbs', () => {
     resolveCamera({ player: state.player, settings, map: getMap(DEFAULT_MAP_ID), seed: state.seed }, camera);
     world.sync(state, camera, 1 / 60);
   }
-  const avatar = world.scene.getObjectByName('player-avatar');
   assert.equal(avatar.position.x, 12);
   assert.equal(avatar.position.z, -7);
-  assert.equal(avatar.rotation.y, 1.2);
+  // The *body* faces the way it is travelling (velocity +x), which is not the
+  // same thing as where the camera is pointing.
+  // Asymptotic easing: it arrives within a thousandth of a degree, not exactly.
+  assert.ok(
+    Math.abs(wrapAngle(avatar.rotation.y - Math.atan2(-4, 0))) < 1e-4,
+    `body faces ${avatar.rotation.y}, travel wants ${Math.atan2(-4, 0)}`,
+  );
   assert.ok(Math.abs(limb.rotation.x) > 0.05, `limbs never moved: ${limb.rotation.x}`);
   for (const child of avatar.children) {
     assert.ok(Number.isFinite(child.rotation.x), 'a limb rotation went NaN');
   }
+});
+
+test('the body turns to face the way it walks, so the camera can see the front', () => {
+  // Owner's PS: "because of camera position I cannot see the face". Facing the
+  // direction of travel is what makes walking backwards show the face.
+  const { settings, state, world } = buildWorld();
+  const camera = createCameraState();
+  const avatar = world.scene.getObjectByName('player-avatar');
+  const sync = (seconds, velocity) => {
+    state.player.velocity.x = velocity.x;
+    state.player.velocity.z = velocity.z;
+    state.player.grounded = true;
+    state.player.strideAmplitude = 1;
+    for (let i = 0; i < Math.round(seconds * 60); i++) {
+      resolveCamera({ player: state.player, settings, map: getMap(DEFAULT_MAP_ID), seed: state.seed }, camera);
+      world.sync(state, camera, 1 / 60);
+    }
+    return avatar.rotation.y;
+  };
+
+  // Walking forward (yaw 0 looks down -Z): body faces away from the camera.
+  const forward = sync(1, { x: 0, z: -4 });
+  assert.ok(Math.abs(forward) < 0.01, `forward facing ${forward}`);
+  // Walking *backwards*: the body turns around and the face comes into view.
+  const backward = sync(1, { x: 0, z: 4 });
+  assert.ok(Math.abs(Math.abs(backward) - Math.PI) < 0.01, `backward facing ${backward}`);
+  // Standing still keeps whatever facing it had (no snapping back).
+  const stopped = sync(0.5, { x: 0, z: 0 });
+  assert.equal(stopped, backward);
+});
+
+test('the girl can be switched on without rebuilding the world', () => {
+  // The CI e2e run is what found this: the snapshot's `avatarVariant` has to
+  // come from the renderer, so the test is that the *swap* happened here, not
+  // that the setting reads back.
+  const { settings, state, world } = buildWorld();
+  const variant = getVariant(map.id, settings.palette);
+  assert.equal(world.stats().avatarVariant, 'boy');
+  const boyBoxes = world.stats().avatar;
+  const boyTextures = world.stats().avatarTextures;
+  const before = world.scene.getObjectByName('player-avatar');
+
+  settings.girlPlayer = true;
+  world.applySettings(settings, variant);
+  assert.equal(world.stats().avatarVariant, 'girl');
+  assert.equal(world.stats().avatar, boyBoxes + 4, 'long hair is four boxes');
+  assert.equal(world.stats().avatarTextures, boyTextures + 2);
+  const after = world.scene.getObjectByName('player-avatar');
+  assert.notEqual(after, before, 'the figure should be a new object, not the old one re-labelled');
+  assert.equal(
+    world.scene.children.filter((child) => child.name === 'player-avatar').length,
+    1,
+    'the boy should not still be standing inside the girl',
+  );
+
+  // Setting it back is the same path in reverse.
+  settings.girlPlayer = false;
+  world.applySettings(settings, variant);
+  assert.equal(world.stats().avatarVariant, 'boy');
+  assert.equal(world.stats().avatar, boyBoxes);
+  // The applied settings are unchanged apart from the body.
+  assert.equal(state.entities.length, world.entityObjects.size);
+});
+
+test('nextFacing is pure, frame-rate independent and NaN-proof', () => {
+  // Per-second easing: half a second reaches the turn at any frame rate.
+  const walk = (fps) => {
+    let facing = 0;
+    for (let i = 0; i < fps / 2; i++) facing = nextFacing(facing, { x: 0, z: 4 }, 1 / fps);
+    return facing;
+  };
+  assert.ok(Math.abs(walk(30) - walk(120)) < 0.01, `30 fps ${walk(30)}, 120 fps ${walk(120)}`);
+  assert.ok(Math.abs(Math.abs(walk(60)) - Math.PI) < 0.05, 'half a second should very nearly complete a 180');
+
+  // Walking a given direction must arrive at that direction, whatever it was
+  // facing before — and whichever way round it has to turn to get there.
+  const arrive = (velocity) => {
+    let facing = 0;
+    for (let i = 0; i < 120; i++) facing = nextFacing(facing, velocity, 1 / 60);
+    return facing;
+  };
+  const near = (facing, expected, what) =>
+    assert.ok(Math.abs(wrapAngle(facing - expected)) < 0.01, `${what}: got ${facing}, wanted ${expected}`);
+  near(arrive({ x: -4, z: 0 }), Math.PI / 2, 'walking -x');
+  near(arrive({ x: 4, z: 0 }), -Math.PI / 2, 'walking +x');
+  near(arrive({ x: 0, z: 4 }), Math.PI, 'walking +z (toward a camera at yaw 0)');
+  near(arrive({ x: 0, z: -4 }), 0, 'walking -z');
+
+  // Standing still, junk and nothing to do all keep the facing.
+  assert.equal(nextFacing(1.2, { x: 0, z: 0 }, 1 / 60), 1.2);
+  assert.equal(nextFacing(1.2, { x: Number.NaN, z: Number.NaN }, 1 / 60), 1.2);
+  assert.equal(nextFacing(1.2, null, 1 / 60), 1.2);
+  const huge = nextFacing(0, { x: 4, z: 0 }, 100);
+  assert.ok(Number.isFinite(huge) && Math.abs(huge) <= Math.PI, `a huge dt produced ${huge}`);
 });
 
 test('the easing does not care how fast the machine renders', () => {

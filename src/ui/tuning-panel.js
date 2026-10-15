@@ -82,6 +82,14 @@ export function createTuningPanel({ mount, settings, onChange, onReset, onReroll
       reroll.addEventListener('click', () => onRerollSeed?.());
       row.append(control, reroll, value);
       value.textContent = ''; // the field itself already shows the number
+    } else if (def.kind === 'bool') {
+      control = document.createElement('input');
+      control.type = 'checkbox';
+      control.id = `setting-${def.key}`;
+      control.className = 'tuning-row__checkbox';
+      control.checked = Boolean(settings[def.key]);
+      control.addEventListener('change', () => emit(def, control.checked));
+      row.append(control, value);
     } else if (def.kind === 'enum') {
       control = document.createElement('select');
       control.id = `setting-${def.key}`;
@@ -168,7 +176,8 @@ export function createTuningPanel({ mount, settings, onChange, onReset, onReroll
   function emit(def, raw, options = {}) {
     const applied = onChange?.(def.key, raw, options);
     if (applied !== undefined) {
-      controls.get(def.key).value = String(applied);
+      if (def.kind === 'bool') controls.get(def.key).checked = Boolean(applied);
+      else controls.get(def.key).value = String(applied);
       const row = rows.get(def.key);
       row.querySelector('.tuning-row__value').textContent = formatSettingValue(def, applied);
     }
@@ -197,7 +206,8 @@ export function createTuningPanel({ mount, settings, onChange, onReset, onReroll
       for (const def of SETTING_DEFS) {
         const control = controls.get(def.key);
         if (!control) continue;
-        control.value = String(next[def.key]);
+        if (def.kind === 'bool') control.checked = Boolean(next[def.key]);
+        else control.value = String(next[def.key]);
         const row = rows.get(def.key);
         const output = row.querySelector('.tuning-row__value');
         if (output) {

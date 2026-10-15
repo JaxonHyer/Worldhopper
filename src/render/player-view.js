@@ -25,7 +25,8 @@
  */
 
 import * as THREE from 'three';
-import { characterSkin, isTexture } from '../core/pixel-art.js';
+import { characterSkin, isTexture, normalizeVariant } from '../core/pixel-art.js';
+import { wrapAngle } from '../core/math.js';
 
 export const AVATAR = Object.freeze({
   legHeight: 0.8,
@@ -51,7 +52,42 @@ export const AVATAR = Object.freeze({
   /** per-second easing rates (frame-rate independent) */
   easePose: 9,
   easeAir: 11,
+  /** how fast the body swings round to face the way it is walking */
+  easeFacing: 14,
+  /** below this speed the body keeps the facing it had (m/s) */
+  facingMinSpeed: 0.25,
+  /** the girl model has slimmer arms, like the classic slim skin */
+  slimArmWidth: 0.12,
+  /** long hair hanging behind the head (girl model) */
+  hairBack: { width: 0.3, height: 0.52, depth: 0.06 },
+  /** ...and the locks beside her face, which is what reads from the front */
+  hairLock: { width: 0.07, height: 0.5, depth: 0.34 },
 });
+
+/**
+ * Which way the body faces, given the way it is moving.
+ *
+ * Minecraft-style: the *body* turns to face the direction of travel while the
+ * camera stays put, which is also the answer to the owner's "because of camera
+ * position I cannot see the face" — walk backwards and the character turns to
+ * face the camera.
+ *
+ * Pure and frame-rate independent (per-second easing), so it is asserted in
+ * Node rather than eyeballed. Returns the new facing, in radians.
+ */
+export function nextFacing(current, velocity, dt, options = {}) {
+  const { minSpeed = AVATAR.facingMinSpeed, rate = AVATAR.easeFacing } = options;
+  if (!Array.isArray(current) && !Number.isFinite(current)) return 0;
+  const vx = Number.isFinite(velocity?.x) ? velocity.x : 0;
+  const vz = Number.isFinite(velocity?.z) ? velocity.z : 0;
+  if (Math.hypot(vx, vz) < minSpeed) return current;
+  // Yaw 0 looks down -Z, so the facing that matches a velocity points the same
+  // way the player is travelling.
+  const target = Math.atan2(-vx, -vz);
+  const delta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  const step = Math.min(Math.max(dt, 0), 0.25);
+  return wrapAngle(current + delta * (1 - Math.exp(-rate * step)));
+}
 
 /** Turn one authored texture into something the GPU can sample, crisply. */
 function toTexture(art, cache) {
@@ -72,9 +108,15 @@ function toTexture(art, cache) {
   return texture;
 }
 
-export function createPlayerAvatar({ skin = characterSkin() } = {}) {
+export function createPlayerAvatar({ variant = 'boy', skin = null } = {}) {
+  const kind = normalizeVariant(variant);
+  const art = skin ?? characterSkin({ variant: kind });
+  const slim = kind === 'girl';
+  const armWidth = slim ? AVATAR.slimArmWidth : AVATAR.armWidth;
+
   const group = new THREE.Group();
   group.name = 'player-avatar';
+  group.userData.variant = kind;
 
   const geometries = [];
   const materials = [];
@@ -114,60 +156,79 @@ export function createPlayerAvatar({ skin = characterSkin() } = {}) {
   const shoulderY = torsoTop - 0.04;
 
   // --- limbs (the parts that move) ---------------------------------------
-  const leftLeg = box(AVATAR.legWidth, AVATAR.legHeight, AVATAR.legDepth, skin.leg);
-  const rightLeg = box(AVATAR.legWidth, AVATAR.legHeight, AVATAR.legDepth, skin.leg);
+  const leftLeg = box(AVATAR.legWidth, AVATAR.legHeight, AVATAR.legDepth, art.leg);
+  const rightLeg = box(AVATAR.legWidth, AVATAR.legHeight, AVATAR.legDepth, art.leg);
   for (const [leg, side] of [
     [leftLeg, -1],
     [rightLeg, 1],
   ]) {
     leg.position.x = side * AVATAR.legGap;
     leg.position.y = hipY;
-    const boot = box(AVATAR.legWidth * 1.14, AVATAR.bootHeight, AVATAR.legDepth * 1.35, skin.boot);
+    const boot = box(AVATAR.legWidth * 1.14, AVATAR.bootHeight, AVATAR.legDepth * 1.35, art.boot);
     boot.position.set(0, -AVATAR.legHeight + AVATAR.bootHeight, 0);
     leg.add(boot);
   }
 
-  const leftArm = box(AVATAR.armWidth, AVATAR.armHeight, AVATAR.armDepth, skin.arm);
-  const rightArm = box(AVATAR.armWidth, AVATAR.armHeight, AVATAR.armDepth, skin.arm);
+  const leftArm = box(armWidth, AVATAR.armHeight, AVATAR.armDepth, art.arm);
+  const rightArm = box(armWidth, AVATAR.armHeight, AVATAR.armDepth, art.arm);
   for (const [arm, side] of [
     [leftArm, -1],
     [rightArm, 1],
   ]) {
     arm.position.x = side * AVATAR.armGap;
     arm.position.y = shoulderY;
-    const hand = box(AVATAR.armWidth * 0.95, AVATAR.handHeight, AVATAR.armDepth * 0.95, skin.hand);
+    const hand = box(armWidth * 0.95, AVATAR.handHeight, AVATAR.armDepth * 0.95, art.hand);
     hand.position.set(0, -AVATAR.armHeight, 0);
     arm.add(hand);
   }
 
   // --- body ---------------------------------------------------------------
   const torso = box(AVATAR.torsoWidth, AVATAR.torsoHeight, AVATAR.torsoDepth, {
-    right: skin.torso.side,
-    left: skin.torso.side,
-    top: skin.torso.top,
-    bottom: skin.torso.bottom,
-    back: skin.torso.back,
-    front: skin.torso.front,
+    right: art.torso.side,
+    left: art.torso.side,
+    top: art.torso.top,
+    bottom: art.torso.bottom,
+    back: art.torso.back,
+    front: art.torso.front,
   });
   torso.position.y = torsoTop;
 
   // The head is where per-face textures pay off: one face, hair on the other
   // five, so it is plain from behind and unmistakably a person from the front.
   const head = box(AVATAR.headSize, AVATAR.headSize, AVATAR.headSize, {
-    right: skin.head.right,
-    left: skin.head.left,
-    top: skin.head.top,
-    bottom: skin.head.bottom,
-    back: skin.head.back,
-    front: skin.head.front,
+    right: art.head.right,
+    left: art.head.left,
+    top: art.head.top,
+    bottom: art.head.bottom,
+    back: art.head.back,
+    front: art.head.front,
   });
   head.position.y = torsoTop + AVATAR.headSize;
 
   group.add(leftLeg, rightLeg, leftArm, rightArm, torso, head);
 
+  // The girl model's hair, and nothing else about the two characters differs:
+  // a sheet over the back of the head, a fall down her back, and a lock beside
+  // each ear. The locks are the important ones — hair that only exists behind
+  // the head is invisible from the front, which is where the camera mostly
+  // isn't (the whole point of M1.7's facing change) but where the owner looks.
+  if (slim) {
+    const hairBack = box(AVATAR.headSize * 1.02, AVATAR.headSize * 1.02, 0.1, art.hair);
+    hairBack.position.set(0, torsoTop + AVATAR.headSize * 1.02, AVATAR.headSize / 2 + 0.05);
+    const hairFall = box(AVATAR.hairBack.width, AVATAR.hairBack.height, AVATAR.hairBack.depth, art.hairBack);
+    hairFall.position.set(0, torsoTop + AVATAR.headSize * 0.7, AVATAR.headSize / 2 + 0.06);
+    const lockX = AVATAR.headSize / 2 + AVATAR.hairLock.width / 2;
+    const leftLock = box(AVATAR.hairLock.width, AVATAR.hairLock.height, AVATAR.hairLock.depth, art.hair);
+    leftLock.position.set(-lockX, torsoTop + AVATAR.headSize * 0.62, -0.02);
+    const rightLock = box(AVATAR.hairLock.width, AVATAR.hairLock.height, AVATAR.hairLock.depth, art.hair);
+    rightLock.position.set(lockX, torsoTop + AVATAR.headSize * 0.62, -0.02);
+    group.add(hairBack, hairFall, leftLock, rightLock);
+  }
+
   // Eased pose state, kept in the closure so sync() allocates nothing.
   let walkBlend = 0;
   let airborne = 0;
+  let facing = 0;
 
   const ease = (current, target, rate, dt) => current + (target - current) * (1 - Math.exp(-rate * dt));
 
@@ -183,12 +244,14 @@ export function createPlayerAvatar({ skin = characterSkin() } = {}) {
       group.visible = visible;
       if (!visible) return;
 
+      const step = Math.min(dt, 0.25);
       group.position.set(player.position.x, player.position.y, player.position.z);
-      group.rotation.y = player.yaw;
+      // The body faces the way it walks; the camera is free to point elsewhere.
+      facing = nextFacing(facing, player.velocity, step);
+      group.rotation.y = facing;
 
       const speed = Math.hypot(player.velocity.x, player.velocity.z);
       const moving = player.grounded && speed > 0.2;
-      const step = Math.min(dt, 0.25);
       walkBlend = ease(walkBlend, moving ? 1 : 0, AVATAR.easePose, step);
       airborne = ease(airborne, player.grounded ? 0 : 1, AVATAR.easeAir, step);
 
@@ -206,11 +269,16 @@ export function createPlayerAvatar({ skin = characterSkin() } = {}) {
       rightArm.rotation.x = -armSwing;
     },
     /** What the figure is made of (the scene tests read this). */
+    /** The direction the body is facing (rad) — the camera yaw is separate. */
+    get facing() {
+      return facing;
+    },
     stats: () => ({
       boxes: geometries.length,
       meshes: group.children.length,
       textured: materials.filter((item) => item.map).length,
       textures: textures.size,
+      variant: kind,
     }),
     dispose() {
       for (const geometry of geometries) geometry.dispose();
@@ -220,7 +288,8 @@ export function createPlayerAvatar({ skin = characterSkin() } = {}) {
     },
   };
 
-  // Start in the standing pose so the first frames are never a T-pose.
+  // Start in the standing pose so the first frames are never a T-pose, facing
+  // away from the camera (which is where the camera is looking).
   api.sync({ position: { x: 0, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, yaw: 0, grounded: true, stridePhase: 0 }, {
     avatarVisible: true,
   });

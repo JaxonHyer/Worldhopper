@@ -72,6 +72,7 @@ export function createPlayer({ map, seed, spawn = map.spawn ?? { x: 0, z: 0 }, l
     yaw: look.yaw,
     pitch: look.pitch,
     grounded: true,
+    sprinting: false,
     coyote: PLAYER.coyoteTime,
     jumpBuffer: 0,
     /** metres walked, wrapped: drives the view bob *and* the avatar's limbs */
@@ -163,6 +164,12 @@ export function stepPlayer(player, intent, context, dt) {
   const gravity = Math.max(0, settings.gravity);
   const accelGround = Math.max(0, settings.accel);
   const move = intent?.move ?? { x: 0, y: 0 };
+  // Sprinting raises the speed the legs are asked for. It never touches the
+  // walk speed itself, and because the stride rate is capped above, a sprint
+  // widens the swing instead of blurring it. Sprinting only counts while
+  // actually moving: holding shift standing still is not a sprint.
+  const sprinting = Boolean(intent?.sprint) && (move.x !== 0 || move.y !== 0);
+  const moveSpeed = walkSpeed * (sprinting ? Math.max(1, settings.sprint ?? 1) : 1);
 
   // --- look (mouse/drag impulse + held look keys) --------------------------
   // The input layer has already applied the matching sensitivity slider (mouse
@@ -184,8 +191,9 @@ export function stepPlayer(player, intent, context, dt) {
   // The sim never trusts the caller to have normalised: (1,1) must not be
   // 1.41x walking speed just because some future input source forgot.
   const wish = normalizeMove(clamp(move.x, -1, 1), clamp(move.y, -1, 1));
-  const wishX = wish.x * walkSpeed;
-  const wishZ = wish.y * walkSpeed;
+  const wishX = wish.x * moveSpeed;
+  const wishZ = wish.y * moveSpeed;
+  player.sprinting = sprinting;
   const cos = Math.cos(player.yaw);
   const sin = Math.sin(player.yaw);
   // Yaw 0 looks down -Z; yaw +90° looks down -X.
@@ -273,7 +281,7 @@ export function stepPlayer(player, intent, context, dt) {
   // --- view bob (the owner's slider; 0 disables it) ------------------------
   const bobAmount = Math.max(0, settings.viewBob ?? 0);
   if (player.grounded && speed > 0.15 && bobAmount > 0) {
-    const strength = clamp(speed / Math.max(0.001, walkSpeed), 0, 1);
+    const strength = clamp(speed / Math.max(0.001, moveSpeed), 0, 1);
     player.bob = Math.sin(player.stridePhase) * bobAmount * strength;
   } else {
     // Settle back to level rather than snapping: a hard cut reads as a jolt.

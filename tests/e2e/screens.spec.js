@@ -29,6 +29,12 @@ test('captures the deliverable screenshots', async ({ page, isMobile }, testInfo
     await saveShot(page, 'phone-jump', testInfo);
     await page.waitForTimeout(1200);
 
+    // The sprint toggle, in its on state: bottom-left, one tap, no holding.
+    await page.locator('.touch-sprint').tap();
+    await page.waitForTimeout(200);
+    await saveShot(page, 'phone-sprint-on', testInfo);
+    await page.locator('.touch-sprint').tap();
+
     watch.assertClean();
     return;
   }
@@ -72,6 +78,28 @@ test('captures the deliverable screenshots', async ({ page, isMobile }, testInfo
   await page.waitForTimeout(700);
   await page.keyboard.up('KeyW');
   await saveShot(page, 'third-person-looking-down', testInfo);
+
+  // The face. Walking backwards turns the body to face the camera — this is the
+  // fix for "because of camera position I cannot see the face" — so both
+  // characters are photographed head-on and from behind at the same distance.
+  for (const [name, query] of [
+    ['face-boy', ''],
+    ['face-girl', '?girl=1'],
+  ]) {
+    await gotoGame(page, `${query}${query ? '&' : '?'}camdist=3.4&debug=0`);
+    await page.keyboard.down('KeyS');
+    await page.waitForTimeout(1600);
+    await saveShot(page, `${name}-walking-at-camera`, testInfo);
+    await page.keyboard.up('KeyS');
+    await page.waitForTimeout(400);
+    await saveShot(page, `${name}-idle`, testInfo);
+    // And walking away, which is the view the game normally gives: the girl's
+    // long hair is behind her, so this is the shot that shows it.
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1400);
+    await saveShot(page, `${name}-walking-away`, testInfo);
+    await page.keyboard.up('KeyW');
+  }
 
   await gotoGame(page, '?view=first');
   await saveShot(page, 'first-person', testInfo);

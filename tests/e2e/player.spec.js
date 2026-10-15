@@ -13,6 +13,7 @@ import { SETTING_BY_KEY } from '../../src/core/settings.js';
  */
 
 const WALK = SETTING_BY_KEY.walkSpeed.default;
+const SPRINT = SETTING_BY_KEY.sprint.default;
 
 /** Step in slices and track the highest point, for apex assertions. */
 async function jumpPeak(page, { seconds = 1.6, slice = 0.05 } = {}) {
@@ -247,6 +248,134 @@ test('the walk animation does not jitter at the owner’s walk speed', async ({ 
   expect(slow.player.strideAmplitude).toBeLessThan(0.6);
   expect(stroll.settings.strideRate).toBe(2);
 
+  watch.assertClean();
+});
+
+test('holding shift sprints on desktop, and only while moving', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard path; the phone button is covered below');
+  const watch = attachWatch(page);
+  const start = await startFrozen(page);
+  const walk = start.settings.walkSpeed;
+  const sprint = start.settings.sprint;
+
+  // Shift on its own is not a sprint: there is nothing to sprint *with*.
+  await page.keyboard.down('ShiftLeft');
+  const still = await stepSim(page, 0.6);
+  expect(still.player.sprinting).toBe(false);
+  expect(still.player.speed).toBeLessThan(0.05);
+
+  await page.keyboard.down('KeyW');
+  const running = await stepSim(page, 1.2);
+  expect(running.player.sprinting).toBe(true);
+  expect(running.input.sprint).toBe(true);
+  expect(running.player.speed).toBeGreaterThan(walk * 1.2);
+  // The multiplier is the setting, so a re-tune moves the speed with it.
+  expect(running.player.speed).toBeGreaterThan(walk * sprint * 0.9);
+  expect(running.player.speed).toBeLessThan(walk * sprint * 1.1);
+
+  // Let go of shift and it is a walk again — no toggle to remember.
+  await page.keyboard.up('ShiftLeft');
+  const walking = await stepSim(page, 1);
+  expect(walking.player.sprinting).toBe(false);
+  expect(walking.player.speed).toBeLessThan(walk * 1.1);
+
+  // And it is the *speed* that changed, not the animation: at 7.9 m/s the swing
+  // is already at its ceiling, so a sprint must not push the legs faster than
+  // the owner-accepted cap. Count cycles from the sim's own stride phase.
+  await page.keyboard.down('ShiftLeft');
+  await stepSim(page, 3); // reach top speed
+  let cycles = 0;
+  let previous = (await readDebug(page)).player.stridePhase;
+  for (let i = 0; i < 30; i++) {
+    const snap = await stepSim(page, 0.1);
+    const delta = snap.player.stridePhase - previous;
+    cycles += Math.abs(Math.atan2(Math.sin(delta), Math.cos(delta))) / (2 * Math.PI);
+    previous = snap.player.stridePhase;
+  }
+  await page.keyboard.up('ShiftLeft');
+  await page.keyboard.up('KeyW');
+  const rate = cycles / 3;
+  expect(rate, `sprinting swung the legs ${rate.toFixed(2)} times a second`).toBeLessThanOrEqual(
+    start.settings.strideRate + 0.15,
+  );
+
+  // A sprint must not move the camera, only the legs.
+  expect(Math.abs(walking.player.yaw - start.player.yaw)).toBeLessThan(1e-6);
+  watch.assertClean();
+});
+
+test('the phone sprint button is a bottom-left toggle', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch path');
+  const watch = attachWatch(page);
+  const start = await startFrozen(page);
+  const sprint = start.settings.sprint;
+
+  const button = page.locator('.touch-sprint');
+  await expect(button).toBeVisible();
+  const box = await button.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box.width).toBeGreaterThanOrEqual(44);
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  // Bottom of the left side of the screen, per the owner's ask.
+  expect(box.x + box.width).toBeLessThan(viewport.width / 2);
+  expect(box.y).toBeGreaterThan(viewport.height * 0.6);
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+
+  // A toggle: one tap, no holding, and the stick can then be driven.
+  await button.tap();
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await expect(button).toHaveClass(/is-on/);
+  const toggled = await stepSim(page, 0.2);
+  expect(toggled.input.sprint).toBe(true);
+  expect(toggled.player.sprinting).toBe(false); // toggled on, but standing still
+
+  const stick = await openStick(page, 0, -120);
+  const running = await stepSim(page, 1.2);
+  expect(running.player.sprinting).toBe(true);
+  expect(running.player.speed).toBeGreaterThan(start.settings.walkSpeed * sprint * 0.9);
+  await stick.release();
+
+  await button.tap();
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+  const stopped = await stepSim(page, 0.5);
+  expect(stopped.input.sprint).toBe(false);
+  watch.assertClean();
+});
+
+test('the girl character is one boolean away, and it is live', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'same setting, keyboard-driven page loads');
+  const watch = attachWatch(page);
+  // Frozen, so "the same player" can be checked as the same coordinates.
+  const boy = await startFrozen(page, '?dev=1&debug=1');
+  expect(boy.avatarVariant).toBe('boy');
+  expect(boy.settings.girlPlayer).toBe(false);
+
+  await page.locator('.dock__button[aria-label*="Tuning"]').click();
+  const checkbox = page.locator('#setting-girlPlayer');
+  await expect(checkbox).toBeVisible();
+  await expect(checkbox).not.toBeChecked();
+  await expect(page.locator('#setting-girlPlayer + .tuning-row__value')).toHaveText('off');
+  await checkbox.check();
+
+  // No reload: the figure is swapped where it stands, in the same world.
+  const girl = await readDebug(page);
+  expect(girl.avatarVariant).toBe('girl');
+  expect(girl.settings.girlPlayer).toBe(true);
+  // Same player, same world, same position — only the body changed, and it
+  // changed without a reload.
+  expect(girl.player.x).toBe(boy.player.x);
+  expect(girl.player.z).toBe(boy.player.z);
+  expect(girl.mapId).toBe(boy.mapId);
+  expect(girl.tick).toBe(boy.tick); // paused: nothing moved behind our back
+  await expect(page.locator('#setting-girlPlayer + .tuning-row__value')).toHaveText('on');
+  await expect(page.locator('#game')).toBeVisible(); // still playing, not a rebuild
+
+  await checkbox.uncheck();
+  expect((await readDebug(page)).avatarVariant).toBe('boy');
+
+  // The URL form is the same switch, for a config link.
+  await gotoGame(page, '?girl=1&debug=1');
+  expect((await readDebug(page)).avatarVariant).toBe('girl');
   watch.assertClean();
 });
 
