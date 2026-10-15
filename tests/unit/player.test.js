@@ -9,6 +9,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PLAYER, createPlayer, eyePosition, horizontalSpeed, sampleSupport, stepPlayer } from '../../src/core/player.js';
+import { CAMERA } from '../../src/core/config.js';
+import { PITCH_LIMIT } from '../../src/core/math.js';
 import { createWorldState, buildObstacles, terrainHeight } from '../../src/core/world-state.js';
 import { getMap, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
@@ -229,6 +231,40 @@ test('the player is kept inside the map', () => {
   const limit = map.ground.size / 2 - 2;
   assert.ok(player.position.x <= limit + 1e-6, `x escaped to ${player.position.x}`);
   assert.ok(player.position.z >= -limit - 1e-6, `z escaped to ${player.position.z}`);
+});
+
+test('the view owns the vertical look range (third person cannot stare at the sky)', () => {
+  const lookUp = { lookRate: { x: 0, y: -100 } };
+  const lookDown = { lookRate: { x: 0, y: 100 } };
+
+  const third = world({ settings: { view: 'third' } });
+  run(third.player, third.context, 10, () => lookUp);
+  assert.ok(
+    Math.abs(third.player.pitch - CAMERA.pitchMax) < 1e-6,
+    `third person looked up to ${third.player.pitch}, expected ${CAMERA.pitchMax}`,
+  );
+  run(third.player, third.context, 10, () => lookDown);
+  assert.ok(
+    Math.abs(third.player.pitch - CAMERA.pitchMin) < 1e-6,
+    `third person looked down to ${third.player.pitch}, expected ${CAMERA.pitchMin}`,
+  );
+
+  // First person keeps the full range it always had: further up, and to the
+  // flip-over limit rather than stopping early.
+  const first = world({ settings: { view: 'first' } });
+  run(first.player, first.context, 10, () => lookUp);
+  assert.ok(first.player.pitch > CAMERA.pitchMax, `first person was capped at ${first.player.pitch}`);
+  assert.ok(Math.abs(first.player.pitch - PITCH_LIMIT) < 1e-6, `first person stopped at ${first.player.pitch}`);
+});
+
+test('the walk cycle keeps running with the bob turned off', () => {
+  // The avatar's limbs are driven by stridePhase, so bob = 0 must not stop the
+  // legs — that is the trap in tying both to one slider.
+  const { player, context } = world({ settings: { viewBob: 0 } });
+  run(player, context, 1, forward);
+  assert.equal(player.bob, 0, 'bob 0 means no camera movement');
+  assert.ok(Math.abs(player.stridePhase) > 1, `stridePhase did not advance: ${player.stridePhase}`);
+  assert.equal(player.stepCycle, player.stridePhase);
 });
 
 test('look input is clamped and NaN-proof', () => {

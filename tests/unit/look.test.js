@@ -8,6 +8,7 @@ import {
   applyLookRate,
   dragToLook,
   pixelsToLook,
+  pitchRange,
 } from '../../src/core/look.js';
 import { PITCH_LIMIT } from '../../src/core/math.js';
 
@@ -106,4 +107,26 @@ test('a null observer is tolerated (defensive, never throws in a frame loop)', (
   assert.equal(applyLookImpulse(null, pixelsToLook(10, 10)), null);
   assert.equal(applyLookRate(undefined, { x: 1, y: 0 }, 1 / 60), undefined);
   assert.equal(applyLook(null, { lookRate: { x: 1, y: 0 } }, 1 / 60), null);
+});
+
+test('a narrowed pitch range is respected, and never widened past the limit', () => {
+  const observer = { yaw: 0, pitch: 0 };
+  // A third-person range: looking up is capped well below straight up.
+  for (let i = 0; i < 50; i++) applyLookImpulse(observer, pixelsToLook(0, -400), { pitchMin: -1.1, pitchMax: 0.6 });
+  assert.ok(Math.abs(observer.pitch - 0.6) < 1e-9, `pitch escaped to ${observer.pitch}`);
+  for (let i = 0; i < 100; i++) applyLookImpulse(observer, pixelsToLook(0, 400), { pitchMin: -1.1, pitchMax: 0.6 });
+  assert.ok(Math.abs(observer.pitch + 1.1) < 1e-9, `pitch escaped to ${observer.pitch}`);
+
+  // A caller cannot widen it past the flip-over limit.
+  const wide = { yaw: 0, pitch: 0 };
+  for (let i = 0; i < 50; i++) applyLookImpulse(wide, pixelsToLook(0, -400), { pitchMin: -99, pitchMax: 99 });
+  assert.ok(wide.pitch <= PITCH_LIMIT + 1e-12, `pitch escaped to ${wide.pitch}`);
+});
+
+test('a pitch range given backwards or with junk is repaired, not trusted', () => {
+  assert.deepEqual(pitchRange({ pitchMin: 0.6, pitchMax: -1.1 }), { min: -1.1, max: 0.6 });
+  assert.deepEqual(pitchRange({}), { min: -PITCH_LIMIT, max: PITCH_LIMIT });
+  const junk = pitchRange({ pitchMin: Number.NaN, pitchMax: 'up' });
+  assert.deepEqual(junk, { min: -PITCH_LIMIT, max: PITCH_LIMIT });
+  assert.deepEqual(pitchRange({ pitchMin: -5, pitchMax: 5 }), { min: -PITCH_LIMIT, max: PITCH_LIMIT });
 });

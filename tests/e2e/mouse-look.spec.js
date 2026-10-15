@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { attachWatch, gotoGame, readDebug, saveShot, startFrozen, stepSim } from './helpers.js';
+import { CAMERA } from '../../src/core/config.js';
 import { PITCH_LIMIT } from '../../src/core/math.js';
 import { MOUSE_RAD_PER_PIXEL } from '../../src/core/look.js';
 
@@ -101,7 +102,7 @@ async function measuredTurn(page, { x = 0, y = 0, times = 1 } = {}) {
       const after = api.step(0.05);
       // Wrapped, so a turn across ±π is still measured as the turn it is.
       const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-      return { yaw: wrap(after.camera.yaw - before.camera.yaw), pitch: after.camera.pitch };
+      return { yaw: wrap(after.camera.yaw - before.camera.yaw), pitch: after.player.pitch };
     },
     { x, y, times },
   );
@@ -181,11 +182,12 @@ test('captured movement turns the camera, within the pitch limit', async ({ page
     3,
   );
 
-  // Pitch is clamped however far the mouse travels, and it does reach the limit.
+  // Pitch is clamped however far the mouse travels, and it does reach the
+  // limit — the third-person limit, which stops short of straight up.
   const up = await measuredTurn(page, { y: -120, times: 40 });
-  expect(up.pitch).toBeCloseTo(PITCH_LIMIT, 2);
+  expect(up.pitch).toBeCloseTo(CAMERA.pitchMax, 2);
   const down = await measuredTurn(page, { y: 120, times: 80 });
-  expect(down.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
+  expect(down.pitch).toBeCloseTo(CAMERA.pitchMin, 2);
 
   // Looking never moves the player, and walking still works while captured.
   // The sweeps above left the camera pointing anywhere, so face the spawn
@@ -281,6 +283,33 @@ test('the mouse-look sensitivity slider changes how far the camera turns', async
   await page.evaluate(() => window.__worldhopper.setSetting('lookMouse', 0.2));
   const least = await turn(240);
   expect(least).toBeCloseTo(240 * MOUSE_RAD_PER_PIXEL * 0.2, 3);
+
+  watch.assertClean();
+});
+
+test('first person looks further up than third, and draws no body', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'desktop control path');
+  const watch = attachWatch(page);
+  const start = await startFrozen(page, '?view=first');
+  expect(start.camera.mode).toBe('first');
+  expect(start.camera.avatar).toBe(false);
+  await clickWorld(page);
+
+  const seen = await state(page);
+  if (seen.state !== 'locked') {
+    test.info().annotations.push({ type: 'note', description: 'Pointer lock refused here; the first-person pitch sweep was not exercised.' });
+    watch.assertClean();
+    return;
+  }
+
+  // First person reaches the flip-over limit, not the third-person one.
+  const up = await measuredTurn(page, { y: -120, times: 40 });
+  expect(up.pitch).toBeCloseTo(PITCH_LIMIT, 2);
+  const down = await measuredTurn(page, { y: 120, times: 80 });
+  expect(down.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
+  const after = await readDebug(page);
+  expect(after.camera.distance).toBe(0);
+  expect(after.camera.pitch).toBeCloseTo(PITCH_LIMIT, 1);
 
   watch.assertClean();
 });

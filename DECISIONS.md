@@ -282,3 +282,33 @@ this to stay oriented; agents add to it in the same PR as the change.
 - **The tuning panel and the credits release the mouse when they open** — a
   captured cursor cannot click a slider — and the tests assert the control is
   focusable straight afterwards.
+
+## M1.5 — third person, and the blocky look (owner, 2026-10-15)
+
+- **The game is third person.** The camera is a boom behind the character,
+  derived from the player every frame (`src/core/camera.js`), never a second copy
+  of the world. First person stays available as `?view=first` / the **Camera**
+  control, because it costs nothing to keep and some places will want it.
+- **The camera gives way, never clips.** The boom is marched outward and stops
+  at the first sample that would be inside the ground or a rock, and a final
+  guard lifts it above the terrain wherever it lands. It re-aims at the player
+  after that lift, so the character stays centred.
+- **Third person narrows the vertical look range** (`-1.1 … +0.6 rad`): looking
+  straight up would swing the boom down through the floor. The sim owns that
+  rule, not the renderer — the camera can never be the thing that decides how
+  far you may look.
+- **A very short boom hides the body** (below 1.0 m): otherwise the camera sits
+  inside the character's head, which looks like a rendering fault.
+- **The walk cycle is the sim's, the bob is the camera's.** `stridePhase`
+  advances whenever the player walks, whatever the view-bob slider says, because
+  the avatar's limbs are driven by it. View bob only moves the camera.
+  (Zero-bob playtesters should still see their character walk.)
+- **Characters are blocky — boxes, flat colours, no rigs.** Player now;
+  enemies at M3 and NPCs at M5 follow the same recipe (`src/render/player-view.js`
+  is the reference implementation: a handful of `BoxGeometry` meshes, pivots at
+  shoulders and hips, animation by rotating boxes). §7 rules out skeletons and
+  IK; a box per limb is both the style *and* the simplest thing that can be
+  tested.
+- **The owner's playtested numbers are the defaults** (seed, palette, fog, sun,
+  ambient, fov, both look sensitivities, walk, jump, gravity, accel, bob), pinned
+  by a unit test so a later edit cannot quietly reset the feel they approved.

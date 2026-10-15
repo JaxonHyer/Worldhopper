@@ -2,12 +2,13 @@ import { test } from '@playwright/test';
 import { attachWatch, gotoGame, openStick, readDebug, saveShot } from './helpers.js';
 
 /**
- * Deliverable screenshots for the owner's taste calls (§10): 3 palette
- * variants of the same pose, plus overlay / panel / credits.
- * These are the images the owner compares against the live build.
+ * Deliverable screenshots for the owner's taste calls (§10): the third-person
+ * pose (the change they asked for), first person for comparison, 3 palette
+ * variants, plus overlay / panel / credits. These are the images the owner
+ * compares against the live build.
  */
 
-test('captures the M0 screenshots', async ({ page, isMobile }, testInfo) => {
+test('captures the deliverable screenshots', async ({ page, isMobile }, testInfo) => {
   const watch = attachWatch(page);
 
   if (isMobile) {
@@ -45,6 +46,32 @@ test('captures the M0 screenshots', async ({ page, isMobile }, testInfo) => {
   await page.keyboard.up('KeyW');
   await page.waitForTimeout(300);
   await saveShot(page, 'world-walked', testInfo);
+
+  // The third-person pose, from a few distances so the boom length is judgeable
+  // in one image set rather than by dragging the slider back and forth.
+  for (const distance of [3, 4.2, 6.5]) {
+    await gotoGame(page, `?camdist=${distance}&debug=0`);
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1400);
+    await page.keyboard.up('KeyW');
+    await page.waitForTimeout(220); // catch them mid-stride, still walking
+    await saveShot(page, `third-person-${String(distance).replace('.', '_')}m`, testInfo);
+  }
+
+  // Looking down at the character, which is where a boom camera earns its keep.
+  await gotoGame(page, '?camdist=5.5');
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(900);
+  await page.mouse.move(800, 450);
+  await page.mouse.down();
+  await page.mouse.move(800, 700, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+  await page.keyboard.up('KeyW');
+  await saveShot(page, 'third-person-looking-down', testInfo);
+
+  await gotoGame(page, '?view=first');
+  await saveShot(page, 'first-person', testInfo);
 
   await gotoGame(page, '?debug=1');
   await saveShot(page, 'overlay', testInfo);

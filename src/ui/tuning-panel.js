@@ -7,7 +7,7 @@
  * disabled so the shape of the panel is visible from M0.
  */
 
-import { SETTING_DEFS, buildConfigUrl, describeSettings, formatSettingValue } from '../core/settings.js';
+import { SETTING_DEFS, SETTING_GROUPS, buildConfigUrl, describeSettings, formatSettingValue } from '../core/settings.js';
 
 export function createTuningPanel({ mount, settings, onChange, onReset, onRerollSeed }) {
   const root = document.createElement('div');
@@ -31,7 +31,20 @@ export function createTuningPanel({ mount, settings, onChange, onReset, onReroll
   const rows = new Map();
   const controls = new Map();
 
+  // Group headings: a scrollable column of eighteen controls needs signposts.
+  const groupLabels = new Map(SETTING_GROUPS.map((group) => [group.id, group.label]));
+  let lastGroup = null;
+
   for (const def of SETTING_DEFS) {
+    const group = def.group ?? 'world';
+    if (group !== lastGroup && groupLabels.has(group)) {
+      const heading = document.createElement('div');
+      heading.className = 'tuning-group';
+      heading.textContent = groupLabels.get(group);
+      root.appendChild(heading);
+      lastGroup = group;
+    }
+
     const row = document.createElement('div');
     row.className = 'tuning-row';
     if (def.live === false) row.classList.add('is-future');

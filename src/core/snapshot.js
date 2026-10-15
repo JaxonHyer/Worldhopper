@@ -11,7 +11,8 @@
 
 import { countEntities, entityHash, scaleFenceStatus } from './world-state.js';
 import { describeSettings } from './settings.js';
-import { eyePosition, horizontalSpeed } from './player.js';
+import { horizontalSpeed } from './player.js';
+import { resolveCamera } from './camera.js';
 
 /** Every key the overlay and the tests are allowed to rely on. */
 export const SNAPSHOT_KEYS = Object.freeze([
@@ -59,13 +60,19 @@ export function buildSnapshot({
   render,
   ui,
   input,
+  camera = null,
   paused,
   ready,
 }) {
   const scale = scaleFenceStatus(state);
   const stats = clock.stats();
   const player = state.player;
-  const eye = eyePosition(player);
+  // The frame loop passes the camera it just resolved; anything else (a unit
+  // test) gets it derived here, so the snapshot can never disagree with the
+  // view the player is actually looking through.
+  const view =
+    camera ??
+    resolveCamera({ player, settings, map, seed: state.seed, obstacles: state.obstacles }, undefined);
   return {
     ready: Boolean(ready),
     version: app.version,
@@ -89,11 +96,15 @@ export function buildSnapshot({
     worstFrameMs: round(frameStats.worstMs(), 2),
     longFrames: frameStats.longFrames,
     camera: {
-      x: round(eye.x, 3),
-      y: round(eye.y, 3),
-      z: round(eye.z, 3),
-      yaw: round(player.yaw, 4),
-      pitch: round(player.pitch, 4),
+      x: round(view.x, 3),
+      y: round(view.y, 3),
+      z: round(view.z, 3),
+      yaw: round(view.yaw, 4),
+      pitch: round(view.pitch, 4),
+      mode: view.mode,
+      distance: round(view.distance, 3),
+      clipped: Boolean(view.clipped),
+      avatar: Boolean(view.avatarVisible),
     },
     player: {
       x: round(player.position.x, 3),
@@ -102,6 +113,10 @@ export function buildSnapshot({
       speed: round(horizontalSpeed(player), 3),
       vy: round(player.velocity.y, 3),
       grounded: player.grounded,
+      // The look state belongs to the player (the camera is derived from it).
+      yaw: round(player.yaw, 4),
+      pitch: round(player.pitch, 4),
+      stridePhase: round(player.stridePhase ?? 0, 3),
       bob: round(player.bob, 4),
       jumps: player.jumps,
       landings: player.landings,

@@ -42,21 +42,38 @@ export function dragToLook(dx, dy, { radPerPixel = DRAG_RAD_PER_PIXEL } = {}) {
 }
 
 /**
- * Apply a one-shot delta (radians) to an observer.
- * `sensitivity` is the player's slider; `invertY` flips the vertical axis.
+ * The vertical range a look input is clamped to. The caller may narrow it
+ * (third person cannot look as far up as first person: the boom would end up
+ * under the floor), but it can never widen it past the flip-over limit, and
+ * min/max given the wrong way round are swapped rather than trusted.
  */
-export function applyLookImpulse(observer, { yaw = 0, pitch = 0 } = {}, { sensitivity = 1, invertY = false } = {}) {
+export function pitchRange({ pitchMin, pitchMax } = {}) {
+  const min = Number.isFinite(pitchMin) ? pitchMin : -PITCH_LIMIT;
+  const max = Number.isFinite(pitchMax) ? pitchMax : PITCH_LIMIT;
+  const low = clamp(min, -PITCH_LIMIT, PITCH_LIMIT);
+  const high = clamp(max, -PITCH_LIMIT, PITCH_LIMIT);
+  return low <= high ? { min: low, max: high } : { min: high, max: low };
+}
+
+/**
+ * Apply a one-shot delta (radians) to an observer.
+ * `sensitivity` is the player's slider; `invertY` flips the vertical axis;
+ * `pitchMin`/`pitchMax` narrow the vertical range (see `pitchRange`).
+ */
+export function applyLookImpulse(observer, { yaw = 0, pitch = 0 } = {}, options = {}) {
   if (!observer) return observer;
   if (!Number.isFinite(yaw) || !Number.isFinite(pitch)) return observer;
+  const { sensitivity = 1, invertY = false } = options;
+  const range = pitchRange(options);
   observer.yaw = wrapAngle(observer.yaw - yaw * sensitivity);
-  observer.pitch = clamp(observer.pitch - pitch * sensitivity * (invertY ? -1 : 1), -PITCH_LIMIT, PITCH_LIMIT);
+  observer.pitch = clamp(observer.pitch - pitch * sensitivity * (invertY ? -1 : 1), range.min, range.max);
   return observer;
 }
 
 /** Apply a per-second rate (rad/s) — held keys, or an on-screen control. */
-export function applyLookRate(observer, { x = 0, y = 0 } = {}, dt, { sensitivity = 1, invertY = false } = {}) {
+export function applyLookRate(observer, { x = 0, y = 0 } = {}, dt, options = {}) {
   if (!observer || !Number.isFinite(dt) || dt <= 0) return observer;
-  return applyLookImpulse(observer, { yaw: x * dt, pitch: y * dt }, { sensitivity, invertY });
+  return applyLookImpulse(observer, { yaw: x * dt, pitch: y * dt }, options);
 }
 
 /** Combined entry used by the sim tick. */

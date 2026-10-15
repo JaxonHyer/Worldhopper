@@ -81,10 +81,12 @@ test('a jump leaves the ground and lands again', async ({ page, isMobile }) => {
   watch.assertClean();
 });
 
-test('the camera follows the player and drag-look does not move them', async ({ page, isMobile }) => {
+test('the camera watches the player from behind (third person by default)', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard path');
   const watch = attachWatch(page);
-  await startFrozen(page);
+  const start = await startFrozen(page);
+  expect(start.camera.mode).toBe('third');
+  expect(start.camera.avatar).toBe(true);
 
   await page.keyboard.down('KeyW');
   await stepSim(page, 0.6);
@@ -94,21 +96,49 @@ test('the camera follows the player and drag-look does not move them', async ({ 
   const walked = await stepSim(page, 0.6);
   expect(walked.player.speed).toBeLessThan(0.05);
 
-  // The camera is derived from the player at snapshot time: same numbers, one
-  // eye height above the feet. (Comparing across two snapshots is what drifted
-  // before — the sim keeps running between calls.)
-  expect(walked.camera.x).toBe(walked.player.x);
-  expect(walked.camera.z).toBe(walked.player.z);
-  const eyeHeight = walked.camera.y - walked.player.y;
-  expect(eyeHeight).toBeGreaterThan(1.4);
-  expect(eyeHeight).toBeLessThan(1.9);
+  // One camera, derived at snapshot time: it sits behind the player, above
+  // their feet, at the boom length the setting asks for.
+  const flat = Math.hypot(walked.camera.x - walked.player.x, walked.camera.z - walked.player.z);
+  expect(walked.camera.y).toBeGreaterThan(walked.player.y + 0.5);
+  expect(flat).toBeGreaterThan(1);
+  expect(flat).toBeLessThanOrEqual(walked.camera.distance + 1e-6);
+  expect(walked.camera.distance).toBeLessThanOrEqual(walked.settings.camDistance + 1e-6);
+  // Walking backwards through the boom is the whole point: with yaw 0 forward
+  // is -Z, so "behind" is +Z.
+  expect(walked.player.yaw).toBeCloseTo(0, 6);
+  expect(walked.camera.z).toBeGreaterThan(walked.player.z);
 
+  // Drag-look turns the view without walking the player.
   await touchDrag(page, 300, 0);
   const looked = await stepSim(page, 0.25);
-  expect(looked.camera.yaw).not.toBe(walked.camera.yaw);
+  expect(looked.player.yaw).not.toBe(walked.player.yaw);
   expect(looked.player.x).toBeCloseTo(walked.player.x, 6);
   expect(looked.player.z).toBeCloseTo(walked.player.z, 6);
 
+  watch.assertClean();
+});
+
+test('first person is the old eye view, and the body is not drawn', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard path');
+  const watch = attachWatch(page);
+  const snap = await startFrozen(page, '?view=first');
+  expect(snap.camera.mode).toBe('first');
+  expect(snap.camera.avatar).toBe(false);
+  expect(snap.camera.distance).toBe(0);
+  expect(snap.camera.x).toBe(snap.player.x);
+  expect(snap.camera.z).toBe(snap.player.z);
+  // Eye height above the feet, as it was in M1; the sim owns this number.
+  expect(snap.camera.y - snap.player.y).toBeGreaterThan(1.6);
+  expect(snap.camera.y - snap.player.y).toBeLessThan(1.8);
+  // First person looks through the player's own pitch, not a re-aimed boom.
+  expect(snap.camera.pitch).toBeCloseTo(snap.player.pitch, 4);
+  expect(snap.camera.yaw).toBeCloseTo(snap.player.yaw, 4);
+
+  // Switching the view in the panel takes effect on the next frame.
+  await page.evaluate(() => window.__worldhopper.setSetting('view', 'third'));
+  const third = await stepSim(page, 0.05);
+  expect(third.camera.mode).toBe('third');
+  expect(third.camera.avatar).toBe(true);
   watch.assertClean();
 });
 
@@ -178,8 +208,8 @@ test('the phone look-drag turns the view without walking', async ({ page, isMobi
 test('the feel sliders reach the sim, and a tuned URL reproduces the feel', async ({ page, isMobile }, testInfo) => {
   test.skip(isMobile, 'keyboard-driven');
   const watch = attachWatch(page);
-  const tuned = await startFrozen(page, '?walk=9&jump=2.5&gravity=12&accel=90&bob=0');
-  expect(tuned.settings.walkSpeed).toBe(9);
+  const tuned = await startFrozen(page, '?walk=11&jump=2.5&gravity=12&accel=90&bob=0');
+  expect(tuned.settings.walkSpeed).toBe(11);
   expect(tuned.settings.gravity).toBe(12);
   expect(tuned.settings.viewBob).toBe(0);
 

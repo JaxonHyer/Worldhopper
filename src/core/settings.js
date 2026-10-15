@@ -16,12 +16,25 @@ import { hashSeed } from './rng.js';
 export const SETTINGS_STORAGE_KEY = 'worldhopper.settings.v1';
 
 /**
+ * Panel sections, in the order they are shown. Eighteen sliders in one column
+ * is a wall on a phone; the groups are also the honest answer to "which of
+ * these are about walking, and which about looking?".
+ */
+export const SETTING_GROUPS = Object.freeze([
+  { id: 'world', label: 'world' },
+  { id: 'camera', label: 'camera & looking' },
+  { id: 'movement', label: 'walking & jumping' },
+  { id: 'future', label: 'later milestones' },
+]);
+
+/**
  * kind: 'int' | 'float' | 'enum'
  * phase: which milestone makes the control live (panel shows later ones disabled)
  */
 export const SETTING_DEFS = Object.freeze([
   {
     key: 'seed',
+    group: 'world',
     param: 'seed',
     kind: 'int',
     label: 'World seed',
@@ -30,21 +43,23 @@ export const SETTING_DEFS = Object.freeze([
     max: 2147483646,
     step: 1,
     allowHash: true,
-    default: 20261014,
+    default: 1607255203,
     phase: 'm0',
   },
   {
     key: 'palette',
+    group: 'world',
     param: 'palette',
     kind: 'enum',
     label: 'Palette variant',
     help: 'A taste call: same geometry, different atmosphere.',
     values: listVariants(DEFAULT_MAP_ID),
-    default: 'ashen-basin',
+    default: 'cold-ridge',
     phase: 'm0',
   },
   {
     key: 'fog',
+    group: 'world',
     param: 'fog',
     kind: 'float',
     label: 'Fog density',
@@ -53,11 +68,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 0.012,
     step: 0.0001,
     decimals: 4,
-    default: 0.0028,
+    default: 0.0026,
     phase: 'm0',
   },
   {
     key: 'sun',
+    group: 'world',
     param: 'sun',
     kind: 'float',
     label: 'Sun intensity',
@@ -65,11 +81,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 3,
     step: 0.05,
     decimals: 2,
-    default: 2.0,
+    default: 2.4,
     phase: 'm0',
   },
   {
     key: 'ambient',
+    group: 'world',
     param: 'ambient',
     kind: 'float',
     label: 'Ambient light',
@@ -77,11 +94,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 2,
     step: 0.05,
     decimals: 2,
-    default: 1.15,
+    default: 1.25,
     phase: 'm0',
   },
   {
     key: 'fov',
+    group: 'world',
     param: 'fov',
     kind: 'float',
     label: 'Field of view',
@@ -89,11 +107,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 100,
     step: 1,
     decimals: 0,
-    default: 72,
+    default: 81,
     phase: 'm0',
   },
   {
     key: 'look',
+    group: 'camera',
     param: 'look',
     kind: 'float',
     label: 'Look sensitivity (drag)',
@@ -102,11 +121,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 4,
     step: 0.05,
     decimals: 2,
-    default: 1,
+    default: 3.7,
     phase: 'm0',
   },
   {
     key: 'lookMouse',
+    group: 'camera',
     param: 'mouselook',
     kind: 'float',
     label: 'Mouse look (captured)',
@@ -115,11 +135,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 4,
     step: 0.05,
     decimals: 2,
-    default: 1,
+    default: 3.45,
     phase: 'm1',
   },
   {
     key: 'captureMouse',
+    group: 'camera',
     param: 'capture',
     kind: 'enum',
     values: ['on', 'off'],
@@ -128,9 +149,35 @@ export const SETTING_DEFS = Object.freeze([
     default: 'on',
     phase: 'm1',
   },
-  // --- M1: how walking feels. Everything here changes the sim immediately. ---
+  // --- M1: the camera and how walking feels. All of it applies immediately. ---
+  {
+    key: 'view',
+    group: 'camera',
+    param: 'view',
+    kind: 'enum',
+    values: ['third', 'first'],
+    label: 'Camera',
+    help: 'third = over the shoulder, watching your character. first = through their eyes.',
+    default: 'third',
+    phase: 'm1',
+  },
+  {
+    key: 'camDistance',
+    group: 'camera',
+    param: 'camdist',
+    kind: 'float',
+    label: 'Camera distance (m)',
+    help: 'Third person only: how far the camera sits behind the player.',
+    min: 1.2,
+    max: 8,
+    step: 0.1,
+    decimals: 1,
+    default: 4.2,
+    phase: 'm1',
+  },
   {
     key: 'walkSpeed',
+    group: 'movement',
     param: 'walk',
     kind: 'float',
     label: 'Walk speed (m/s)',
@@ -139,11 +186,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 14,
     step: 0.1,
     decimals: 1,
-    default: 5.5,
+    default: 7.9,
     phase: 'm1',
   },
   {
     key: 'jumpHeight',
+    group: 'movement',
     param: 'jump',
     kind: 'float',
     label: 'Jump height (m)',
@@ -152,11 +200,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 4,
     step: 0.1,
     decimals: 1,
-    default: 1.5,
+    default: 2.4,
     phase: 'm1',
   },
   {
     key: 'gravity',
+    group: 'movement',
     param: 'gravity',
     kind: 'float',
     label: 'Gravity (m/s²)',
@@ -165,11 +214,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 40,
     step: 0.5,
     decimals: 1,
-    default: 18,
+    default: 30.5,
     phase: 'm1',
   },
   {
     key: 'accel',
+    group: 'movement',
     param: 'accel',
     kind: 'float',
     label: 'Acceleration (m/s²)',
@@ -178,11 +228,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 140,
     step: 1,
     decimals: 0,
-    default: 45,
+    default: 59,
     phase: 'm1',
   },
   {
     key: 'viewBob',
+    group: 'movement',
     param: 'bob',
     kind: 'float',
     label: 'View bob (m)',
@@ -191,12 +242,12 @@ export const SETTING_DEFS = Object.freeze([
     max: 0.2,
     step: 0.005,
     decimals: 3,
-    default: 0.035,
+    default: 0.005,
     phase: 'm1',
   },
   // --- declared now, wired later: the panel renders these disabled so the
   // owner can see where the feel controls will live. Nothing here is active.
-  { key: 'swapWindow', param: 'swap', kind: 'float', label: 'Attunement swap window (s)', min: 0, max: 2, step: 0.05, decimals: 2, default: 0.45, phase: 'm6', live: false },
+  { key: 'swapWindow', group: 'future', param: 'swap', kind: 'float', label: 'Attunement swap window (s)', min: 0, max: 2, step: 0.05, decimals: 2, default: 0.45, phase: 'm6', live: false },
 ]);
 
 export const SETTING_BY_KEY = Object.freeze(

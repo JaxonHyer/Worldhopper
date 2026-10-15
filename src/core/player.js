@@ -12,10 +12,10 @@
  * headlessly, which a physics engine is not.
  */
 
-import { clamp, wrapAngle } from './math.js';
+import { PITCH_LIMIT, clamp, wrapAngle } from './math.js';
 import { applyLook } from './look.js';
 import { normalizeMove } from './stick.js';
-import { PLAYER } from './config.js';
+import { CAMERA, PLAYER } from './config.js';
 import { terrainHeight } from './terrain.js';
 
 export { PLAYER };
@@ -74,6 +74,8 @@ export function createPlayer({ map, seed, spawn = map.spawn ?? { x: 0, z: 0 }, l
     grounded: true,
     coyote: PLAYER.coyoteTime,
     jumpBuffer: 0,
+    /** metres walked, wrapped: drives the view bob *and* the avatar's limbs */
+    stridePhase: 0,
     bobPhase: 0,
     bob: 0,
     stepCycle: 0,
@@ -83,11 +85,17 @@ export function createPlayer({ map, seed, spawn = map.spawn ?? { x: 0, z: 0 }, l
   };
 }
 
-/** Eye position the camera should sit at (feet + eye height + view bob). */
+/**
+ * Eye position the camera should sit at (feet + eye height + view bob).
+ * NaN-safe: a camera with a NaN position renders nothing at all, and this is
+ * the one place the eye is defined, so the guard belongs here.
+ */
 export function eyePosition(player, out = { x: 0, y: 0, z: 0 }) {
-  out.x = player.position.x;
-  out.y = player.position.y + PLAYER.eyeHeight + player.bob;
-  out.z = player.position.z;
+  const position = player?.position;
+  const feet = Number.isFinite(position?.y) ? position.y : 0;
+  out.x = Number.isFinite(position?.x) ? position.x : 0;
+  out.y = feet + PLAYER.eyeHeight + (Number.isFinite(player?.bob) ? player.bob : 0);
+  out.z = Number.isFinite(position?.z) ? position.z : 0;
   return out;
 }
 
@@ -145,6 +153,11 @@ function moveToward(player, dx, dz, context, dt) {
 export function stepPlayer(player, intent, context, dt) {
   const { settings } = context;
   const walkSpeed = Math.max(0, settings.walkSpeed);
+  // Vertical look range, by view. Third person cannot look as far up as first
+  // person — the boom would swing down through the floor — so the range is
+  // narrower there, and the sim owns that rule rather than the renderer.
+  const pitchMin = settings.view === 'first' ? -PITCH_LIMIT : CAMERA.pitchMin;
+  const pitchMax = settings.view === 'first' ? PITCH_LIMIT : CAMERA.pitchMax;
   const gravity = Math.max(0, settings.gravity);
   const accelGround = Math.max(0, settings.accel);
   const move = intent?.move ?? { x: 0, y: 0 };
@@ -155,6 +168,8 @@ export function stepPlayer(player, intent, context, dt) {
   applyLook(player, { lookImpulse: intent?.lookImpulse ?? null, lookRate: intent?.lookRate ?? null }, dt, {
     sensitivity: 1,
     invertY: settings.invertY ?? false,
+    pitchMin,
+    pitchMax,
   });
 
   // --- jump buffering ------------------------------------------------------
@@ -228,19 +243,27 @@ export function stepPlayer(player, intent, context, dt) {
   player.position.x = clamp(player.position.x, -limit, limit);
   player.position.z = clamp(player.position.z, -limit, limit);
 
-  // --- view bob (the owner's slider; 0 disables it) ------------------------
+  // --- stride: the walk cycle, shared by the view bob and the avatar -------
+  // The phase advances whenever the player is walking, *whatever the bob
+  // slider says*: bob 0 means "stop moving my camera", not "stop moving your
+  // legs" (the avatar's limbs are animated from this same phase).
   const speed = horizontalSpeed(player);
+  if (player.grounded && speed > 0.15) {
+    player.stridePhase = wrapAngle(player.stridePhase + (speed / PLAYER.strideLength) * 2 * Math.PI * dt);
+  }
+  player.bobPhase = player.stridePhase;
+  player.stepCycle = player.stridePhase;
+
+  // --- view bob (the owner's slider; 0 disables it) ------------------------
   const bobAmount = Math.max(0, settings.viewBob ?? 0);
   if (player.grounded && speed > 0.15 && bobAmount > 0) {
-    player.bobPhase = wrapAngle(player.bobPhase + (speed / PLAYER.strideLength) * 2 * Math.PI * dt);
     const strength = clamp(speed / Math.max(0.001, walkSpeed), 0, 1);
-    player.bob = Math.sin(player.bobPhase) * bobAmount * strength;
+    player.bob = Math.sin(player.stridePhase) * bobAmount * strength;
   } else {
     // Settle back to level rather than snapping: a hard cut reads as a jolt.
     player.bob *= Math.max(0, 1 - dt * 12);
     if (Math.abs(player.bob) < 1e-4) player.bob = 0;
   }
 
-  player.stepCycle = player.bobPhase;
   return player;
 }
