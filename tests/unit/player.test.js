@@ -305,6 +305,46 @@ test('leg speed is capped, however fast the owner sets the walk speed', () => {
   assert.ok(quickRate > rate + 1, `raising the cap did nothing: ${quickRate.toFixed(2)} vs ${rate.toFixed(2)}`);
 });
 
+test('sprinting multiplies the walk speed, and only while there is a move', () => {
+  // The sim owns what sprint *does*; the input layer only reports the intent
+  // (a held shift, or the phone's toggle). At speed, the stride rate stays
+  // capped — widening the swing is the animation's job (M1.6, owner-accepted).
+  const walkSpeed = defaultSettings().walkSpeed;
+  const sprintFactor = defaultSettings().sprint;
+  assert.ok(sprintFactor > 1, 'the default sprint multiplier should actually be a sprint');
+
+  const running = world();
+  run(running.player, running.context, 3, () => ({ move: { x: 0, y: 1 }, sprint: true }));
+  assert.equal(running.player.sprinting, true);
+  const sprintSpeed = horizontalSpeed(running.player);
+  assert.ok(
+    Math.abs(sprintSpeed - walkSpeed * sprintFactor) < 0.2,
+    `sprinting settled at ${sprintSpeed.toFixed(2)} m/s, expected ${(walkSpeed * sprintFactor).toFixed(2)}`,
+  );
+
+  // Holding sprint with no move input is not a sprint, and does not move you.
+  const standing = world();
+  run(standing.player, standing.context, 1, () => ({ move: { x: 0, y: 0 }, sprint: true }));
+  assert.equal(standing.player.sprinting, false);
+  assert.equal(horizontalSpeed(standing.player), 0);
+
+  // No sprint intent, no sprint: the walk is untouched.
+  const walking = world();
+  run(walking.player, walking.context, 3, forward);
+  assert.equal(walking.player.sprinting, false);
+  assert.ok(Math.abs(horizontalSpeed(walking.player) - walkSpeed) < 0.15);
+
+  // A multiplier of 1 is legal (the slider's floor) and means "no faster".
+  const flat = world({ settings: { sprint: 1 } });
+  run(flat.player, flat.context, 3, () => ({ move: { x: 0, y: 1 }, sprint: true }));
+  assert.ok(Math.abs(horizontalSpeed(flat.player) - walkSpeed) < 0.15);
+
+  // And a junk multiplier cannot make the player slower or NaN.
+  const junk = world({ settings: { sprint: Number.NaN } });
+  run(junk.player, junk.context, 2, () => ({ move: { x: 0, y: 1 }, sprint: true }));
+  assert.ok(Number.isFinite(horizontalSpeed(junk.player)) && horizontalSpeed(junk.player) > walkSpeed * 0.9);
+});
+
 test('past the cap, extra speed widens the swing instead of quickening it', () => {
   const stir = (walkSpeed) => {
     const made = world({ settings: { walkSpeed } });

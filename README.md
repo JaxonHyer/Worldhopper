@@ -29,7 +29,10 @@ The face is Minecraft-style: two eyes with whites, a nose, a jaw, hair over the
 top and round the back. The player wears ordinary clothes — a plain shirt, plain
 trousers, boots — and there are **two of them**: a boy and a girl, chosen by one
 boolean (`?girl=1`, or **Girl player character** in the tuning panel). The girl
-is the same figure with slimmer arms and long hair in her own colours. Enemies
+is the same ten boxes with slimmer arms; her long hair is **painted into her
+textures** (down the sides of her head, and over the shoulders of her shirt)
+rather than modelled, so she costs the renderer exactly what the boy costs.
+Enemies
 (M3) and NPCs (M5) follow the same recipe. The *world* stays low-poly faceted.
 Both are generated in code — no imported models, no image files, no canvas: the
 art is data (`src/core/pixel-art.js`) turned into textures at load.
@@ -65,7 +68,7 @@ their swing instead of quickening, so a sprint still looks like a sprint.
 **Sprint:** hold <kbd>shift</kbd> on a desktop; on a phone tap the round
 **sprint** button at the bottom-left once (it is a toggle, so the thumb that
 would hold it is free for the stick) — it lights up while it is on. Either way
-it multiplies the walk speed by `Sprint speed` (`?sprint=`, default 1.5×) while
+it multiplies the walk speed by `Sprint speed` (`?sprint=`, default 2.2×) while
 you are actually moving, and it is the *speed* that changes: the stride rate
 stays capped, so a sprint widens the swing rather than blurring it.
 
@@ -92,7 +95,7 @@ buttons (add `?dev=1` to the URL) give the same tools.
 | `palette` | `?palette=cold-ridge` | atmosphere variant (`ashen-basin`, `mist-sea`, `cold-ridge`) |
 | `walk`, `jump`, `gravity`, `accel`, `bob` | `?walk=9&jump=2.5&bob=0` | how walking feels |
 | `striderate` | `?striderate=1.4` | how fast arms and legs may swing (cycles/second) |
-| `sprint` | `?sprint=2` | sprint speed multiplier (1–3, default 1.5) |
+| `sprint` | `?sprint=1.5` | sprint speed multiplier (1–3, default 2.2) |
 | `girl` | `?girl=1` | the girl player character (default `0`, the boy) |
 | `fog`, `sun`, `ambient`, `fov` | `?fog=0.0042` | atmosphere |
 | `view` | `?view=first` | `third` (default, over the shoulder) or `first` (through the eyes) |

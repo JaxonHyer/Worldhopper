@@ -11,7 +11,7 @@ import { createWorldView } from '../../src/render/world-view.js';
 import { createSky, sunDirection } from '../../src/render/sky.js';
 import { createWorldState } from '../../src/core/world-state.js';
 import { createCameraState, resolveCamera } from '../../src/core/camera.js';
-import { AVATAR, nextFacing } from '../../src/render/player-view.js';
+import { AVATAR, createPlayerAvatar, nextFacing } from '../../src/render/player-view.js';
 import { wrapAngle } from '../../src/core/math.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
@@ -217,8 +217,10 @@ test('the girl can be switched on without rebuilding the world', () => {
   settings.girlPlayer = true;
   world.applySettings(settings, variant);
   assert.equal(world.stats().avatarVariant, 'girl');
-  assert.equal(world.stats().avatar, boyBoxes + 4, 'long hair is four boxes');
-  assert.equal(world.stats().avatarTextures, boyTextures + 2);
+  // Same body, same textures in the same places: her hair is painted on, so a
+  // girl costs the renderer exactly what a boy costs (the owner asked for it).
+  assert.equal(world.stats().avatar, boyBoxes, 'long hair must not add boxes');
+  assert.equal(world.stats().avatarTextures, boyTextures, 'long hair must not add textures');
   const after = world.scene.getObjectByName('player-avatar');
   assert.notEqual(after, before, 'the figure should be a new object, not the old one re-labelled');
   assert.equal(
@@ -234,6 +236,37 @@ test('the girl can be switched on without rebuilding the world', () => {
   assert.equal(world.stats().avatar, boyBoxes);
   // The applied settings are unchanged apart from the body.
   assert.equal(state.entities.length, world.entityObjects.size);
+});
+
+test('the girl is slimmer, and the two bodies are the same shape otherwise', () => {
+  const girl = createPlayerAvatar({ variant: 'girl' });
+  const boy = createPlayerAvatar({ variant: 'boy' });
+  assert.equal(girl.stats().boxes, boy.stats().boxes, 'a girl is not a different body plan');
+  assert.equal(girl.stats().textures, boy.stats().textures);
+
+  const armsOf = (avatar) => {
+    const found = new Map();
+    avatar.group.traverse((child) => {
+      // Boxes are named `<variant>-left-arm`, so compare by the part, not by
+      // the whole name.
+      if (child.name.endsWith('-arm')) found.set(child.name.split('-').slice(1).join('-'), child.geometry.parameters.width);
+    });
+    return found;
+  };
+  const girlArms = armsOf(girl);
+  const boyArms = armsOf(boy);
+  assert.equal(girlArms.size, 2, 'expected a left and a right arm');
+  for (const [name, width] of girlArms) {
+    assert.equal(width, AVATAR.slimArmWidth, `${name} should be slim`);
+    assert.ok(width < boyArms.get(name), `${name} should be narrower than the boy\u2019s`);
+  }
+  // Nothing else is slimmer: a girl is not a smaller person.
+  const torsoOf = (avatar) => avatar.group.getObjectByName(`${avatar.group.userData.variant}-torso`);
+  assert.equal(torsoOf(girl).geometry.parameters.width, torsoOf(boy).geometry.parameters.width);
+  assert.equal(
+    torsoOf(girl).geometry.parameters.height,
+    torsoOf(boy).geometry.parameters.height,
+  );
 });
 
 test('nextFacing is pure, frame-rate independent and NaN-proof', () => {

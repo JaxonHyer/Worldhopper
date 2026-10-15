@@ -117,9 +117,16 @@ blocky characters.)*
       a checkbox in the panel): slimmer arms, long hair, her own palette
 - [x] Sprint: hold shift on desktop, a bottom-left toggle button on the phone,
       `?sprint=` multiplier, stride cap intact
-- [ ] **M1.7 sign-off — needs the owner's playtest** (is the face visible and
-      Minecraft-ish now; does the girl read as a girl; and does the sprint
-      toggle sit where the thumb wants it?)
+- [x] **M1.7 sign-off — accepted by the owner** ("It was all good except for
+      that the girl's hair looks weird, ...")
+
+### M1.8 — hair as texture, sprint at 2.20 (owner's playtest notes, 2026-10-15)
+
+- [x] The girl's long hair is drawn into her textures — no geometry; she has
+      the boy's box count and the boy's texture set
+- [x] Sprint default is 2.20× (the owner's number), still under the stride cap
+- [ ] **M1.8 sign-off — needs the owner's playtest** (does the hair look right
+      now, and does 2.20× feel like a sprint?)
 
 ### Blocked on the owner
 

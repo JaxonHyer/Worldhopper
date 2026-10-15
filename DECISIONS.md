@@ -365,7 +365,8 @@ this to stay oriented; agents add to it in the same PR as the change.
   long hair (two extra boxes, two extra textures) and her own palette — the
   trousers, boots, skin and face pixels are shared, so the two read as one game.
 - **Sprint is a speed multiplier with the animation cap intact.**
-  `settings.sprint` (1–3, default 1.5) multiplies the *walk speed* only while
+  `settings.sprint` (1–3, default 2.2 since the owner set it) multiplies the
+  *walk speed* only while
   there is movement input — holding shift standing still is not a sprint. The
   M1.6 stride cap still applies, so a sprint widens the swing instead of
   blurring it (this is why sprint was not implemented as "walk faster").
@@ -376,3 +377,29 @@ this to stay oriented; agents add to it in the same PR as the change.
   and a hidden toggle is forced off so nothing sprints invisibly.
 - **The panel grew a checkbox** for the new `bool` settings kind — the first
   boolean is the girl, and switches must be switches, not sliders.
+
+## M1.8 — hair as texture, sprint at 2.20 (owner, 2026-10-15)
+
+- **The girl's long hair is painted, not modelled.** The owner: "the girl's hair
+  looks weird, make it a texture only thing. Not actual 3d hair." The four hair
+  boxes (back sheet, fall, two face-framing locks) are gone. The hair now lives
+  in the textures she already had: down both sides of her head front, over the
+  whole side of the head, round the back, and over the shoulders and upper back
+  of her shirt with a ragged edge. Her skin is back to **fourteen textures, the
+  same set as the boy's**, and **ten boxes, the same count as the boy's** — the
+  only thing the renderer does differently for her is a narrower pair of arms.
+  Two tests hold that line: the texture *names* must match, and the box and
+  texture counts must be identical after a live swap.
+- **Sprint default is 2.20×** (was 1.5). The owner's number, and the sim is
+  what makes it safe: the stride rate is still capped, so a 2.2× sprint widens
+  the swing instead of blurring it, and the multiplier is applied to the walk
+  speed only while there is movement input.
+- **A NaN multiplier can no longer poison the player.** A setting can arrive
+  from a hand-typed URL, and `Math.max(1, NaN)` is `NaN` — a NaN speed is a
+  NaN position, which never recovers. Both the sprint multiplier and the stride
+  rate now fall back to their defaults when they are not finite numbers, and a
+  unit test sprints with `sprint: NaN` and asserts the player still moves
+  sanely.
+- **Boxes are named** (`girl-left-arm`, `boy-head`, …). The girl-differs test
+  needs to ask the *body* how wide its arms are; counting children and guessing
+  which box is an arm is the kind of test that passes for the wrong reason.
