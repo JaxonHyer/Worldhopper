@@ -103,6 +103,8 @@ export function buildSnapshot({
       yaw: round(view.yaw, 4),
       pitch: round(view.pitch, 4),
       mode: view.mode,
+      /** metres above the feet the boom is aimed at (the point it looks at) */
+      aimHeight: round(view.targetHeight, 3),
       distance: round(view.distance, 3),
       clipped: Boolean(view.clipped),
       avatar: Boolean(view.avatarVisible),

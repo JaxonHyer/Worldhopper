@@ -60,7 +60,11 @@ test('pointer/touch drag looks around without moving the player', async ({ page,
   expect(after.player.x).toBeCloseTo(before.player.x, 6);
   expect(after.player.y).toBeCloseTo(before.player.y, 6);
   expect(after.player.z).toBeCloseTo(before.player.z, 6);
-  const boom = Math.hypot(after.camera.x - after.player.x, after.camera.y - (after.player.y + after.camera.targetHeight), after.camera.z - after.player.z);
+  const boom = Math.hypot(
+    after.camera.x - after.player.x,
+    after.camera.y - (after.player.y + after.camera.aimHeight),
+    after.camera.z - after.player.z,
+  );
   expect(boom).toBeCloseTo(after.camera.distance, 2);
   expect(after.camera.distance).toBeLessThanOrEqual(after.settings.camDistance + 1e-6);
 
