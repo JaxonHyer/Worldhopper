@@ -217,7 +217,7 @@ test('the girl can be switched on without rebuilding the world', () => {
   settings.girlPlayer = true;
   world.applySettings(settings, variant);
   assert.equal(world.stats().avatarVariant, 'girl');
-  assert.equal(world.stats().avatar, boyBoxes + 2, 'long hair is two boxes');
+  assert.equal(world.stats().avatar, boyBoxes + 4, 'long hair is four boxes');
   assert.equal(world.stats().avatarTextures, boyTextures + 2);
   const after = world.scene.getObjectByName('player-avatar');
   assert.notEqual(after, before, 'the figure should be a new object, not the old one re-labelled');

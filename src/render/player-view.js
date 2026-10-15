@@ -60,6 +60,8 @@ export const AVATAR = Object.freeze({
   slimArmWidth: 0.12,
   /** long hair hanging behind the head (girl model) */
   hairBack: { width: 0.3, height: 0.52, depth: 0.06 },
+  /** ...and the locks beside her face, which is what reads from the front */
+  hairLock: { width: 0.07, height: 0.5, depth: 0.34 },
 });
 
 /**
@@ -205,15 +207,22 @@ export function createPlayerAvatar({ variant = 'boy', skin = null } = {}) {
 
   group.add(leftLeg, rightLeg, leftArm, rightArm, torso, head);
 
-  // The girl model's hair: a sheet over the back of the head, and a longer lock
-  // hanging down the back. Two boxes, because that is how a blocky model does
-  // long hair — and nothing else about the two characters differs.
+  // The girl model's hair, and nothing else about the two characters differs:
+  // a sheet over the back of the head, a fall down her back, and a lock beside
+  // each ear. The locks are the important ones — hair that only exists behind
+  // the head is invisible from the front, which is where the camera mostly
+  // isn't (the whole point of M1.7's facing change) but where the owner looks.
   if (slim) {
     const hairBack = box(AVATAR.headSize * 1.02, AVATAR.headSize * 1.02, 0.1, art.hair);
     hairBack.position.set(0, torsoTop + AVATAR.headSize * 1.02, AVATAR.headSize / 2 + 0.05);
     const hairFall = box(AVATAR.hairBack.width, AVATAR.hairBack.height, AVATAR.hairBack.depth, art.hairBack);
     hairFall.position.set(0, torsoTop + AVATAR.headSize * 0.7, AVATAR.headSize / 2 + 0.06);
-    group.add(hairBack, hairFall);
+    const lockX = AVATAR.headSize / 2 + AVATAR.hairLock.width / 2;
+    const leftLock = box(AVATAR.hairLock.width, AVATAR.hairLock.height, AVATAR.hairLock.depth, art.hair);
+    leftLock.position.set(-lockX, torsoTop + AVATAR.headSize * 0.62, -0.02);
+    const rightLock = box(AVATAR.hairLock.width, AVATAR.hairLock.height, AVATAR.hairLock.depth, art.hair);
+    rightLock.position.set(lockX, torsoTop + AVATAR.headSize * 0.62, -0.02);
+    group.add(hairBack, hairFall, leftLock, rightLock);
   }
 
   // Eased pose state, kept in the closure so sync() allocates nothing.

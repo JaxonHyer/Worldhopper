@@ -93,6 +93,12 @@ test('captures the deliverable screenshots', async ({ page, isMobile }, testInfo
     await page.keyboard.up('KeyS');
     await page.waitForTimeout(400);
     await saveShot(page, `${name}-idle`, testInfo);
+    // And walking away, which is the view the game normally gives: the girl's
+    // long hair is behind her, so this is the shot that shows it.
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1400);
+    await saveShot(page, `${name}-walking-away`, testInfo);
+    await page.keyboard.up('KeyW');
   }
 
   await gotoGame(page, '?view=first');
