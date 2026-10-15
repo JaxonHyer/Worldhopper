@@ -312,14 +312,22 @@ test('first person looks further up than third, and draws no body', async ({ pag
     return;
   }
 
-  // First person reaches the flip-over limit, not the third-person one.
+  // First person reaches the flip-over limit, not the third-person one...
   const up = await measuredTurn(page, { y: -120, times: 40 });
   expect(up.pitch).toBeCloseTo(PITCH_LIMIT, 2);
+  // ...and the camera follows the player's own pitch there, with no boom and no
+  // body in the way.
+  const raised = await readDebug(page);
+  expect(raised.camera.mode).toBe('first');
+  expect(raised.camera.distance).toBe(0);
+  expect(raised.camera.avatar).toBe(false);
+  expect(raised.camera.pitch).toBeCloseTo(PITCH_LIMIT, 2);
+  expect(raised.camera.pitch).toBeCloseTo(raised.player.pitch, 4);
+
   const down = await measuredTurn(page, { y: 120, times: 80 });
   expect(down.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
-  const after = await readDebug(page);
-  expect(after.camera.distance).toBe(0);
-  expect(after.camera.pitch).toBeCloseTo(PITCH_LIMIT, 1);
+  const lowered = await readDebug(page);
+  expect(lowered.camera.pitch).toBeCloseTo(-PITCH_LIMIT, 2);
 
   watch.assertClean();
 });
