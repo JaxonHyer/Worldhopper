@@ -1,0 +1,18 @@
+# dependencies
+node_modules/
+
+# build output — never committed; CI builds and deploys it (§3)
+dist/
+
+# test artefacts (screenshots are uploaded by CI instead)
+artifacts/
+playwright-report/
+test-results/
+
+# local noise
+.DS_Store
+*.local
+*.log
+.vite/
+.env
+.env.*
