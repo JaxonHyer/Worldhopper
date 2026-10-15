@@ -10,7 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PLAYER, createPlayer, eyePosition, horizontalSpeed, sampleSupport, stepPlayer } from '../../src/core/player.js';
 import { CAMERA } from '../../src/core/config.js';
-import { PITCH_LIMIT } from '../../src/core/math.js';
+import { PITCH_LIMIT, wrapAngle } from '../../src/core/math.js';
 import { createWorldState, buildObstacles, terrainHeight } from '../../src/core/world-state.js';
 import { getMap, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
@@ -261,10 +261,68 @@ test('the walk cycle keeps running with the bob turned off', () => {
   // The avatar's limbs are driven by stridePhase, so bob = 0 must not stop the
   // legs — that is the trap in tying both to one slider.
   const { player, context } = world({ settings: { viewBob: 0 } });
-  run(player, context, 1, forward);
+  const cycles = runAndCountStrides(player, context, 1, forward);
   assert.equal(player.bob, 0, 'bob 0 means no camera movement');
-  assert.ok(Math.abs(player.stridePhase) > 1, `stridePhase did not advance: ${player.stridePhase}`);
+  assert.ok(cycles > 0.5, `the walk cycle barely moved: ${cycles} cycles`);
   assert.equal(player.stepCycle, player.stridePhase);
+});
+
+/** Steps for `seconds` and returns how many stride cycles the phase covered. */
+function runAndCountStrides(player, context, seconds, intentFor, dt = 1 / 60) {
+  const steps = Math.round(seconds / dt);
+  let cycles = 0;
+  for (let i = 0; i < steps; i++) {
+    const before = player.stridePhase;
+    stepPlayer(player, intentFor(i), context, dt);
+    cycles += Math.abs(wrapAngle(player.stridePhase - before)) / (2 * Math.PI);
+  }
+  return cycles;
+}
+
+test('leg speed is capped, however fast the owner sets the walk speed', () => {
+  // The complaint (owner, 2026-10-15): at their walk speed the animation was
+  // "too quick / jittery". Speed over a fixed stride length would swing the legs
+  // 7.9/1.6 = 4.9 times a second; the cap is what stops that.
+  const settings = { walkSpeed: 7.9 };
+  const capped = world({ settings });
+  run(capped.player, capped.context, 3, forward); // reach top speed
+  const topSpeed = horizontalSpeed(capped.player);
+  assert.ok(Math.abs(topSpeed - 7.9) < 0.5, `did not reach top speed: ${topSpeed}`);
+  const cycles = runAndCountStrides(capped.player, capped.context, 2, forward);
+  const rate = cycles / 2;
+  assert.ok(rate <= 2.05, `legs swung ${rate.toFixed(2)} times a second, cap is ${PLAYER.maxStrideRate}`);
+
+  // A slow walk is *not* capped: the legs still follow the ground.
+  const slow = world({ settings: { walkSpeed: 1.2 } });
+  run(slow.player, slow.context, 3, forward);
+  const slowRate = runAndCountStrides(slow.player, slow.context, 2, forward) / 2;
+  assert.ok(Math.abs(slowRate - 1.2 / PLAYER.strideLength) < 0.1, `slow walk ran at ${slowRate.toFixed(2)} cycles/s`);
+
+  // Raising the cap swings them faster again, so the slider is live.
+  const quick = world({ settings: { ...settings, strideRate: 5 } });
+  run(quick.player, quick.context, 3, forward);
+  const quickRate = runAndCountStrides(quick.player, quick.context, 2, forward) / 2;
+  assert.ok(quickRate > rate + 1, `raising the cap did nothing: ${quickRate.toFixed(2)} vs ${rate.toFixed(2)}`);
+});
+
+test('past the cap, extra speed widens the swing instead of quickening it', () => {
+  const stir = (walkSpeed) => {
+    const made = world({ settings: { walkSpeed } });
+    run(made.player, made.context, 3, forward);
+    return made.player.strideAmplitude;
+  };
+  const stroll = stir(1.5);
+  const brisk = stir(3.2); // exactly the speed where the cap starts to bite
+  const sprint = stir(7.9);
+  assert.ok(stroll < brisk, `a stroll should swing less than a brisk walk: ${stroll} vs ${brisk}`);
+  assert.ok(Math.abs(brisk - 1) < 0.05, `at the cap speed the swing should be full: ${brisk}`);
+  assert.ok(sprint > brisk, `a sprint should widen the swing: ${sprint}`);
+  assert.ok(sprint <= PLAYER.strideStretchMax + 1e-9, `swing is unbounded: ${sprint}`);
+
+  // Standing still, the limbs are not asked to swing.
+  const idlePlayer = world();
+  run(idlePlayer.player, idlePlayer.context, 1, idle);
+  assert.equal(idlePlayer.player.strideAmplitude, 0);
 });
 
 test('look input is clamped and NaN-proof', () => {

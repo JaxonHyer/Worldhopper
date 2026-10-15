@@ -54,8 +54,18 @@ export const PLAYER = Object.freeze({
   jumpBufferTime: 0.15,
   /** fraction of ground acceleration available in the air */
   airControl: 0.35,
-  /** metres per full view-bob cycle */
+  /** metres per full stride cycle (one swing of each leg) */
   strideLength: 1.6,
+  /**
+   * How fast the legs may swing, in cycles per second, when the player has not
+   * tuned it. Speed would otherwise drive it without limit: at the default
+   * 7.9 m/s and a 1.6 m stride that is 4.9 cycles/second, which reads as a
+   * vibration rather than as running (the owner, 2026-10-15: "too quick /
+   * jittery because of the walk speed"). A human sprints at about 1.5.
+   */
+  maxStrideRate: 2,
+  /** how far above walk speed the limbs keep widening their swing */
+  strideStretchMax: 1.35,
 });
 
 /**

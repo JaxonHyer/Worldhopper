@@ -75,7 +75,7 @@ export function createWorldView({ map, state, variant, settings }) {
     group,
     entityObjects,
     /** Mirror state -> scene. Called once per rendered frame, allocates nothing. */
-    sync(currentState, camera = null) {
+    sync(currentState, camera = null, dt = 1 / 60) {
       // The sky follows the player's feet, not the eye: the bob is a camera
       // effect and must not make the skyline jitter against the world.
       sky.follow(currentState.player.position);
@@ -86,7 +86,7 @@ export function createWorldView({ map, state, variant, settings }) {
           object.position.set(entity.position.x, entity.position.y, entity.position.z);
         }
       }
-      avatar.sync(currentState.player, camera);
+      avatar.sync(currentState.player, camera, dt);
     },
     applySettings(next, nextVariant) {
       scene.fog.color.set(nextVariant.fog.color);
@@ -112,7 +112,12 @@ export function createWorldView({ map, state, variant, settings }) {
       }
     },
     stats() {
-      return { meshes: group.children.length, entityCount: entityObjects.size, avatar: avatar.stats().boxes };
+      return {
+        meshes: group.children.length,
+        entityCount: entityObjects.size,
+        avatar: avatar.stats().boxes,
+        avatarTextures: avatar.stats().textures,
+      };
     },
     dispose() {
       for (const item of disposables) item.dispose?.();

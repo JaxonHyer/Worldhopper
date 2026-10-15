@@ -98,29 +98,44 @@ test('every sun direction is a normalised vector', () => {
   }
 });
 
-test('the player is a blocky figure of boxes, and only boxes', () => {
+test('the player is a blocky, pixelated figure in ten boxes', () => {
   const { state, world } = buildWorld();
   const avatar = world.scene.getObjectByName('player-avatar');
   assert.ok(avatar, 'the scene has no player-avatar group');
   assert.equal(avatar.visible, true, 'third person draws the body');
 
-  let boxes = 0;
-  let overlapping = 0;
-  const sizes = [];
+  const meshes = [];
   avatar.traverse((child) => {
-    if (!child.isMesh) return;
-    boxes++;
-    const { parameters } = child.geometry;
-    assert.equal(child.geometry.type, 'BoxGeometry', `${child.name || 'a part'} is not a box`);
-    assert.equal(child.material.flatShading, true, 'a blocky figure uses flat shading');
-    sizes.push(parameters.width);
-    for (const other of sizes.slice(0, -1)) if (Math.abs(other - parameters.width) < 1e-9) overlapping++;
+    if (child.isMesh) meshes.push(child);
   });
-  // 5 body boxes (torso, belt, head, hair, pack), 2 legs + 2 boots, 2 arms +
-  // 2 cuffs + 2 hands, 2 eyes.
-  assert.equal(boxes, 17, `expected 17 boxes, found ${boxes}`);
-  assert.ok(overlapping > 0, 'boxes are allowed to share dimensions — that is the style');
-  assert.equal(world.stats().avatar, boxes);
+  // torso + head + 2 arms + 2 hands + 2 legs + 2 boots
+  assert.equal(meshes.length, 10, `expected 10 boxes, found ${meshes.length}`);
+  assert.equal(world.stats().avatar, 10);
+
+  for (const mesh of meshes) {
+    assert.equal(mesh.geometry.type, 'BoxGeometry', `${mesh.name || 'a part'} is not a box`);
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const item of materials) {
+      // Pixelated: every face is textured, and the sampling is nearest, which
+      // is what makes the pixels stay pixels instead of blurring.
+      assert.ok(item.map, 'a face with no texture would read as smooth, not pixelated');
+      assert.equal(item.map.magFilter, THREE.NearestFilter, 'magnification must be nearest');
+      assert.equal(item.map.colorSpace, THREE.SRGBColorSpace);
+      assert.ok(item.map.image.data.length > 0, 'texture has no pixel data');
+    }
+  }
+
+  // The head is the part that needs different textures per face: a face drawn
+  // on all six sides is the classic give-away.
+  const perFace = meshes.filter((mesh) => Array.isArray(mesh.material));
+  assert.equal(perFace.length, 2, 'the head and the torso are textured per face');
+  const head = perFace.find((mesh) => mesh.material[0].map.name.startsWith('head-'));
+  assert.ok(head, 'no mesh wears the head textures');
+  assert.equal(head.material.length, 6);
+  const names = head.material.map((item) => item.map.name);
+  assert.ok(names.includes('head-front'), `the head has no face texture: ${names.join(', ')}`);
+  assert.equal(names.filter((name) => name === 'head-side').length, 2, 'both sides share one texture');
+  assert.equal(head.material[2].map.name, 'head-top', 'the top of the head is hair');
 });
 
 test('the avatar follows the sim: position, facing, and swinging limbs', () => {
@@ -132,14 +147,15 @@ test('the avatar follows the sim: position, facing, and swinging limbs', () => {
   state.player.position.z = -7;
   state.player.yaw = 1.2;
   state.player.stridePhase = 0.9;
+  state.player.strideAmplitude = 1;
   state.player.velocity.x = 4;
   state.player.velocity.z = 0;
   state.player.grounded = true;
 
-  // Two syncs: the pose eases in, exactly as it does in the frame loop.
-  for (let i = 0; i < 20; i++) {
+  // A second of syncs: the pose eases in, exactly as it does in the frame loop.
+  for (let i = 0; i < 60; i++) {
     resolveCamera({ player: state.player, settings, map: getMap(DEFAULT_MAP_ID), seed: state.seed }, camera);
-    world.sync(state, camera);
+    world.sync(state, camera, 1 / 60);
   }
   const avatar = world.scene.getObjectByName('player-avatar');
   assert.equal(avatar.position.x, 12);
@@ -151,6 +167,38 @@ test('the avatar follows the sim: position, facing, and swinging limbs', () => {
   }
 });
 
+test('the easing does not care how fast the machine renders', () => {
+  const { settings, state, world } = buildWorld();
+  const camera = createCameraState();
+  const limb = world.scene.getObjectByName('player-avatar').children.find((child) => child.geometry.type === 'BoxGeometry');
+  state.player.velocity.x = 5;
+  state.player.grounded = true;
+
+  // One second of frames at 30 fps and one second at 120 fps must reach the
+  // same pose: a phone with a fast screen must not animate faster.
+  const run = (fps) => {
+    const built = buildWorld();
+    const builtLimb = built.world.scene
+      .getObjectByName('player-avatar')
+      .children.find((child) => child.geometry.type === 'BoxGeometry');
+    const player = built.state.player;
+    player.velocity.x = 5;
+    player.grounded = true;
+    player.stridePhase = 1.1;
+    player.strideAmplitude = 1;
+    for (let i = 0; i < fps; i++) {
+      resolveCamera({ player, settings, map: getMap(DEFAULT_MAP_ID), seed: built.state.seed }, camera);
+      built.world.sync(built.state, camera, 1 / fps);
+    }
+    return builtLimb.rotation.x;
+  };
+  const slow = run(30);
+  const fast = run(120);
+  assert.ok(Math.abs(slow) > 0.05, `the pose never moved: ${slow}`);
+  assert.ok(Math.abs(slow - fast) < 0.05, `30 fps reached ${slow}, 120 fps reached ${fast}`);
+  assert.ok(Math.abs(limb.rotation.x) >= 0);
+});
+
 test('first person hides the body; third person shows it', () => {
   const { state, world } = buildWorld();
   const avatar = world.scene.getObjectByName('player-avatar');
@@ -158,10 +206,10 @@ test('first person hides the body; third person shows it', () => {
   const map = getMap(DEFAULT_MAP_ID);
 
   resolveCamera({ player: state.player, settings: { view: 'first' }, map, seed: state.seed, obstacles: state.obstacles }, camera);
-  world.sync(state, camera);
+  world.sync(state, camera, 1 / 60);
   assert.equal(avatar.visible, false);
 
   resolveCamera({ player: state.player, settings: { view: 'third', camDistance: 4.2 }, map, seed: state.seed, obstacles: state.obstacles }, camera);
-  world.sync(state, camera);
+  world.sync(state, camera, 1 / 60);
   assert.equal(avatar.visible, true);
 });

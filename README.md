@@ -21,10 +21,13 @@ than pass through terrain (`?view=first` puts you back behind the eyes). Every
 feel number — walk speed, jump height, gravity, acceleration, view bob, camera
 distance — is a live slider in the tuning panel.
 
-**Art direction:** characters are **blocky** (box limbs, flat colours, a
-Minecraft-style build) — the player today, enemies at M3 and NPCs at M5 follow
-the same recipe. The *world* stays low-poly faceted. Both are generated in code:
-no imported models, no textures.
+**Art direction:** characters are **blocky and pixelated** — ten boxes wearing
+tiny textures (an 8×8 face, an 8×12 shirt, 4×12 sleeves and trouser legs) drawn
+with nearest-neighbour filtering, so the pixels stay pixels. The player wears
+ordinary clothes: a plain shirt, plain trousers, boots. Enemies (M3) and NPCs
+(M5) follow the same recipe. The *world* stays low-poly faceted. Both are
+generated in code — no imported models, no image files, no canvas: the art is
+data (`src/core/pixel-art.js`) turned into textures at load.
 
 ---
 
@@ -44,6 +47,12 @@ or the arrow keys walk · <kbd>space</kbd> jump · <kbd>Q</kbd>/<kbd>E</kbd> tur
 without a mouse. If capture is refused (an embedded frame, for instance) or
 switched off with `?capture=off`, dragging with the button held looks around
 instead — the game is playable either way.
+
+**Animation:** the walk cycle is driven by distance travelled, so the legs
+always match the ground — but the *rate* is capped (`Animation speed cap` in the
+panel, `?striderate=`), because at 7.9 m/s an uncapped stride would swing the
+legs five times a second and read as a vibration. Past the cap the limbs widen
+their swing instead of quickening, so a sprint still looks like a sprint.
 
 **Camera:** third person by default — you are looking at your character from
 behind, and the camera slides closer when a hill or a rock is in the way. Look
@@ -66,6 +75,7 @@ buttons (add `?dev=1` to the URL) give the same tools.
 | `seed` | `?seed=emberdark` or `?seed=4242` | rebuilds the map deterministically |
 | `palette` | `?palette=cold-ridge` | atmosphere variant (`ashen-basin`, `mist-sea`, `cold-ridge`) |
 | `walk`, `jump`, `gravity`, `accel`, `bob` | `?walk=9&jump=2.5&bob=0` | how walking feels |
+| `striderate` | `?striderate=1.4` | how fast arms and legs may swing (cycles/second) |
 | `fog`, `sun`, `ambient`, `fov` | `?fog=0.0042` | atmosphere |
 | `view` | `?view=first` | `third` (default, over the shoulder) or `first` (through the eyes) |
 | `camdist` | `?camdist=6` | third-person boom length in metres (1.2–8) |
