@@ -54,7 +54,10 @@ export function createWorldView({ map, state, variant, settings }) {
 
   // The player's body. It is not an entity (the sim owns the player, not the
   // entity list) and it is never authored by the renderer: this only draws it.
-  const avatar = createPlayerAvatar();
+  // `girlPlayer` picks the alternate model, and switching it swaps the figure
+  // in place — no world rebuild, no reload.
+  let avatarVariant = settings.girlPlayer ? 'girl' : 'boy';
+  let avatar = createPlayerAvatar({ variant: avatarVariant });
   scene.add(avatar.group);
 
   /** entity id -> Object3D, so state changes can be mirrored without a rebuild. */
@@ -89,6 +92,14 @@ export function createWorldView({ map, state, variant, settings }) {
       avatar.sync(currentState.player, camera, dt);
     },
     applySettings(next, nextVariant) {
+      const wanted = next.girlPlayer ? 'girl' : 'boy';
+      if (wanted !== avatarVariant) {
+        avatarVariant = wanted;
+        scene.remove(avatar.group);
+        avatar.dispose();
+        avatar = createPlayerAvatar({ variant: avatarVariant });
+        scene.add(avatar.group);
+      }
       scene.fog.color.set(nextVariant.fog.color);
       scene.fog.density = next.fog;
       hemi.intensity = next.ambient;
@@ -117,6 +128,7 @@ export function createWorldView({ map, state, variant, settings }) {
         entityCount: entityObjects.size,
         avatar: avatar.stats().boxes,
         avatarTextures: avatar.stats().textures,
+        avatarVariant,
       };
     },
     dispose() {

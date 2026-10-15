@@ -344,3 +344,35 @@ this to stay oriented; agents add to it in the same PR as the change.
   pack, belt box) is gone: a plain shirt, plain trousers, boots, and the detail
   that remains is in the texture (collar, buttons, hem, belt, cuffs, sole).
   Ten boxes instead of seventeen.
+
+## M1.7 — the face, the girl, sprint (owner, 2026-10-15)
+
+- **The character turns to face the way it walks.** The camera is a boom behind
+  the player, so the face the owner asked for was never on screen: "because of
+  camera position I cannot see the face". The body now yaws towards its
+  direction of travel (`atan2(-vx, -vz)`), it keeps its facing when standing
+  still (no snapping back), and the turn eases at 14/s so a strafe is a turn,
+  not a flick. The pure function is exported (`nextFacing`) and unit-tested for
+  direction, frame-rate independence and NaN.
+- **The face is Minecraft-style, drawn in the 8×8 head texture**: fringe, two
+  eyes (white + pupil, mirrored), a nose, a mouth, jaw, hair on the other five
+  faces. Pixel positions are asserted by name, because "the eyes are one pixel
+  too far out" is invisible in code and obvious on a phone.
+- **One boolean, one girl.** The alternate character is
+  `settings.girlPlayer` (`?girl=1`, **Girl player character** in the panel, and
+  `girl`/`boy` are accepted spellings). The boy is the default, so nothing
+  changes for a saved config. She is the *same* geometry with slimmer arms,
+  long hair (two extra boxes, two extra textures) and her own palette — the
+  trousers, boots, skin and face pixels are shared, so the two read as one game.
+- **Sprint is a speed multiplier with the animation cap intact.**
+  `settings.sprint` (1–3, default 1.5) multiplies the *walk speed* only while
+  there is movement input — holding shift standing still is not a sprint. The
+  M1.6 stride cap still applies, so a sprint widens the swing instead of
+  blurring it (this is why sprint was not implemented as "walk faster").
+- **Sprint input is per device, as asked.** Desktop *holds* shift (either
+  shift, never `preventDefault`ed so browser shortcuts still work); the phone
+  gets a **toggle** button at the bottom-left, because the thumb that would hold
+  it is the thumb on the stick. The button is only shown for coarse pointers,
+  and a hidden toggle is forced off so nothing sprints invisibly.
+- **The panel grew a checkbox** for the new `bool` settings kind — the first
+  boolean is the girl, and switches must be switches, not sliders.

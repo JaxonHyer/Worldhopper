@@ -11,9 +11,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  AVATAR_VARIANTS,
   CHARACTER_PALETTE,
+  GIRL_PALETTE,
   characterSkin,
   isTexture,
+  normalizeVariant,
+  paletteFor,
   pixelArt,
   pixelAt,
   pixelHex,
@@ -21,13 +25,15 @@ import {
 } from '../../src/core/pixel-art.js';
 
 const skin = characterSkin();
+const girl = characterSkin({ variant: 'girl' });
 
 test('every texture in the skin is a real texture, and small', () => {
   const textures = skinTextures(skin);
   assert.equal(textures.length, 14, 'a smaller set than the M1.5 figure: no pack, no belt box, no eye boxes');
+  assert.equal(skinTextures(girl).length, 16, 'the girl adds two long-hair textures and nothing else');
   for (const texture of textures) {
     assert.ok(texture.width >= 4 && texture.width <= 8, `${texture.name} is ${texture.width} wide`);
-    assert.ok(texture.height >= 4 && texture.height <= 12, `${texture.name} is ${texture.height} tall`);
+    assert.ok(texture.height >= 4 && texture.height <= 20, `${texture.name} is ${texture.height} tall`);
     assert.equal(texture.data.length, texture.width * texture.height * 4, `${texture.name} has the wrong byte count`);
   }
   // Two faces share one texture object (the sides of the head, the sides of the
@@ -52,27 +58,63 @@ test('every pixel is opaque and comes from the palette', () => {
   }
 });
 
-test('the head has one face, and hair everywhere else', () => {
-  const { front, back, left, top, bottom } = skin.head;
-  const hair = CHARACTER_PALETTE.hair.toLowerCase();
-  const eye = CHARACTER_PALETTE.eye.toLowerCase();
+test('the head has a face: eyes with whites, a nose and a mouth', () => {
+  // The owner asked for this explicitly ("I want it to have a face ... go
+  // Minecraft style again") after the camera made it hard to see one.
+  for (const character of [skin, girl]) {
+    const { front, back, left, top, bottom } = character.head;
+    const palette = character.palette;
+    const at = (x, y) => pixelHex(front, x, y);
 
-  // Two eyes, two pixels each, in the upper half, with a gap between them.
-  const eyePixels = [];
-  for (let y = 0; y < front.height; y++) {
-    for (let x = 0; x < front.width; x++) if (pixelHex(front, x, y) === eye) eyePixels.push([x, y]);
+    // Two eyes, two pixels each: a white and a pupil, mirrored, with a gap
+    // between them and skin at the outer edges of the face.
+    assert.equal(at(1, 3), palette.eyeWhite.toLowerCase(), 'the left eye has no white');
+    assert.equal(at(2, 3), palette.eye.toLowerCase(), 'the left eye has no pupil');
+    assert.equal(at(5, 3), palette.eye.toLowerCase(), 'the right eye has no pupil');
+    assert.equal(at(6, 3), palette.eyeWhite.toLowerCase(), 'the right eye has no white');
+    assert.equal(at(0, 3), palette.skin.toLowerCase(), 'the eye is jammed into the edge of the face');
+    assert.equal(at(7, 3), palette.skin.toLowerCase(), 'the eye is jammed into the edge of the face');
+    assert.equal(at(3, 3), palette.skin.toLowerCase(), 'the eyes are joined in the middle');
+    assert.notEqual(at(3, 4), at(3, 2), 'there is no nose');
+    assert.equal(at(3, 5), palette.mouth.toLowerCase(), 'there is no mouth');
+
+    // Hair on top and round the back; no eye anywhere but the front.
+    assert.equal(pixelHex(top, 3, 3), palette.hair.toLowerCase(), 'the top of the head is not hair');
+    assert.equal(pixelHex(back, 3, 6), palette.hair.toLowerCase(), 'the back of the head is not hair');
+    assert.equal(pixelHex(bottom, 3, 3), palette.skin.toLowerCase(), 'the jaw should be skin');
+    assert.notEqual(pixelHex(left, 3, 3), palette.eye.toLowerCase(), 'no eye on the side of a head');
+    assert.notEqual(pixelHex(left, 3, 3), palette.eyeWhite.toLowerCase(), 'no eye white on the side');
   }
-  assert.equal(eyePixels.length, 4, `expected four eye pixels, found ${eyePixels.length}`);
-  assert.ok(eyePixels.every(([, y]) => y < front.height / 2), 'the eyes belong in the upper half of the face');
-  assert.ok(eyePixels.some(([x]) => x <= 2) && eyePixels.some(([x]) => x >= 5), 'the eyes are not on both sides');
+});
 
-  // Hair on top and round the back; skin below the fringe at the front.
-  assert.equal(pixelHex(top, 3, 3), hair, 'the top of the head is not hair');
-  assert.equal(pixelHex(back, 3, 6), hair, 'the back of the head is not hair');
-  assert.equal(pixelHex(bottom, 3, 3), CHARACTER_PALETTE.skin.toLowerCase(), 'the jaw should be skin');
-  assert.equal(pixelHex(front, 2, 6), CHARACTER_PALETTE.skin.toLowerCase(), 'the chin is skin');
-  assert.equal(pixelHex(front, 3, 6), CHARACTER_PALETTE.mouth.toLowerCase(), 'there should be a mouth');
-  assert.notEqual(pixelHex(left, 3, 6), eye, 'no eye on the side of a head');
+test('the girl is a different character, not a different game', () => {
+  assert.deepEqual(AVATAR_VARIANTS, ['boy', 'girl']);
+  assert.equal(normalizeVariant('girl'), 'girl');
+  for (const junk of [undefined, null, 'boy', 'GIRL', 42, {}]) {
+    assert.equal(normalizeVariant(junk), 'boy', `normalizeVariant(${String(junk)})`);
+  }
+  assert.equal(paletteFor('girl'), GIRL_PALETTE);
+  assert.equal(paletteFor('boy'), CHARACTER_PALETTE);
+  assert.equal(skin.variant, 'boy');
+  assert.equal(girl.variant, 'girl');
+
+  // Her own clothes and hair...
+  assert.notEqual(girl.palette.shirt, skin.palette.shirt, 'they should not wear the same shirt');
+  assert.notEqual(girl.palette.hair, skin.palette.hair, 'they should not have the same hair');
+  // ...with everything else shared, so they read as the same world.
+  for (const key of ['trousers', 'boots', 'skin', 'eye', 'eyeWhite']) {
+    assert.equal(girl.palette[key], skin.palette[key], `${key} should be shared`);
+  }
+
+  // Long hair is two extra textures; nothing else about her is new, and the
+  // boy pays for neither of them.
+  const boyNames = skinTextures(skin).map((t) => t.name).sort();
+  const girlNames = skinTextures(girl).map((t) => t.name).sort();
+  assert.deepEqual(girlNames, [...boyNames, 'hair', 'hair-back'].sort());
+  assert.ok(!boyNames.includes('hair'), 'the boy should not carry the girl’s long hair');
+
+  // The face is identical art apart from the palette: same pixels, same layout.
+  assert.deepEqual(girl.head.front.rows, skin.head.front.rows);
 });
 
 test('the clothes are plain: a collar, buttons, a hem and a belt', () => {

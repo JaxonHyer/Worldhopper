@@ -76,6 +76,7 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     mouseLookSamples: 0,
     mouseLookPixels: 0,
     mouseLookFallbackSamples: 0,
+    sprintToggles: 0,
   };
 
   const supported =
@@ -109,12 +110,20 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
   // --- jump ---------------------------------------------------------------
   let jumpQueued = false;
 
+  // --- sprint -------------------------------------------------------------
+  // Two ways in, because the two devices want different things: a desktop holds
+  // Shift (a modifier, so it is deliberately not consumed or preventDefault'ed),
+  // and a phone taps a button that stays on — a thumb already driving the stick
+  // has no finger left to hold with.
+  let sprintToggled = false;
+
   // --- visuals (owned by the HUD, positioned here) ------------------------
   // Passed in, not queried: the HUD must exist first, and a query that returns
   // null here silently disables the jump button on the device it exists for.
   const stickEl = elements.stick ?? null;
   const knobEl = elements.knob ?? null;
   const jumpEl = elements.jump ?? null;
+  const sprintEl = elements.sprint ?? null;
 
   const isCaptured = () => typeof document !== 'undefined' && document.pointerLockElement === canvas;
 
@@ -254,6 +263,13 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       }
     }
 
+    // Shift is sprint: tracked as a held key, but never preventDefault'ed —
+    // browsers own it for shortcuts (Shift+Tab, Shift+click) and eating it
+    // would break more than it fixed.
+    if (code === 'ShiftLeft' || code === 'ShiftRight') {
+      keys.add('ShiftLeft');
+      return;
+    }
     if (code === 'Space') {
       jumpQueued = true;
       counters.jumps++;
@@ -409,6 +425,20 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     }
   }
 
+  // The sprint button (phone): a toggle, so it can be tapped once and left on.
+  sprintEl?.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    setSprint(!sprintToggled);
+  });
+
+  function setSprint(on) {
+    sprintToggled = Boolean(on);
+    counters.sprintToggles++;
+    sprintEl?.classList.toggle('is-on', sprintToggled);
+    sprintEl?.setAttribute('aria-pressed', sprintToggled ? 'true' : 'false');
+    return sprintToggled;
+  }
+
   // The jump button: pointer events, so it works for a thumb and for a test.
   jumpEl?.addEventListener('pointerdown', (event) => {
     event.preventDefault();
@@ -469,6 +499,15 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       return { impulse, rate: rateX === 0 ? null : { x: rateX, y: 0 } };
     },
 
+    /**
+     * Sprint: held Shift on a desktop, or the phone's toggle button. Reported
+     * as intent — the sim owns what sprinting *does* to the walk speed.
+     */
+    sprinting: () => sprintToggled || keys.has('ShiftLeft') || keys.has('ShiftRight'),
+    /** The phone button's state on its own, for tests and the overlay. */
+    sprintToggled: () => sprintToggled,
+    setSprint,
+
     /** Jump edge; consumes the press so one tap is one jump. */
     consumeJump() {
       const queued = jumpQueued;
@@ -497,6 +536,8 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       capture,
       captureError,
       captured: isCaptured(),
+      sprinting: sprintToggled || keys.has('ShiftLeft') || keys.has('ShiftRight'),
+      sprintToggled,
     }),
 
     reset() {

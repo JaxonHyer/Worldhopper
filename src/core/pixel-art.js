@@ -83,9 +83,13 @@ export function pixelHex(texture, x, y) {
 }
 
 /**
- * The palette for people in this world: ordinary clothes, nothing ceremonial.
+ * Palettes for people in this world: ordinary clothes, nothing ceremonial.
  * The owner asked for "more generic clothes" — so: a plain shirt, plain
  * trousers, boots, skin, hair. No coat trim, no badges, no pack.
+ *
+ * Two characters, because the owner asked for an alternate player model: the
+ * boy wears a grey shirt, the girl a soft green one, and they have different
+ * hair. Everything else is shared, so the two stay recognisably the same game.
  */
 export const CHARACTER_PALETTE = Object.freeze({
   shirt: '#b9b3a2',
@@ -99,9 +103,32 @@ export const CHARACTER_PALETTE = Object.freeze({
   skin: '#c99b76',
   skinShade: '#b3865f',
   hair: '#3a2e26',
+  hairShade: '#2b2119', // the girl's hair reads better with a second tone
   eye: '#251f1c',
+  eyeWhite: '#e8e4dc',
   mouth: '#8a5f4a',
 });
+
+/** The same clothes in different colours, and different hair. */
+export const GIRL_PALETTE = Object.freeze({
+  ...CHARACTER_PALETTE,
+  shirt: '#7f9384',
+  shirtShade: '#6d8172',
+  shirtDark: '#5c6f61',
+  hair: '#6b4326',
+  hairShade: '#553318',
+});
+
+export const AVATAR_VARIANTS = Object.freeze(['boy', 'girl']);
+
+/** Pick a palette by variant name; anything unrecognised is the boy. */
+export function paletteFor(variant) {
+  return variant === 'girl' ? GIRL_PALETTE : CHARACTER_PALETTE;
+}
+
+export function normalizeVariant(variant) {
+  return variant === 'girl' ? 'girl' : 'boy';
+}
 
 /**
  * One character's skin, as named faces.
@@ -110,10 +137,68 @@ export const CHARACTER_PALETTE = Object.freeze({
  * give-away); sleeves, legs and boots read fine with a single texture on every
  * face, because their patterns are horizontal bands.
  */
-export function characterSkin(palette = CHARACTER_PALETTE) {
-  const p = palette;
+/**
+ * One character's skin. The two variants differ in exactly two ways: the
+ * palette (clothes and hair colours) and whether there is long hair to hang
+ * behind the head. Everything else is shared, so a change to a sleeve is a
+ * change for both characters — never one that drifts.
+ */
+export function characterSkin(options = {}) {
+  const variant = normalizeVariant(typeof options === 'string' ? options : options.variant);
+  const p = typeof options === 'string' ? paletteFor(variant) : (options.palette ?? paletteFor(variant));
 
-  const head = (rows, name) => pixelArt(rows, { H: p.hair, S: p.skin, E: p.eye, M: p.mouth, N: p.skinShade }, { name });
+  /** The girl's hair: a sheet over the back of the head. */
+  const hairSheet = (palette) =>
+    pixelArt(
+      [
+        'HHHHHHHH',
+        'HHHHHHHH',
+        'SHHHHHHS',
+        'SHHHHHHS',
+        'SHHHHHHS',
+        'SHHHHHHS',
+        'SHHHHHHS',
+        'SHSHHSHS',
+      ],
+      { H: palette.hair, S: palette.hairShade },
+      { name: 'hair' },
+    );
+
+  /** The girl's hair: the long fall down her back. */
+  const hairFall = (palette) =>
+    pixelArt(
+      [
+        'HHHH',
+        'HHHH',
+        'HSSH',
+        'HSSH',
+        'HSSH',
+        'HSSH',
+        'SSSS',
+        'SSSS',
+        'SSSS',
+        'SSSS',
+        'SSSS',
+        'SSSS',
+        'HHSH',
+        'SHSH',
+        'SHSH',
+        'SSSS',
+        'SSSS',
+        'SSSS',
+        'SSSS',
+        'SSSS',
+      ],
+      { H: palette.hair, S: palette.hairShade },
+      { name: 'hair-back' },
+    );
+
+  const head = (rows, name) =>
+    pixelArt(
+      rows,
+      { H: p.hair, S: p.skin, E: p.eye, W: p.eyeWhite, M: p.mouth, N: p.skinShade },
+      { name },
+    );
   // One object, not two identical ones: the renderer uploads it once.
   const sideOfHead = head(
     [
@@ -130,17 +215,23 @@ export function characterSkin(palette = CHARACTER_PALETTE) {
   );
 
   return {
+    variant,
+    palette: p,
     head: {
+      // A Minecraft-style face: a fringe, two eyes with whites, a nose and a
+      // mouth. The owner asked for this explicitly ("I want it to have a face
+      // ... go Minecraft style again") after not being able to see the front
+      // of their own character.
       front: head(
         [
           'HHHHHHHH',
           'HHHHHHHH',
           'SSSSSSSS',
-          'EESSSSEE',
+          'SWESSEWS', // eyes: white outside, pupil inside, a gap between them
+          'SSSNNSSS', // nose
+          'SSSMMSSS', // mouth
           'SSSSSSSS',
-          'SSSSSSSS',
-          'SSSMMSSS',
-          'NNNNNNNN',
+          'NNNNNNNN', // jaw
         ],
         'head-front',
       ),
@@ -150,10 +241,10 @@ export function characterSkin(palette = CHARACTER_PALETTE) {
           'HHHHHHHH',
           'HHHHHHHH',
           'HHHHHHHH',
-          'HHHHSSHH',
-          'HHHHSSHH',
-          'HHHHSSHH',
-          'NNNNNNNN',
+          'HHHHHHHH',
+          'HHHHHHHH',
+          'HHHHHHHH',
+          'HHHHHHHH',
         ],
         'head-back',
       ),
@@ -249,6 +340,12 @@ export function characterSkin(palette = CHARACTER_PALETTE) {
 
     // Hands: skin, one shade row where the wrist is.
     hand: pixelArt(['SSSS', 'SSSS', 'SSSS', 'NNNN'], { S: p.skin, N: p.skinShade }, { name: 'hand' }),
+
+    // Long hair, Girl only: a sheet over the back of the head and a fall down
+    // her back. Two tones each, so neither reads as a flat slab. Only she has
+    // them — the boy's version is an unused texture otherwise.
+    ...(variant === 'girl' ? { hair: hairSheet(p), hairBack: hairFall(p) } : {}),
+
 
     // Trouser legs: a belt at the top, then cloth.
     leg: pixelArt(

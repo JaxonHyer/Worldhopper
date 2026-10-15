@@ -116,6 +116,7 @@ export function buildSnapshot({
       speed: round(horizontalSpeed(player), 3),
       vy: round(player.velocity.y, 3),
       grounded: player.grounded,
+      sprinting: Boolean(player.sprinting),
       // The look state belongs to the player (the camera is derived from it).
       yaw: round(player.yaw, 4),
       pitch: round(player.pitch, 4),
@@ -134,8 +135,17 @@ export function buildSnapshot({
           stick: input.stick,
           looking: input.looking,
           heldKeys: input.heldKeys,
+          sprint: Boolean(input.sprint),
         }
-      : { mode: 'unknown', capture: 'unknown', captured: false, stick: null, looking: false, heldKeys: 0 },
+      : {
+          mode: 'unknown',
+          capture: 'unknown',
+          captured: false,
+          stick: null,
+          looking: false,
+          heldKeys: 0,
+          sprint: false,
+        },
     distanceFromOrigin: round(scale.distance, 3),
     scaleFence: { worst: round(scale.worst, 2), limit: scale.limit, warn: scale.warn },
     entityCount: countEntities(state),

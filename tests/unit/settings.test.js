@@ -37,12 +37,40 @@ test('URL parameters override stored settings, which override defaults', () => {
 });
 
 test('out-of-range and malformed values fall back instead of producing NaN', () => {
-  const settings = parseSettings({ search: '?fog=99&sun=abc&fov=&palette=nope' });
+  const settings = parseSettings({ search: '?fog=99&sun=abc&fov=&palette=nope&girl=maybe' });
   assert.equal(settings.fog, def('fog').max);
   assert.equal(settings.sun, def('sun').default);
   assert.equal(settings.fov, def('fov').default);
   assert.equal(settings.palette, def('palette').default);
-  for (const value of Object.values(settings)) assert.ok(Number.isFinite(value) || typeof value === 'string');
+  assert.equal(settings.girlPlayer, def('girlPlayer').default, 'junk must not silently change the character');
+  // Every value is one of the three kinds the schema allows — and never NaN.
+  for (const [key, value] of Object.entries(settings)) {
+    const kind = def(key).kind;
+    if (kind === 'bool') assert.equal(typeof value, 'boolean', `${key} should be a boolean`);
+    else if (kind === 'enum') assert.equal(typeof value, 'string', `${key} should be a string`);
+    else assert.ok(Number.isFinite(value), `${key} is ${value}`);
+  }
+});
+
+test('the girl/boy toggle is a boolean, written the ways a person would', () => {
+  const girl = def('girlPlayer');
+  assert.equal(girl.kind, 'bool');
+  assert.equal(girl.default, false, 'the boy model is the default');
+  assert.equal(girl.param, 'girl', 'the URL parameter is ?girl=1');
+  for (const truthy of ['1', 'true', 'on', 'yes', 'girl', 'TRUE', true, 1]) {
+    assert.equal(parseSettings({ search: `?girl=${truthy}` }).girlPlayer, true, `?girl=${truthy}`);
+  }
+  for (const falsy of ['0', 'false', 'off', 'no', 'boy', false, 0]) {
+    assert.equal(parseSettings({ search: `?girl=${falsy}` }).girlPlayer, false, `?girl=${falsy}`);
+  }
+  // It survives the round trip through a config link, as 1/0.
+  const tuned = { ...defaultSettings(), girlPlayer: true };
+  const query = serializeSettings(tuned);
+  assert.equal(query, 'girl=1');
+  assert.equal(parseSettings({ search: `?${query}` }).girlPlayer, true);
+  assert.equal(formatSettingValue(girl, true), 'on');
+  assert.equal(formatSettingValue(girl, false), 'off');
+  assert.equal(formatSettingValue(girl, undefined), '—');
 });
 
 test('word seeds hash into the seed space', () => {

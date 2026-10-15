@@ -15,19 +15,27 @@ dangers, attune to different magic systems, and open each world's
 
 **Status: M1 — the player.** You can walk a world: a capsule against the terrain
 heightfield, solid rocks and landmark, jump with coyote time and a jump buffer,
-and a phone-first control scheme (thumb-stick, look-drag, jump button). The
+and a phone-first control scheme (thumb-stick, look-drag, jump button, sprint
+toggle). The
 camera is **third person** — a boom behind your character, which pulls in rather
 than pass through terrain (`?view=first` puts you back behind the eyes). Every
 feel number — walk speed, jump height, gravity, acceleration, view bob, camera
 distance — is a live slider in the tuning panel.
 
 **Art direction:** characters are **blocky and pixelated** — ten boxes wearing
-tiny textures (an 8×8 face, an 8×12 shirt, 4×12 sleeves and trouser legs) drawn
-with nearest-neighbour filtering, so the pixels stay pixels. The player wears
-ordinary clothes: a plain shirt, plain trousers, boots. Enemies (M3) and NPCs
-(M5) follow the same recipe. The *world* stays low-poly faceted. Both are
-generated in code — no imported models, no image files, no canvas: the art is
-data (`src/core/pixel-art.js`) turned into textures at load.
+tiny textures (an 8×8 head with a face on it, an 8×12 shirt, 4×12 sleeves and
+trouser legs) drawn with nearest-neighbour filtering, so the pixels stay pixels.
+The face is Minecraft-style: two eyes with whites, a nose, a jaw, hair over the
+top and round the back. The player wears ordinary clothes — a plain shirt, plain
+trousers, boots — and there are **two of them**: a boy and a girl, chosen by one
+boolean (`?girl=1`, or **Girl player character** in the tuning panel). The girl
+is the same figure with slimmer arms and long hair in her own colours. Enemies
+(M3) and NPCs (M5) follow the same recipe. The *world* stays low-poly faceted.
+Both are generated in code — no imported models, no image files, no canvas: the
+art is data (`src/core/pixel-art.js`) turned into textures at load.
+
+Because the camera sits behind you, your character faces **the way it is
+walking** — so walking backwards (or turning round) puts the face in view.
 
 ---
 
@@ -54,14 +62,22 @@ panel, `?striderate=`), because at 7.9 m/s an uncapped stride would swing the
 legs five times a second and read as a vibration. Past the cap the limbs widen
 their swing instead of quickening, so a sprint still looks like a sprint.
 
+**Sprint:** hold <kbd>shift</kbd> on a desktop; on a phone tap the round
+**sprint** button at the bottom-left once (it is a toggle, so the thumb that
+would hold it is free for the stick) — it lights up while it is on. Either way
+it multiplies the walk speed by `Sprint speed` (`?sprint=`, default 1.5×) while
+you are actually moving, and it is the *speed* that changes: the stride rate
+stays capped, so a sprint widens the swing rather than blurring it.
+
 **Camera:** third person by default — you are looking at your character from
 behind, and the camera slides closer when a hill or a rock is in the way. Look
 up is limited (the boom would end up in the floor); **Camera** in the tuning
 panel switches to first person, where the full vertical range comes back.
 
 **Phone:** the left half of the screen is a thumb-stick (it appears where your
-thumb lands), drag on the right to look, and the round **jump** button is
-bottom-right. It also works with a mouse if you just want to test the layout.
+thumb lands), drag on the right to look, the round **jump** button is
+bottom-right, and the **sprint** toggle is bottom-left. It also works with a
+mouse if you just want to test the layout.
 
 Dev keys: <kbd>`</kbd> debug overlay · <kbd>p</kbd> tuning panel ·
 <kbd>v</kbd> cycle palette · <kbd>c</kbd> credits and the fan-work notice ·
@@ -76,6 +92,8 @@ buttons (add `?dev=1` to the URL) give the same tools.
 | `palette` | `?palette=cold-ridge` | atmosphere variant (`ashen-basin`, `mist-sea`, `cold-ridge`) |
 | `walk`, `jump`, `gravity`, `accel`, `bob` | `?walk=9&jump=2.5&bob=0` | how walking feels |
 | `striderate` | `?striderate=1.4` | how fast arms and legs may swing (cycles/second) |
+| `sprint` | `?sprint=2` | sprint speed multiplier (1–3, default 1.5) |
+| `girl` | `?girl=1` | the girl player character (default `0`, the boy) |
 | `fog`, `sun`, `ambient`, `fov` | `?fog=0.0042` | atmosphere |
 | `view` | `?view=first` | `third` (default, over the shoulder) or `first` (through the eyes) |
 | `camdist` | `?camdist=6` | third-person boom length in metres (1.2–8) |

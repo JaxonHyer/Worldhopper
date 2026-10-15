@@ -105,8 +105,21 @@ blocky characters.)*
 - [x] Characters carry real pixel textures (nearest-filtered, mip-mapped),
       authored as data and asserted by tests
 - [x] Ordinary clothes: plain shirt, trousers and boots; ten boxes; no pack
-- [ ] **M1.6 sign-off — needs the owner's playtest** (does the walk look calm
-      now, and does the character read as pixelated on their screen?)
+- [x] **M1.6 sign-off — accepted by the owner** ("the animation was perfect, i
+      did not have to change anything")
+
+### M1.7 — the face, the girl, sprint (owner's playtest notes, 2026-10-15)
+
+- [x] A Minecraft-style face (eyes with whites, nose, mouth, jaw) in the head
+      texture, and the body turns to face the way it walks so the camera can see
+      it ("because of camera position I cannot see the face")
+- [x] An alternate girl character behind one boolean (`girlPlayer`, `?girl=1`,
+      a checkbox in the panel): slimmer arms, long hair, her own palette
+- [x] Sprint: hold shift on desktop, a bottom-left toggle button on the phone,
+      `?sprint=` multiplier, stride cap intact
+- [ ] **M1.7 sign-off — needs the owner's playtest** (is the face visible and
+      Minecraft-ish now; does the girl read as a girl; and does the sprint
+      toggle sit where the thumb wants it?)
 
 ### Blocked on the owner
 

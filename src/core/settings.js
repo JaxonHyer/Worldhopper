@@ -232,6 +232,30 @@ export const SETTING_DEFS = Object.freeze([
     phase: 'm1',
   },
   {
+    key: 'girlPlayer',
+    group: 'camera',
+    param: 'girl',
+    kind: 'bool',
+    label: 'Girl player character',
+    help: 'The alternate player model: long hair, slimmer arms, different clothes. Off = the boy model.',
+    default: false,
+    phase: 'm1',
+  },
+  {
+    key: 'sprint',
+    group: 'movement',
+    param: 'sprint',
+    kind: 'float',
+    label: 'Sprint multiplier (×)',
+    help: 'How much faster sprinting is than walking. Hold Shift on a desktop; the sprint button on a phone.',
+    min: 1,
+    max: 3,
+    step: 0.05,
+    decimals: 2,
+    default: 1.5,
+    phase: 'm1',
+  },
+  {
     key: 'strideRate',
     group: 'movement',
     param: 'striderate',
@@ -274,9 +298,34 @@ export function defaultSettings() {
   return out;
 }
 
+/** Human-readable one-line summary of a boolean setting, for reports. */
+export function describeBoolean(key, settings) {
+  const def = SETTING_BY_KEY[key];
+  if (!def || def.kind !== 'bool') return `${key}=?`;
+  return `${def.param}=${settings[key] ? 1 : 0}`;
+}
+
 /** Coerce one raw value against its def. Returns undefined when unusable. */
+const TRUE_WORDS = new Set(['1', 'true', 'on', 'yes', 'y', 'girl', 'enabled']);
+const FALSE_WORDS = new Set(['0', 'false', 'off', 'no', 'n', 'boy', 'disabled']);
+
+/** Booleans are read the way a person would write them in a URL. */
+export function coerceBoolean(raw) {
+  if (typeof raw === 'boolean') return raw;
+  if (typeof raw === 'number') return raw !== 0;
+  if (raw === undefined || raw === null) return undefined;
+  const text = String(raw).trim().toLowerCase();
+  if (text === '') return undefined;
+  if (TRUE_WORDS.has(text)) return true;
+  if (FALSE_WORDS.has(text)) return false;
+  // Anything else (a typo, junk) falls through to the next source, rather than
+  // being read as "off" and silently changing a player's character.
+  return undefined;
+}
+
 export function coerceSetting(def, raw) {
   if (raw === undefined || raw === null || raw === '') return undefined;
+  if (def.kind === 'bool') return coerceBoolean(raw);
   if (def.kind === 'enum') {
     const value = String(raw);
     return def.values.includes(value) ? value : undefined;
@@ -328,7 +377,7 @@ export function serializeSettings(settings, { includeDefaults = false } = {}) {
     const value = settings[def.key];
     if (value === undefined) continue;
     if (!includeDefaults && value === def.default) continue;
-    params.set(def.param, def.kind === 'float' ? String(value) : String(value));
+    params.set(def.param, def.kind === 'bool' ? (value ? '1' : '0') : String(value));
   }
   const str = params.toString();
   return includeDefaults || str.length === 0 ? str : str;
@@ -393,6 +442,7 @@ export function settingsEqual(a, b) {
 
 export function formatSettingValue(def, value) {
   if (value === undefined || value === null || value === '') return '—';
+  if (def.kind === 'bool') return value ? 'on' : 'off';
   if (def.kind === 'enum') return String(value);
   if (def.kind === 'int') return String(value);
   const number = Number(value);
