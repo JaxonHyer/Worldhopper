@@ -203,6 +203,39 @@ test('the body turns to face the way it walks, so the camera can see the front',
   assert.equal(stopped, backward);
 });
 
+test('the girl can be switched on without rebuilding the world', () => {
+  // The CI e2e run is what found this: the snapshot's `avatarVariant` has to
+  // come from the renderer, so the test is that the *swap* happened here, not
+  // that the setting reads back.
+  const { settings, state, world } = buildWorld();
+  const variant = getVariant(map.id, settings.palette);
+  assert.equal(world.stats().avatarVariant, 'boy');
+  const boyBoxes = world.stats().avatar;
+  const boyTextures = world.stats().avatarTextures;
+  const before = world.scene.getObjectByName('player-avatar');
+
+  settings.girlPlayer = true;
+  world.applySettings(settings, variant);
+  assert.equal(world.stats().avatarVariant, 'girl');
+  assert.equal(world.stats().avatar, boyBoxes + 2, 'long hair is two boxes');
+  assert.equal(world.stats().avatarTextures, boyTextures + 2);
+  const after = world.scene.getObjectByName('player-avatar');
+  assert.notEqual(after, before, 'the figure should be a new object, not the old one re-labelled');
+  assert.equal(
+    world.scene.children.filter((child) => child.name === 'player-avatar').length,
+    1,
+    'the boy should not still be standing inside the girl',
+  );
+
+  // Setting it back is the same path in reverse.
+  settings.girlPlayer = false;
+  world.applySettings(settings, variant);
+  assert.equal(world.stats().avatarVariant, 'boy');
+  assert.equal(world.stats().avatar, boyBoxes);
+  // The applied settings are unchanged apart from the body.
+  assert.equal(state.entities.length, world.entityObjects.size);
+});
+
 test('nextFacing is pure, frame-rate independent and NaN-proof', () => {
   // Per-second easing: half a second reaches the turn at any frame rate.
   const walk = (fps) => {

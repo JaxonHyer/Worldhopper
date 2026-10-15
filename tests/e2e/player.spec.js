@@ -345,8 +345,8 @@ test('the phone sprint button is a bottom-left toggle', async ({ page, isMobile 
 test('the girl character is one boolean away, and it is live', async ({ page, isMobile }) => {
   test.skip(isMobile, 'same setting, keyboard-driven page loads');
   const watch = attachWatch(page);
-  await gotoGame(page, '?dev=1&debug=1');
-  const boy = await readDebug(page);
+  // Frozen, so "the same player" can be checked as the same coordinates.
+  const boy = await startFrozen(page, '?dev=1&debug=1');
   expect(boy.avatarVariant).toBe('boy');
   expect(boy.settings.girlPlayer).toBe(false);
 
@@ -366,6 +366,7 @@ test('the girl character is one boolean away, and it is live', async ({ page, is
   expect(girl.player.x).toBe(boy.player.x);
   expect(girl.player.z).toBe(boy.player.z);
   expect(girl.mapId).toBe(boy.mapId);
+  expect(girl.tick).toBe(boy.tick); // paused: nothing moved behind our back
   await expect(page.locator('#setting-girlPlayer + .tuning-row__value')).toHaveText('on');
   await expect(page.locator('#game')).toBeVisible(); // still playing, not a rebuild
 

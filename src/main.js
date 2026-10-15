@@ -370,7 +370,13 @@ function bootstrap() {
       settings,
       clock,
       frameStats,
-      render: { ...info, gl: view.contextInfo() },
+      render: {
+        ...info,
+        // The renderer's own answer to "which body is on screen", not the
+        // setting read back: the test is that the swap happened.
+        avatarVariant: world.stats().avatarVariant,
+        gl: view.contextInfo(),
+      },
       ui: {
         overlay: debugOverlay.visible,
         panel: panel.visible,
