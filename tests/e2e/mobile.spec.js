@@ -34,7 +34,7 @@ test('fits a phone viewport without scrolling or overflow', async ({ page, isMob
   expect(debug.drawCalls).toBeGreaterThan(0);
   expect(debug.ui.overlay).toBe(false);
 
-  await saveShot(page, 'phone-home', testInfo);
+  await saveShot(page, 'phone-boot', testInfo);
   watch.assertClean();
 });
 
