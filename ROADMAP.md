@@ -35,145 +35,529 @@ world's **Perpendicularity** to hop onward.
 
 ## The core loop (the game IS this loop)
 
+1. **Land** on a planet (short canned landing moment).
+2. **Explore in 3D.** Walk, climb, observe, scan; the journal fills.
+   The world has dangers: encounters are avoided, evaded, or fought.
+3. **Shift to the Cognitive Realm** — same world, abstracted
+   (orthographic view; appearance defined per world — beads and flames
+   on Roshar, the Expanse of the Vapors on Scadrial, and so on).
+4. **Solve something only solvable there** — reveal a route, unblock a
+   passage, calm something, learn where the Perpendicularity is.
+5. **Shift back.** The world changed because of what you did.
+6. **Attune as needed.** Swap magic kits from the menu; bindings and
+   HUD change with the kit.
+7. **Open the Perpendicularity → hop to the next world.**
+
+Underneath: **damage → death → respawn at the last beacon**, with no
+item loss and no penalty beyond position (health is a consequence
+layer, never a progression grind). The realm switch and the kit swap
+are both *verbs* — instant, frequent, tactical.
+
 ---
 
-## Status
+## Design pillars
 
-*(Maintained by the agents; the checkboxes are the shared source of truth. A
-milestone is never "done" because an agent says so — the owner confirms it after
-playtesting.)*
+1. **One planet, one rule.** Each world teaches and tests exactly one
+   mechanic. If a planet needs two rules, it is two planets.
+2. **Pocket scale.** The whole system fits in ~8 km. Small is a feature.
+3. **Fog is the art director.** Mood, draw distance, and mystery in one
+   tool — and the Cosmere is foggy by canon (mist, ash, storms, bead-sea).
+4. **Cardboard charm, not realism.** Creatures and NPCs are blocky
+   box-mobs at *Minecraft detail tier or below*, animated procedurally.
+   Nothing realistic, nothing rigged, nothing that needs lip sync.
+   Ambient fauna remain **spren**: glowing abstract forms.
+5. **The journal is the progression.** Discovery, not loot. No levels,
+   no gear tiers, no damage numbers.
+6. **A system is a chapter, not a content dump.** Multiple pocket
+   systems are encouraged; the **total budget of hand-authored scenes**
+   stays closed (≤6 for v1).
+7. **Encounters are seasoning, not the meal.** Danger comes in pockets;
+   escape is always possible; at least one enemy per world cannot be
+   fought at all — only avoided.
+8. **Readable beats clever.** Every threat is telegraphed. AI
+   "intelligence" is a set of small, legible rules — never an
+   open-ended claim.
+9. **Each kit is a character.** A magic system is character-sized
+   content. Kits ship one at a time, each with its world. Parity
+   between kits is never promised.
 
-### M0 — foundation — **in review, awaiting the owner's playtest**
+---
 
-- [x] Vite + three.js pinned exact, `base: './'`, `.nojekyll`
-- [x] Pages deployment via the official Pages actions (`dist/` is never committed)
-- [x] `LICENSE` + `NOTICE.md` with the unofficial-fan-work text, and the same
-      notice in the in-game credits
-- [x] Blank world: sky gradient, faceted ground, fog at the palette's colour, one
-      landmark silhouette (the Grey Needle), seeded rock scatter
-- [x] Debug overlay (`` ` ``): FPS, distance from origin (scale-fence canary),
-      realm, seed, entity count, draw calls, GL info
-- [x] Tuning panel (`p`): live sliders, URL + localStorage persistence, copyable
-      config link; later-milestone controls declared and disabled
-- [x] Headless smoke test (Playwright + Chromium) in CI, screenshots as artifacts
-- [x] 75 headless logic + scene-graph tests (`npm run test:unit`) and a dist
-      constraint check (`npm run test:dist`)
-- [x] Phone layout + touch look path, and on-screen dev buttons behind `?dev=1`
-- [ ] **M0 sign-off — needs the owner's playtest** (three questions in the PR)
+## Scope fence
 
-### M1 — the player — **in review, awaiting playtest**
+| In | Out (permanent) |
+|---|---|
+| 2–3 star systems, **≤6 hand-authored scenes for v1**, one idea each | Infinite/procedural worlds |
+| Walking, looking, scanning, realm-shifting | Combat **progression** (levels, gear tiers, damage numbers, loot) |
+| Health, damage, death, beacon respawn | Permadeath, item loss, corpse runs |
+| Blocky enemies (≤3 archetypes/world, ≤6 active), dialog NPCs | Realistic organic creatures; rigged/skeletal/facial animation; voices |
+| Magic kits via attunement menu (one complete kit at v1) | Kit parity promises; more than a handful of kits |
+| One flagship "hunter" AI (the Inquisitor, M7) | "Genius AI" as an open-ended goal |
+| Journal / discovery log | Crafting, mining, resource trees |
+| A tiny pocket solar system (per map) | Realistic orbital distances |
+| Canned landing/travel moments | Seamless atmospheric flight |
+| Single-player, offline-capable | Multiplayer, accounts, servers, analytics |
+| Feel tuned by sliders + playtest | Feel "tuned" by agent guesswork |
 
-*Scope note: the roadmap has no milestone list yet (see Open questions), so M1 is
-scoped from the brief: "touch input required from M1 onward", M0 was explicitly
-non-interactive, and M2 is the Cognitive Realm.*
+**Why the Out column is absolute:** each item is either a scale
+explosion, a feel sink with no automated test, or a content-volume
+problem no solo/agent pipeline can fill with quality. These are not
+"later" items. They are the deleted 20% that would have eaten 80% of
+the schedule.
 
-- [x] Player: capsule-vs-heightfield movement with solid rocks and landmark,
-      step height, slide-along-walls, world bounds
-- [x] Jump with coyote time (0.12 s) and a jump buffer (0.15 s)
-- [x] Phone-first touch: thumb-stick, right-side look-drag, jump button
-- [x] Desktop: **click the world to capture the mouse** (Esc releases it; the
-      camera then follows the mouse with no button held), WASD/arrows, space,
-      Q/E turn. Drag-look is the fallback and can be forced with `?capture=off`
-      (also a switch in the tuning panel)
-- [x] Live feel sliders: walk speed, jump height, gravity, acceleration, view bob
-- [x] Debug overlay reports the player and the input mode
-- [x] 118 headless unit tests + 60 e2e tests on desktop and phone projects
-- [ ] **M1 sign-off — needs the owner's playtest** (checklist in the PR)
+---
 
-### M1.5 — third person + the blocky look (owner's playtest notes, 2026-10-15)
+## Canon anchors (verified — do not contradict)
 
-*M1 passed playtest ("that was a pass"), with two changes: third person, and
-blocky characters.)*
+Lore facts the build depends on. The dev agent treats this section as
+source of truth and does not invent around it. Where canon is silent,
+the project interpretation is stated explicitly.
 
-- [x] Third-person camera: a boom behind the character, which shortens rather
-      than pass through terrain or rocks, and hides the body when it is too
-      short to see past
-- [x] `Camera` (third/first) and `Camera distance` controls; first person keeps
-      the full vertical look range
-- [x] Blocky player: box limbs with pivots at the shoulders and hips, walking
-      cycle driven by the sim's stride phase, arms raised in the air
-- [x] The owner's playtested feel numbers are the defaults (pinned by a test)
-- [x] Tuning panel grouped into world / camera & looking / walking & jumping
-- [ ] **M1.5 sign-off — needs the owner's playtest** (third person distance and
-      height, the blocky look, and whether the avatar's walk reads well)
+**The realm**
 
-### M1.6 — animation, pixels, plain clothes (owner's playtest notes, 2026-10-15)
+- **Shadesmar is the Rosharan subastral's name** — the cognitive ocean
+  of glass beads represents *Roshar's* land (each bead = the soul of a
+  non-living object); living things appear as **flames**; bodies of
+  water invert to **solid obsidian/stone**; the sky is **black with a
+  single frail white sun** that never moves or sets — **there is no day
+  or night cycle** in the Cognitive Realm.
+- **Other worlds' subastrals look different.** Scadrial's ("the
+  Expanse of the Vapors") is mist: objects appear as misty figures,
+  metal **glows**, land is misty fluid, water is solid dark smoky
+  stone with mist-emitting plants.
+- **Between populated subastrals lies the emberdark** — the dark,
+  starless cognitive "space" between worlds. Canon is deliberately
+  thin here (RAFO). **Project interpretation (locked):** system-to-
+  system travel is staged in the emberdark; it is dark, sparse, and
+  the only place the game has no landmarks.
+- Canon supports travel-by-foot between worlds: cognition warps space,
+  so the distance between worlds is heavily contracted in the realm.
+  **Perpendicularities** (formed by long Shard presence) are the gates
+  between realms/worlds — Roshar's is the pool at the Horneater Peaks.
 
-- [x] Walk-cycle rate capped (2 cycles/s default) with a live slider; extra
-      speed widens the swing instead of quickening it
-- [x] Pose easing is frame-rate independent (30 fps and 120 fps agree)
-- [x] Characters carry real pixel textures (nearest-filtered, mip-mapped),
-      authored as data and asserted by tests
-- [x] Ordinary clothes: plain shirt, trousers and boots; ten boxes; no pack
-- [x] **M1.6 sign-off — accepted by the owner** ("the animation was perfect, i
-      did not have to change anything")
+**→ Architectural consequence:** the cognitive realm's *appearance is
+per-world data* (`cognitiveSkin`), not one global style. The lens is
+code written once; each world supplies its own manifestation. **Beads
+exist only over the Rosharan system. Never put beads on Scadrial.**
 
-### M1.7 — the face, the girl, sprint (owner's playtest notes, 2026-10-15)
+**The Rosharan system (v1's setting)**
 
-- [x] A Minecraft-style face (eyes with whites, nose, mouth, jaw) in the head
-      texture, and the body turns to face the way it walks so the camera can see
-      it ("because of camera position I cannot see the face")
-- [x] An alternate girl character behind one boolean (`girlPlayer`, `?girl=1`,
-      a checkbox in the panel): slimmer arms, long hair, her own palette
-- [x] Sprint: hold shift on desktop, a bottom-left toggle button on the phone,
-      `?sprint=` multiplier, stride cap intact
-- [x] **M1.7 sign-off — accepted by the owner** ("It was all good except for
-      that the girl's hair looks weird, ...")
+- Sun; then telluric planets **Ashyn** (1st — "Tranquiline Halls" in
+  myth; mostly barren with fertile patches; no Shard), **Roshar**
+  (2nd — one supercontinent, gravity ~0.7 g), **Braize** (3rd — cold,
+  outside the habitable zone; inhabited by **self-aware Splinters**;
+  "Damnation" in myth).
+- Beyond an asteroid belt: **ten gas giants named after Vorin
+  numerals** — chart scenery only, never visitable.
+- Roshar's three moons: **Salas** (violet, smallest), **Nomon** (pale
+  blue), **Mishim** (green). A fourth moon shattered long ago;
+  fragments lie under the Shattered Plains (a material above aluminum
+  that hides things even from Shards — available as a late-game puzzle
+  hook).
+- Braize's Splinters are the canon license for abstract glowing
+  entities — reuse the spren rig for them.
 
-### M1.8 — hair as texture, sprint at 2.20 (owner's playtest notes, 2026-10-15)
+**Per-world cognitiveSkin table**
 
-- [x] The girl's long hair is drawn into her textures — no geometry; she has
-      the boy's box count and the boy's texture set
-- [x] Sprint default is 2.20× (the owner's number), still under the stride cap
-- [x] **M1.8 sign-off — accepted by the owner** ("It's good. All of it.")
+| World | Objects | Living | Water | Land | Light |
+|---|---|---|---|---|---|
+| Roshar | dark glass beads | flames | solid obsidian | bead sea | frail fixed white sun |
+| Scadrial | misty figures | glow; metal glows | solid dark stone | misty fluid | pale gloom |
+| Ashyn / Braize / others | *design pass with owner at their milestone* | | | | |
 
-### M2 — the Cognitive Realm (the realm switch)
+---
 
-**Plan:** the same world, a second rendering (§2/§4 — never a second engine).
+### Systems & maps (multiple solar systems)
 
-- [x] `state.realm` + `toggleRealm()`: a lens flag the sim never reads; a unit
-      test walks the same seed in both realms to the same entity hash, and the
-      e2e test checks tick, entity hash and player position across a shift
-- [x] The Cognitive lens: an orthographic, high-angle camera in the same scene,
-      same coordinates, yaw following the player, fixed diagram pitch, visible
-      height from `Cognitive lens height` (`?realmzoom=`, 16–140 m)
-- [x] Input on both devices: <kbd>F</kbd> on desktop, a **realm** button on the
-      phone; consumed as an edge, never a held state; a HUD badge that says which
-      realm you are in
-- [ ] The look: palette, fog and the abstracted forms (what objects and living
-      things *become*) — per-world `cognitiveSkin` data, with the canon guard
-      that beads are Rosharan-only; presented to the owner as screenshot options
-- [ ] Something solvable only in the lens (§2 step 4): one hidden thing that the
-      Cognitive realm reveals, and a gate that only opens because of it
-- [ ] **M2 sign-off — needs the owner's playtest**
+Each star system — and each world within it — is a **separate map**
+(own scene, own pocket-scale coordinates, own seed). The scale fence
+applies *per map*, so precision and depth problems stay deleted no
+matter how many maps exist. Two systems never share one continuous
+coordinate space at realistic distances — travel between them is a
+scene swap behind a transition.
 
-### Later — the owner's requests (not yet scheduled)
+- **Cross-system travel happens in the emberdark** (see Canon anchors).
+  The crossing is ceremonial, canned, and doubles as the loading
+  screen — your cheapest realm is the interstellar highway.
+- **Other systems in the sky are painted** (skybox, not geometry).
+- **A star chart is the map screen** — systems unlocked, journal
+  links, where the next Perpendicularity leads.
+- **Systems are budgeted.** Default shape: 1 anchor world + 1–2
+  satellites, each carrying its own idea.
 
-- **Swappable input bindings per magic kit** (owner, 2026-10-15): "multiple
-  different input bindings that the player can swap between ... for different
-  magic sets. (Like windrunner and mist born.)" Today's controls are the
-  permanent default set; kits add their own binding tables, and the swap changes
-  the bindings *and* the HUD legend. Belongs with the `MagicKit` contract (M6
-  in the brief), together with the attunement swap window already declared in the
-  tuning panel.
+---
 
-### Blocked on the owner
+## Encounters, enemies & NPCs
 
-- **M1 sign-off** — the checklist in PR #2 needs a playtest (phone first: stick,
-  jump button, look sensitivity, view bob; desktop second: does the mouse
-  capture feel standard?).
-- (Resolved) Pages deploys: the repository is public and M0 is merged
-  (`main` = `93d9147`), so <https://jaxonhyer.github.io/Worldhopper/> is live
-  and updates from `main`.
+**Enemy tier: "Minecraft or below."** Box-part rigs (body, head, 1–4
+limbs), flat colors, **procedural animation only** — walk bob, lurch,
+attack lunge, recoil, hit-flash. No skeletal rigs, no inverse
+kinematics, no facial animation, no textures beyond flat/simple.
+Jank is the aesthetic; readability is the requirement.
 
-### Open questions for the owner
+**Budgets:** ≤3 enemy archetypes per world (2 is better), ≤6 active
+enemies at once, encounters placed in pockets — not carpets of
+spawns. Every archetype gets: one silhouette, one sound, one tell.
 
-- The brief (§1) names `ROADMAP.md` § "Canon anchors" as the source of truth for
-  lore, and §0/§10 name a "Crew plan" section, but neither section exists in this
-  file yet. M0 needed no lore (the test range is explicitly non-canon), so no
-  canon was invented. **Do you want the agent to draft those sections from the
-  brief, or will you write them?**
-- Milestones M1–M8 are referenced throughout the brief (touch at M1, AI
-  assertions at M3, five agents at M5, binding snapshots at M6, the Inquisitor
-  and Scadrial at M7) but are not listed here yet. Same question: draft them from
-  the brief, or do you write them?
+**The fairness contract (binding):**
+
+1. Every damage source telegraphs before it lands: ≥0.4 s wind-up with
+   audio + visual cue. No exceptions.
+2. **No untelegraphed attack from outside the player's view.** If the
+   attacker is off-screen, its approach cue must have played.
+3. Hit → knockback + ~1 s invulnerability window + red vignette. No
+   hit-stun chains, no permastun.
+4. Every enemy has aggro and leash ranges; disengaging always works.
+5. At least one enemy per world **cannot be fought at all** — only
+   avoided (the anglerfish principle: dread without a health bar).
+
+**Dialog NPCs:** ≤2 per map, blocky Minecraft-tier, nameplate, text
+box with 2–4 choices. Dialogue is **data** (JSON files) — the owner
+edits copy without code. No voice, no lip sync, no animation beyond
+an idle bob.
+
+**The Inquisitor (M7, Scadrial) — the flagship hunter.** The owner's
+"genius" ambusher, translated into implementable, testable rules:
+
+- FOV-aware approach: compute the player's view cone each tick; prefer
+  approach vectors **outside** it; if inside it, hold, flank, or break
+  line of sight (raycast gate).
+- Stalk at range; strike when the player is distracted (recently
+  damaged, mid-encounter with another enemy, in a menu).
+- Attack only with a full wind-up + audio cue; if the player turns to
+  face it during wind-up, disengage (this single rule *is* the
+  "genius" feeling).
+- Uses Allomancy itself (steel/iron) to reposition — the mirror fight:
+  it plays by the player's rules.
+- **Acceptance = assertions + owner feel test.** Headless tests assert
+  approach-angle distribution (approaches outside view cone), that
+  cues fire before damage, and that disengage triggers when facing
+  it. Whether the ambush is *thrilling or maddening* is the owner's
+  call, adjusted via tuning sliders (wind-up length, stalk speed,
+  aggro radius, attack cooldown).
+
+**The tuning panel grows:** combat numbers (wind-up, damage, cooldown,
+knockback, aggro radius, enemy speed) join the feel sliders. Combat
+timing is the deepest feel sink in the project — it is tuned by the
+owner, never guessed by an agent.
+
+---
+
+## Health & death
+
+- **Hearts:** 3–5, tunable. No damage numbers. Damage cooldown ~1 s,
+  knockback, red vignette.
+- **Healing:** at **beacons** (checkpoint shrines placed at memorable
+  spots) or via kit-specific resources (Stormlight).
+- **Death:** fade to black → respawn at last beacon. **No item loss,
+  no penalty beyond position.** Deaths should be rare, readable
+  events, not a cost of doing business.
+- Health is a **consequence layer**, never a progression system.
+
+---
+
+## Magic & attunement
+
+**Fiction (project interpretation, flagged as such):** the player is
+a worldhopper who carries **unkeyed Invested relics** ("attunement
+relics") allowing one system's powers at a time. This is a game
+invention; canon does not have free swapping. It exists so the kit
+menu can exist.
+
+**The `MagicKit` contract** (each kit defines, in one file):
+
+- its **verbs** (activate/cancel, target rules),
+- its **resource** (Stormlight drain/refill, metal reserves, Breath,
+  ...) and HUD element for it,
+- its **binding table** (keyboard + touch) — **showing the same kit
+  actions on different keys per kit is the point**,
+- its **VFX palette** and audio cue,
+- its **rules** (costs, cooldowns, interactions with the realm shift).
+
+**Swap UX:** the attunement menu lists kits and their bindings; swap
+is near-instant with a brief vulnerable "attunement" window (tunable
+via slider — the owner decides whether swapping mid-fight is safe).
+HUD legend relabels to the current kit's bindings.
+
+**Scope rule (honest):** a kit is **character-sized content**. v1
+ships **one complete kit** — the Radiant kit on Roshar — and it should
+start with **1–2 abilities chosen for exploration** (candidate:
+Adhesion for puzzles + Gravitation-lite for traversal; a full
+combat suite comes later). The second kit (Allomancy) ships with
+Scadrial at M7, because **each kit arrives with its world**. Parity
+between kits is never promised; the debug kit (no powers, just a
+swap target for tests) exists from M6 to test the framework.
+
+**Kit ladder (sketch, later milestones):**
+
+| Kit | World / System | Notes |
+|---|---|---|
+| Surgebinding (Radiant) | Roshar | first kit; scope set with owner (M6) |
+| Allomancy | Scadrial | metals as reserves; ships with Scadrial (M7) |
+| Awakening | Nalthis | Breath + color as resource |
+| AonDor | Sel | location-programmed magic; probably a whole milestone |
+| Sand mastery | Taldain | dayside/nightside duality |
+| Painting | Komashi (UTol system) | banish nightmares — the most game-ready modern rule |
+| Aviar | First of the Sun (Drominad) | companion-based |
+| *rules-horror* | Threnody | the "Simple Rules" are a ready-made survival-horror kit |
+| — | Yolen | **last, forever**: Dragonsteel unpublished; nothing to build faithfully |
+
+---
+
+## Crew plan — multiple agents, one repo
+
+The owner runs several agent sessions against the same GitHub
+repository. The coordination layer is **git + GitHub Actions + the
+Issues board** — not chat memory. Any session can be closed and
+restarted; the repo is the state.
+
+| Phase | Milestones | Crew | Why the crew grows here |
+|---|---|---|---|
+| **A — Solo** | M0–M2 | Agent 1 | The spine (movement, realm switch, shared world state) must be one continuous thought. |
+| **B — Duo** | M3–M5 | Agents 1–2 | First true seam appears: world systems (health, enemies, gates) vs. content/UI (NPCs, journal, dialog). |
+| **C — Squad** | M6–M8 | Agents 1–5 | Content phase: kits, worlds, and lanes parallelize — each world is an isolated directory, each kit is one package. |
+
+**Rules of engagement (binding from Phase B onward):**
+
+1. **One work package = one branch = one agent = one PR**
+   (`wp/<id>-<slug>`).
+2. **The Issues board is the single source of truth and the owner's
+   cockpit.** Agents work only assigned packages (`agent:N` labels).
+3. **File ownership.** `OWNERSHIP.md` maps every directory to an
+   agent. One writer per file at a time. Need a change elsewhere? Open
+   an issue, tag the lane owner, keep moving.
+4. **Contracts are frozen.** `CONTRACTS.md` defines shared schemas
+   (world state, `PlanetConfig`, `cognitiveSkin`, `MagicKit`, journal
+   entries, enemy state machine). Changes only via a `contract`-labeled
+   PR by Agent 1, logged in `DECISIONS.md`.
+5. **CI is the reviewer.** The owner reads no code. Merge requires a
+   green headless suite + the PR body stating how the change was
+   verified, with a screenshot where visible.
+6. **Small and fast.** Merge within a day; rebase daily. A merge
+   conflict is a boundary bug: escalate to Agent 1, don't brute-force.
+7. **Serialize the shared.** Engine/state changes and **feel tuning**
+   go through one agent at a time (feel tuning = owner + one agent).
+8. **Blocked → switch; idle → test.** Never idle-wait; never invent
+   scope to fill time.
+9. **Questions batched** (`needs:answer` issues, answered at milestone
+   gates). **Playtests batched** (max 2 questions per agent per
+   milestone).
+10. **Parallelism multiplies throughput, never scope.** The scale
+    fence and the scene ledger are unchanged by crew size.
+
+**Roles in Phase C:** Agent 1 = integration lead / engine warden / AI
+systems (the Inquisitor is systemic). Agents 2–4 = content lanes
+(worlds and kits, assigned per milestone). Agent 5 = cross-cutting
+systems (star chart, journal, dialog framework) and verification.
+
+**Honest expectation:** five agents on well-split work ≈ **2–3×** a
+solo agent, not 5×. Badly split work goes *negative*. If seams close,
+drop back a phase.
+
+---
+
+## Milestones
+
+### M0 — Skeleton live on Pages
+**Crew: Agent 1 (solo).**
+- [ ] Repo: Vite + pinned Three.js, `.nojekyll`, `base: './'`
+- [ ] GitHub Actions → GitHub Pages deploy, green
+- [ ] Blank world: sky gradient, ground plane, fog
+- [ ] Debug overlay (FPS, distance-from-origin, seed) + empty tuning panel
+- [ ] Headless smoke test in CI (no console errors, screenshot)
+- [ ] "Unofficial fan work" notice in README + credits
+
+**Exit:** the owner opens the live URL on phone and desktop and sees
+the right mood.
+
+### M1 — Roshar on foot
+**Crew: Agent 1 (solo).**
+- [ ] First-person walking: custom collision, fixed-timestep sim, seeded RNG
+- [ ] Touch controls (stick + look-drag) alongside keyboard/mouse
+- [ ] Terrain: plateau/chasm kit; **one landmark silhouette** readable through fog
+- [ ] Ambient spren (motes, ribbons)
+- [ ] Tuning panel v1: move speed, jump, gravity, look sensitivity, fog density
+- [ ] Feel settings persist (URL/localStorage)
+
+**Exit:** walking around Roshar's patch is pleasant. *(Owner playtest:
+movement feel; landmark readability.)*
+
+### M2 — The Cognitive Realm (Shadesmar)
+**Crew: Agent 1 (solo).**
+- [ ] Realm shift (instant, clean transition beat)
+- [ ] `cognitiveSkin` config introduced — Roshar's skin: bead sea, flames, obsidian inversion, black sky, **fixed white sun (no day/night)**
+- [ ] Orthographic camera + abstraction pass (beads, flames, connection lines)
+- [ ] One interaction only solvable there (reveal a route across the bead sea)
+- [ ] Shifting back shows the world changed (state, not illusion)
+
+**Exit:** the switch feels like a tool you think with. *(Owner
+playtest: is the realm legible and beautiful? Does the inversion read?)*
+**Contracts frozen** (`CONTRACTS.md`, `OWNERSHIP.md`) so Phase B can
+be briefed from files alone.
+
+### M3 — Encounters, health & NPCs
+**Crew: Agents 1–2** — the crew grows here.
+- [ ] WP-3.1 Health/damage/death/beacon respawn + combat sliders — **Agent 1**
+- [ ] WP-3.2 Enemy framework: blocky rigs, procedural animation, state machine (idle/alert/hunt/attack/disengage) — **Agent 1**
+- [ ] WP-3.3 First archetypes (2, Roshar-flavored, owner design pass) — **Agent 2**
+- [ ] WP-3.4 Dialog NPC framework + 1–2 NPCs (JSON dialogue data) — **Agent 2**
+- [ ] WP-3.5 Fairness-contract tests (telegraph-before-damage assertions) — **Agent 2**
+
+**Exit:** one encounter that is tense, readable, and escapable.
+*(Owner playtest: fair or annoying? Is the telegraph clear on a
+phone?)*
+
+### M4 — Perpendicularity & the vertical slice
+**Crew: Agents 1–2.**
+- [ ] WP-4.1 Perpendicularity gate: find (via realm clues) → open — **Agent 1**
+- [ ] WP-4.2 Journal UI, scanning, save schema — **Agent 2**
+- [ ] WP-4.3 Hop to world #2 (stub) — **Agent 1**
+- [ ] WP-4.4 Full-run regression suite — **Agent 2**
+- [ ] **Vertical slice complete** (whole crew)
+
+**Exit — the honest demo:** a stranger can land, walk, scan three
+things, survive one encounter, shift realms, solve, open the
+Perpendicularity, and hop — ~10 minutes, no crashes, on a phone.
+
+### M5 — The Rosharan system
+**Crew: Agents 1–2.**
+- [ ] WP-5.1 Ashyn: design pass with owner (mostly barren, fertile
+  patches; disease-folklore flavor without mechanics bloat) — **Agent 1**
+- [ ] WP-5.2 Braize: cold world, self-aware Splinters (spren rig) — **Agent 2**
+- [ ] WP-5.3 System chart v1 (Rosharan system, 10 gas giants as scenery) — **Agent 2**
+- [ ] WP-5.4 Scale canary + long-session regression — **Agent 1**
+
+**Exit:** three worlds read as one system, each memorable by its rule.
+
+### M6 — Magic & attunement
+**Crew: Agents 1–5** — the crew grows here.
+- [ ] WP-6.1 `MagicKit` contract + registry + attunement menu + binding tables + HUD relabel — **Agent 1**
+- [ ] WP-6.2 **Radiant kit** (1–2 exploration abilities; scope locked with owner) — **Agent 2**
+- [ ] WP-6.3 Resource system (Stormlight drain/refill; beacon interactions) — **Agent 3**
+- [ ] WP-6.4 Kit VFX/audio pass; debug kit (no powers, for swap tests) — **Agent 4**
+- [ ] WP-6.5 Binding-table snapshot tests + kit state-machine tests — **Agent 5**
+
+**Exit:** the menu swap is instant and clear; bindings visibly change
+per kit. *(Owner playtest: is the swap satisfying? Is the vulnerable
+window fair?)*
+
+### M7 — The emberdark & Scadrial
+**Crew: Agents 1–5.**
+- [ ] WP-7.1 Emberdark crossing ceremony (canned; distinct from planet hops) — **Agent 1**
+- [ ] WP-7.2 Scadrial world: verticality + metal-lines rule; ash day/mist night; monolith landmark — **Agent 2**
+- [ ] WP-7.3 Scadrian `cognitiveSkin`: Expanse of the Vapors — **Agent 3**
+- [ ] WP-7.4 **Allomancy kit** (steelpush/ironpull traversal + verbs) — **Agent 4**
+- [ ] WP-7.5 **Inquisitor AI**: FOV-aware ambusher, fairness spec, deterministic AI tests — **Agent 1**
+- [ ] WP-7.6 Star chart v2 + journal completion + integration — **Agent 5**
+
+**Exit:** the ambush hunt is the scariest, fairest thing in the game.
+*(Owner playtest: thrilling or maddening? Tune via sliders.)*
+
+### M8 — Polish & ship
+**Crew: Agents 1–5.**
+- [ ] WP-8.1 Mobile performance pass (owner's real phone) — **Agent 1**
+- [ ] WP-8.2 Journal art pass (in-world look, not a spreadsheet) — **Agent 2**
+- [ ] WP-8.3 Accessibility: remap controls, reduced-motion option, readable text — **Agent 3**
+- [ ] WP-8.4 Audio pass: ambient beds, kit cues, enemy tells, footfalls — **Agent 4**
+- [ ] WP-8.5 Credits, README, final "unofficial fan work" text — **Agent 5**
+- [ ] WP-8.6 Final integration + tagged release: **v1.0 demo** — **Agent 1**
+
+---
+
+## Planet template
+
+Planets live at `src/worlds/<name>/`. This template is also the **PR
+contract** for a world work package. One page per planet in
+`design/planets/<name>.md`:
+
+- **Name & inspiration** (canon world or original)
+- **The rule** — the one mechanic this planet teaches and tests
+- **Palette** — 3–5 colors + sky gradient + fog color/density
+- **Landmark** — the one silhouette visible from most of the surface
+- **`cognitiveSkin`** — what objects/living/water/land become; light source
+- **Enemies** — ≤3 archetypes; which one cannot be fought
+- **NPCs** — 0–2; dialogue file paths
+- **Perpendicularity** — where; what opening it requires
+- **Sound bed** — 1–2 ambient loops
+- **The one question** — the single thing only playtesting can answer
+
+---
+
+## Expansion ladder (all nine systems)
+
+The fiction's horizon and the journal's "known but unvisited" entries.
+v1.0 ships on the ≤6-scene ledger (Roshar, Ashyn, Braize, Scadrial +
+satellites). Each later system is a **content package, not a project**.
+
+| # | System | Worlds of note | Kits / hooks | Notes |
+|---|---|---|---|---|
+| 1 | **Rosharan** (build first) | Roshar, Ashyn, Braize | Surgebinding | v1's system; deepest canon = least invention |
+| 2 | **Scadrian** | Scadrial | Allomancy | M7; Inquisitors; the Expanse of the Vapors |
+| 3 | **Nalthian** | Nalthis | Awakening | Breath + color as resource |
+| 4 | **Selish** | Sel | AonDor | location-programmed magic; big kit |
+| 5 | **Taldain** | Taldain | Sand mastery | dayside/nightside duality |
+| 6 | **Drominad** | First of the Sun | Aviar | island/companion framing |
+| 7 | **Threnodite** | Threnody | Simple Rules | survival-horror ruleset, ready-made |
+| 8 | **UTol** | Komashi, UTol | Painting (nightmares) | most game-ready modern rule |
+| 9 | **Yolish** | Yolen | — | **last, forever**: unpublished source material |
+
+---
+
+## Verification protocol
+
+Every agent provides, per work package and per milestone:
+
+1. **Evidence** — what tests ran, what they assert, screenshots.
+2. **A playtest checklist** — max 3 questions, batched at the milestone
+   gate (max 2 per agent).
+3. **Nothing claimed about feel, motion, or "genius."** Those are the
+   owner's calls, always.
+4. **PR gate** — green headless suite required to merge; CI is the
+   reviewer.
+
+Additions for this scope:
+
+- **AI assertions:** approach-angle distribution (outside view cone),
+  cue-before-damage, disengage-when-faced. Rules are testable even
+  though "genius" is not.
+- **Binding snapshots:** every kit's binding table is snapshot-tested
+  so HUD and input never drift apart.
+- **Enemy fairness tests:** every damage source must emit its
+  telegraph event in headless logs before the damage event.
+- **Combat is feel:** all combat numbers live in the tuning panel.
+
+The owner provides: desktop + phone play sessions, answers to the
+batched checklist, and tuned slider values pasted back as config.
+
+---
+
+## Known traps
+
+- **Float precision.** Pocket scale deletes it — if it reappears, the
+  fence was broken, not the engine.
+- **Depth fighting.** Fog + sane camera planes + no coplanar surfaces.
+- **Atmosphere transitions.** Seamless flight is a studio-scale shader
+  problem with no automated test. Landings are canned on purpose.
+- **Content volume.** Generated ≠ curated. Separate *maps* are free;
+  separate *content* is not.
+- **Screenshot-blindness.** Most of the above look *finished* in a
+  still image. The owner playtests motion; the agent never scores it.
+- **"Genius AI."** Unfalsifiable goals produce confident, disappointing
+  work. Genius here = explicit rules + telegraphs + owner tuning.
+- **Combat feel is the deepest sink.** Wind-ups, hit feedback, and
+  knockback are pure playtest territory. Sliders first, guesses never.
+- **Kit drift.** Bindings, HUD, and costs across kits decay without
+  snapshot tests.
+- **Merge chaos (many agents).** The contract/ownership rules are what
+  make parallelism net-positive. Five agents ≠ 5× (expect 2–3×).
+
+---
+
+## Legal
+
+Unofficial, non-commercial fan work inspired by Brandon Sanderson's
+Cosmere. Not endorsed by Dragonsteel. **No monetization of any kind
+(ads, donations, tips, paywalls, merch) — ever**, matching both the
+author's fan-work policy and GitHub Pages' free-hosting terms. All
+assets are original; no official art, text, or standalone symbols are
+copied. See `NOTICE` for details.
