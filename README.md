@@ -87,9 +87,18 @@ walks the same seed in both realms to the same entity hash; the browser test
 steps into the pool and checks the tick, the entity hash and the player position
 across the fade). Walking, jumping and looking all still work in the lens;
 `Realm transition (ms)` sets the length of the fade, and `Cognitive lens height`
-sets how much of the world it shows. The *look* of the Cognitive realm — its
-palette and fog, and what objects and living things become — is per-world data
-(`cognitiveSkin` in the map), and arrives with the first authored world.
+sets how much of the world it shows.
+
+**The other realm has a look, and it is per-world data.** `cognitiveSkin` says
+what *this* world's subastral is made of, because canon says every world's is
+different — Shadesmar is Roshar's, and it is glass beads, while Scadrial's is
+mist. Roshar is the first world to author one (`src/worlds/roshar/`, reached with
+`?map=roshar`): objects become dark glass beads, the living become flames, water
+inverts to obsidian, the land is a bead sea, and the sky is black with a single
+frail sun that never moves. The guard that keeps it honest is a test, not a
+comment: **beads and the bead sea are refused on any map whose system is not
+`rosharan`**, and a map with no authored skin draws nothing at all — the test
+range behaves exactly as it did before skins existed.
 
 **Camera:** third person by default — you are looking at your character from
 behind, and the camera slides closer when a hill or a rock is in the way. Look
@@ -112,7 +121,8 @@ buttons (add `?dev=1` to the URL) give the same tools.
 | parameter | example | meaning |
 |---|---|---|
 | `seed` | `?seed=emberdark` or `?seed=4242` | rebuilds the map deterministically |
-| `palette` | `?palette=cold-ridge` | atmosphere variant (`ashen-basin`, `mist-sea`, `cold-ridge`) |
+| `map` | `?map=roshar` | which world: `blank-basin` (the M0 test range, default) or `roshar` |
+| `palette` | `?palette=cold-ridge` | atmosphere variant — the names belong to the loaded map (`ashen-basin`, `mist-sea`, `cold-ridge` on the test range; `storm-shore`, `highstorm-light` on Roshar) |
 | `walk`, `jump`, `gravity`, `accel`, `bob` | `?walk=9&jump=2.5&bob=0` | how walking feels |
 | `striderate` | `?striderate=1.4` | how fast arms and legs may swing (cycles/second) |
 | `sprint` | `?sprint=1.5` | sprint speed multiplier (1–3, default 2.2) |
@@ -186,7 +196,9 @@ src/core/                  logic only, no DOM, no three.js (all headless-tested)
   look.js / math.js        look maths, clamped and NaN-proof
   settings.js              tunables: schema, URL/localStorage, clamping
   gate.js                  the Perpendicularity: where it is, and when it fires
-  maps/index.js            map data: palettes, landmark, prop policy, cognitiveSkin
+  maps/index.js            map registry: which worlds exist, and how to pick one
+  skin.js                  the cognitiveSkin contract + the canon guard
+  worlds/roshar/           the first authored world: palette, landmark, its skin
   terrain-color.js         per-facet ground colouring (world-space, tested)
   snapshot.js              the debug snapshot shape (window.__debug, overlay, reports)
   frame-stats.js           frame-spike counters for the overlay

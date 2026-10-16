@@ -81,12 +81,33 @@ export function createSky({ variant }) {
       mesh.position.set(position.x, position.y, position.z);
     },
     setVariant(next) {
-      material.uniforms.uHorizon.value.set(next.sky.horizon);
-      material.uniforms.uZenith.value.set(next.sky.zenith);
-      material.uniforms.uHaze.value.set(next.sky.haze);
-      material.uniforms.uSunColor.value.set(next.sun.color);
-      material.uniforms.uSunDir.value.copy(sunDirection(next));
-      material.uniforms.uSunDisc.value = next.sun.discSize ?? 0.9994;
+      this.setBackdrop({
+        horizon: next.sky.horizon,
+        zenith: next.sky.zenith,
+        haze: next.sky.haze,
+        sunColor: next.sun.color,
+        sunDir: next.sun.direction,
+        sunDisc: next.sun.discSize ?? 0.9994,
+        sunStrength: 1,
+      });
+    },
+    /**
+     * Point the sky at a different world entirely.
+     *
+     * The shader is the same sky in both realms — what changes is what the sky
+     * is made of, and that is per-world data (a cognitive skin's `light` block:
+     * a black sky with one frail white sun that never moves, on Roshar). This is
+     * deliberately dumb: it takes colours and a direction, and knows nothing
+     * about realms or worlds. The policy lives in world-view.
+     */
+    setBackdrop({ horizon, zenith, haze, sunColor, sunDir, sunDisc, sunStrength = 1 }) {
+      material.uniforms.uHorizon.value.set(horizon);
+      material.uniforms.uZenith.value.set(zenith);
+      material.uniforms.uHaze.value.set(haze);
+      material.uniforms.uSunColor.value.set(sunColor);
+      material.uniforms.uSunDir.value.set(sunDir.x, sunDir.y, sunDir.z).normalize();
+      material.uniforms.uSunDisc.value = sunDisc;
+      material.uniforms.uSunStrength.value = sunStrength;
     },
     dispose() {
       geometry.dispose();

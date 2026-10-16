@@ -45,6 +45,7 @@ export const SNAPSHOT_KEYS = Object.freeze([
   'triangles',
   'gl',
   'ui',
+  'skin',
   'settings',
   'settingsHint',
   // Which of the two player characters is on screen: 'boy' or 'girl'.
@@ -182,6 +183,16 @@ export function buildSnapshot({
     settings: { ...settings },
     settingsHint: describeSettings(settings),
     avatarVariant: render.avatarVariant === 'girl' ? 'girl' : 'boy',
+    // The cognitive manifestation the renderer is actually drawing, if any. A
+    // map with no authored skin reports `unassigned` and draws no layer.
+    skin: {
+      id: render.skin?.id ?? map.cognitiveSkin?.id ?? map.id,
+      system: render.skin?.system ?? map.system ?? 'unassigned',
+      objectForm: render.skin?.objectForm ?? 'unassigned',
+      authored: Boolean(render.skin?.authored),
+      beads: Number.isFinite(render.skin?.beads) ? render.skin.beads : 0,
+      souls: Number.isFinite(render.skin?.souls) ? render.skin.souls : 0,
+    },
   };
 }
 

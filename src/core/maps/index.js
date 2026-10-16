@@ -1,3 +1,5 @@
+import { roshar } from '../../worlds/roshar/index.js';
+
 /**
  * Map registry — world data, no rendering code.
  *
@@ -12,17 +14,9 @@
  * world replaces it in a later milestone; nothing here invents canon.
  */
 
-/** Allowed values for cognitiveSkin fields (see AGENT_PROMPT.md §4). */
-export const SKIN_FORMS = Object.freeze({
-  objectForm: ['unassigned', 'glass-beads', 'misty-figures', 'painted-still'],
-  livingForm: ['unassigned', 'flame', 'glow'],
-  waterForm: ['unassigned', 'solid-obsidian', 'solid-dark-stone', 'liquid'],
-  landForm: ['unassigned', 'bead-sea', 'misty-fluid', 'solid'],
-  lightSource: ['unassigned', 'black-sky-frail-white-sun', 'drifting-mist-light'],
-});
-
-/** cognitiveSkin.objectForm === 'glass-beads' requires this system (canon anchor). */
-export const BEAD_SYSTEM = 'rosharan';
+// The skin vocabulary and the canon guard live in core/skin.js — one definition,
+// re-exported here because a map's data is read next to the map registry.
+export { SKIN_FORMS, BEAD_SYSTEM } from '../skin.js';
 
 const blankBasin = {
   id: 'blank-basin',
@@ -148,7 +142,13 @@ const blankBasin = {
   ],
 };
 
-export const MAPS = Object.freeze({ [blankBasin.id]: blankBasin });
+/**
+ * Every world the game knows about. `blank-basin` stays the default while the
+ * owner's pinned playtest config (`palette=cold-ridge` and friends) belongs to
+ * it — Roshar is reachable with `?map=roshar` and becomes a candidate for the
+ * default the moment the owner says so.
+ */
+export const MAPS = Object.freeze({ [blankBasin.id]: blankBasin, [roshar.id]: roshar });
 
 export const DEFAULT_MAP_ID = blankBasin.id;
 
@@ -160,6 +160,11 @@ export function getMap(id) {
 
 export function listMapIds() {
   return Object.keys(MAPS);
+}
+
+/** Is this a map id the game can load? Used by the `?map=` flag. */
+export function hasMap(id) {
+  return Object.prototype.hasOwnProperty.call(MAPS, id);
 }
 
 export function listVariants(mapId) {
