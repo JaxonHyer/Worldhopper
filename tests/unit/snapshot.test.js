@@ -106,7 +106,7 @@ test('the snapshot reports the cognitive skin the renderer is drawing', () => {
       triangles: 2,
       gl: { version: 'stub', gpu: 'stub' },
       avatarVariant: 'boy',
-      skin: { id: 'roshar-shadesmar', system: 'rosharan', objectForm: 'glass-beads', authored: true, beads: 2025, souls: 31, flame: true },
+      skin: { id: 'roshar-shadesmar', system: 'rosharan', objectForm: 'glass-beads', authored: true, beads: 2025, souls: 31, flame: true, npcFlames: 2 },
     },
     ui: { overlay: false, panel: false, credits: false },
     ready: true,
@@ -115,12 +115,18 @@ test('the snapshot reports the cognitive skin the renderer is drawing', () => {
   assert.equal(snapshot.skin.objectForm, 'glass-beads');
   assert.equal(snapshot.skin.authored, true);
   assert.equal(snapshot.skin.beads, 2025);
+  // WP-3.4: the renderer's NPC flame count reaches the snapshot. Without this
+  // line the renderer reports `npcFlames` and the snapshot drops it — the
+  // assert in tests/e2e/npc.spec.js then reads `undefined` and reports a
+  // matcher error instead of the thing under test.
+  assert.equal(snapshot.skin.npcFlames, 2);
 
   // And a map with no skin says so, rather than reporting a blank.
   const plain = realSnapshot();
   assert.equal(plain.skin.authored, false);
   assert.equal(plain.skin.objectForm, 'unassigned');
   assert.equal(plain.skin.beads, 0);
+  assert.equal(plain.skin.npcFlames, 0, 'a world with no manifestation has no NPC flames to report');
 });
 
 test('the snapshot drops no UI field it is given', () => {

@@ -192,6 +192,12 @@ export function buildSnapshot({
       authored: Boolean(render.skin?.authored),
       beads: Number.isFinite(render.skin?.beads) ? render.skin.beads : 0,
       souls: Number.isFinite(render.skin?.souls) ? render.skin.souls : 0,
+      // How many NPC flames the cognitive layer drew (WP-3.4). Mapped here
+      // because this object is a whitelist: a field the renderer starts
+      // reporting and this block does not is invisible to every test that reads
+      // the snapshot — which is exactly how the NPC flame assertion came back
+      // `undefined` in CI run 38931025849 instead of failing on the renderer.
+      npcFlames: Number.isFinite(render.skin?.npcFlames) ? render.skin.npcFlames : 0,
     },
   };
 }
