@@ -90,16 +90,27 @@ test('captures the deliverable screenshots', async ({ page, isMobile }, testInfo
   }
 
   // Looking down at the character, which is where a boom camera earns its keep.
+  //
+  // The walk is measured in *distance*, not seconds. The drag below is wall
+  // clock — the same ten mouse steps take longer on a loaded runner — and a
+  // timed walk turned that into extra walking: on CI run 38929475820 the window
+  // ran 1.58 s, the character reached the pool at 1.34 s, and the shot came back
+  // as the cognitive realm. Walk to a distance, stop, then move the camera: the
+  // pose is the character's, the subject is the camera angle.
   await gotoGame(page, '?camdist=5.5');
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(900);
+  await expect
+    .poll(async () => (await readDebug(page)).player.z, { timeout: 10_000 })
+    .toBeLessThan(-5);
+  await page.keyboard.up('KeyW');
   await page.mouse.move(800, 450);
   await page.mouse.down();
   await page.mouse.move(800, 700, { steps: 10 });
   await page.mouse.up();
-  await page.waitForTimeout(180); // still short of the pool edge at 1.08 s
-  await page.keyboard.up('KeyW');
-  expect(await isPhysical(page), 'the pool must not have swallowed the walk').toBe(true);
+  await page.waitForTimeout(180); // let the pitch land before the capture
+  const walked = await readDebug(page);
+  expect(walked.player.z, 'the walk must stop short of the pool edge at 10.6 m').toBeGreaterThan(-10.6);
+  expect(walked.realm, 'the pool must not have swallowed the walk').toBe('physical');
   await saveShot(page, 'third-person-looking-down', testInfo);
 
   // The face. Walking backwards turns the body to face the camera — this is the
