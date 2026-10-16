@@ -85,6 +85,22 @@ function realSnapshot(overrides = {}) {
   });
 }
 
+test('the snapshot drops no UI field it is given', () => {
+  // `ui` is a whitelist, so a field can be handed to the snapshot, silently
+  // dropped, and then read as `undefined` by every test that asks for it. That
+  // is what happened to `fade`/`fades` on the M2 branch: the pool's own spec
+  // failed with "Expected: false, Received: undefined" and the game was fine.
+  const ui = { overlay: false, panel: true, credits: false, touch: true, fade: true, fades: 2 };
+  const snapshot = realSnapshot({ snapshot: { ui } });
+  assert.deepEqual(
+    Object.keys(snapshot.ui).sort(),
+    Object.keys(ui).sort(),
+    'the snapshot must report exactly the ui fields the game hands it',
+  );
+  assert.equal(snapshot.ui.fade, true);
+  assert.equal(snapshot.ui.fades, 2);
+});
+
 test('the snapshot carries every documented key', () => {
   const snapshot = realSnapshot();
   for (const key of SNAPSHOT_KEYS) {

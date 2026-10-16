@@ -358,42 +358,63 @@ drop back a phase.
 
 ## Milestones
 
-### M0 — Skeleton live on Pages
+### M0 — Skeleton live on Pages ✅
 **Crew: Agent 1 (solo).**
-- [ ] Repo: Vite + pinned Three.js, `.nojekyll`, `base: './'`
-- [ ] GitHub Actions → GitHub Pages deploy, green
-- [ ] Blank world: sky gradient, ground plane, fog
-- [ ] Debug overlay (FPS, distance-from-origin, seed) + empty tuning panel
-- [ ] Headless smoke test in CI (no console errors, screenshot)
-- [ ] "Unofficial fan work" notice in README + credits
+- [x] Repo: Vite + pinned Three.js, `.nojekyll`, `base: './'`
+- [x] GitHub Actions → GitHub Pages deploy, green
+- [x] Blank world: sky gradient, ground plane, fog
+- [x] Debug overlay (FPS, distance-from-origin, seed) + empty tuning panel
+- [x] Headless smoke test in CI (no console errors, screenshot)
+- [x] "Unofficial fan work" notice in README + credits
 
 **Exit:** the owner opens the live URL on phone and desktop and sees
-the right mood.
+the right mood. — **signed off** (PR #1, merged `93d9147`).
 
 ### M1 — Roshar on foot
 **Crew: Agent 1 (solo).**
-- [ ] First-person walking: custom collision, fixed-timestep sim, seeded RNG
-- [ ] Touch controls (stick + look-drag) alongside keyboard/mouse
+- [x] Walking: custom collision, fixed-timestep sim, seeded RNG — **third person is
+      the default view**, the owner's call after playing M1 (`?view=first` keeps the eye view)
+- [x] Touch controls (stick + look-drag) alongside keyboard/mouse — plus a jump
+      button, a sprint toggle and mouse capture on desktop
 - [ ] Terrain: plateau/chasm kit; **one landmark silhouette** readable through fog
+      — the landmark is in ("the Grey Needle"); the *terrain kit* is still the M0
+      rolling basin, and this map is still a non-canon test range
 - [ ] Ambient spren (motes, ribbons)
-- [ ] Tuning panel v1: move speed, jump, gravity, look sensitivity, fog density
-- [ ] Feel settings persist (URL/localStorage)
+- [x] Tuning panel v1: move speed, jump, gravity, look sensitivity, fog density
+- [x] Feel settings persist (URL/localStorage)
+
+**Owner notes delivered on top of this milestone** (their requests, all accepted):
+third person · a blocky, pixel-textured player with a Minecraft-style face that
+turns to face the way it walks · generic clothes · an alternate girl character
+behind one boolean (`girlPlayer`) · a sprint control (hold Shift on desktop, a
+toggle button bottom-left on a phone) · a walk-animation cap so the legs do not
+buzz at 7.9 m/s.
 
 **Exit:** walking around Roshar's patch is pleasant. *(Owner playtest:
-movement feel; landmark readability.)*
+movement feel; landmark readability.)* — **signed off** (PRs #2–#6).
 
-### M2 — The Cognitive Realm (Shadesmar)
+### M2 — The Cognitive Realm (Shadesmar) — **in progress**
 **Crew: Agent 1 (solo).**
-- [ ] Realm shift (instant, clean transition beat)
-- [ ] `cognitiveSkin` config introduced — Roshar's skin: bead sea, flames, obsidian inversion, black sky, **fixed white sun (no day/night)**
-- [ ] Orthographic camera + abstraction pass (beads, flames, connection lines)
+- [x] Realm shift — **through the Perpendicularity, not a key binding** (owner,
+      2026-10-15: "make a Perpendicularity by spawn with a fade to black
+      transition. Remove the realm swap button and key binding."). The pool sits
+      14 m from the spawn, the shift is edge-triggered (walk out and back in to
+      shift again), and the transition length is a feel slider
+      (`Realm transition (ms)`, `?fadems=`)
+- [ ] `cognitiveSkin` config introduced — the config, the per-map contract and
+      the canon guard (beads are Rosharan-only) are **in**; Roshar's own skin is
+      not authored yet, because the first authored world is not in the repo
+- [ ] Orthographic camera + abstraction pass — the orthographic, high-angle lens
+      is **in** (fixed diagram pitch, zoom as a setting, never under the terrain);
+      the abstraction pass (beads, flames, connection lines) is **not**
 - [ ] One interaction only solvable there (reveal a route across the bead sea)
 - [ ] Shifting back shows the world changed (state, not illusion)
+- [ ] **Contracts frozen** (`CONTRACTS.md`, `OWNERSHIP.md`) so Phase B can be
+      briefed from files alone
 
 **Exit:** the switch feels like a tool you think with. *(Owner
 playtest: is the realm legible and beautiful? Does the inversion read?)*
-**Contracts frozen** (`CONTRACTS.md`, `OWNERSHIP.md`) so Phase B can
-be briefed from files alone.
+— the switch itself was accepted on 2026-10-15 ("the realm-swap was perfect").
 
 ### M3 — Encounters, health & NPCs
 **Crew: Agents 1–2** — the crew grows here.
@@ -410,6 +431,9 @@ phone?)*
 ### M4 — Perpendicularity & the vertical slice
 **Crew: Agents 1–2.**
 - [ ] WP-4.1 Perpendicularity gate: find (via realm clues) → open — **Agent 1**
+      *(the pool itself — geometry, walk-in trigger, fade to black — shipped early
+      in M2 at the owner's request; what remains here is the puzzle: it starts
+      closed, and only realm clues tell you where and how to open it.)*
 - [ ] WP-4.2 Journal UI, scanning, save schema — **Agent 2**
 - [ ] WP-4.3 Hop to world #2 (stub) — **Agent 1**
 - [ ] WP-4.4 Full-run regression suite — **Agent 2**

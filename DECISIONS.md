@@ -438,3 +438,84 @@ this to stay oriented; agents add to it in the same PR as the change.
   stay in one table, and no game logic reads a key directly. The swap UI and the
   kit binding tables are M6 work (the brief's `MagicKit` contract); the ground is
   being kept ready for them now.
+
+## M2 — the Perpendicularity is the realm gate (owner, 2026-10-15)
+
+- **The realm shift is a place, not a binding.** The owner: "make a
+  Perpendicularity by spawn with a fade to black transition. Remove the realm
+  swap button and key binding." So the F key and the phone's *realm* button are
+  gone: the shift happens when you **walk into the pool**, which is what canon
+  says a Perpendicularity is (a gate between realms — ROADMAP.md Canon anchors).
+  The old binding was not deleted and replaced with a new one on purpose; the
+  only input that shifts realms is walking.
+- **The pool is map data, drawn as furniture.** `map.perpendicularity` holds its
+  id, position, radius and `open` flag; the renderer builds a disc whose
+  vertices sample `terrainHeight`, so a pool follows a slope like liquid instead
+  of floating over it or fighting the ground it lies on (3 cm proud, the fence's
+  coplanar rule). Its colour is per palette variant, like fog and sky. `open` is
+  already honoured by the gate — M4's "find it, then open it" is a puzzle about
+  turning that flag on, not a rewrite.
+- **The trigger is an edge, and arrivals are quiet.** `gateStep` fires once per
+  *visit*: standing in the pool does not shift you every frame, and arriving in
+  the pool — which is where a shift leaves you — does not fire straight back. A
+  transition in flight blocks the gate entirely, so a double fire cannot cancel
+  itself out behind a black screen.
+- **The world holds still behind the fade.** While the fade is active the sim
+  does not step. A transition is a beat: nothing may happen to the player that
+  they cannot see happening. It also means the fade can never be a place where a
+  player walks off a cliff in the dark.
+- **The fade is a beat with a length, and the length is a setting.**
+  `Realm transition (ms)` (0–2000, default 420) is a live slider and mirrored in
+  the URL (`?fadems=`) — feel numbers are the owner's, per the working
+  agreements. A `prefers-reduced-motion: reduce` session caps it at 120 ms: it is
+  the one piece of this UI that has to respect that preference (M8 lists the
+  option; honouring it costs three lines).
+- **A realm can still be set without walking, but only off the player's path.**
+  `?realm=cognitive` starts a session in the lens and `__worldhopper.realm(id)`
+  sets it for the harness. Both exist for screenshots and tests; neither is
+  reachable by playing, which is the point of removing the binding.
+- **Named actions, ready for kits.** The shift is not a key check inside game
+  logic: the gate is a core function, the input layer owns keys, and hotkeys live
+  in one table. When kits bring their own binding tables (owner's PS, M6), the
+  Perpendicularity is unaffected — it is geometry, not a binding.
+
+## M2 process — what an all-green run has to mean (agent, 2026-10-16)
+
+The Perpendicularity slice hid four bugs, and the expensive ones were not in the
+pool: two of them meant the game did not start at all, and CI could not say so.
+`ready` is only set once the frame loop has run cleanly, so anything thrown
+while the game starts leaves every headless test waiting out its own 30-second
+timeout. The symptom was "the smoke test is slow", and the first run of the
+slice was cancelled at the job's 25-minute cap with nothing published at all —
+because a cancelled job skips every `if: always()` step after it.
+
+Three changes, so that failure mode cannot come back:
+
+- **A stalled run publishes its evidence.** Playwright stops itself at 11
+  minutes and the smoke step has its own 14-minute guard, so an overrun ends
+  with a report, screenshots and per-test timings instead of a cancelled job.
+  The CI report also lists the eight slowest tests on every run, green or red:
+  "the step ran out of clock" is invisible from outside otherwise.
+- **A failure mode that affects everything stops the run.** `maxFailures: 6` in
+  CI. Eighty identical 30-second timeouts say nothing that six did not.
+- **A lint step, correctness only.** `eslint.config.mjs`: `no-undef`,
+  `no-unused-vars`, duplicate keys, unreachable code — no formatting, no style,
+  nothing that could be silenced for tidiness. It runs before the browser is
+  ever launched, and it caught a live bug in the very commit that added it.
+  Both dead-game bugs were a name that did not exist, which is precisely what a
+  parser answers in milliseconds and a headless suite cannot answer at all.
+
+Two smaller consequences worth keeping:
+
+- **The debug snapshot is a whitelist, and a dropped field reads as
+  `undefined`.** That cost a run in slice 1 (`realm`) and another here
+  (`fade`/`fades`). There is now a test that compares the keys the game hands
+  the snapshot against the keys it returns, so the next field added on one side
+  cannot vanish on the other.
+- **Harness walks are wall clock, sim distances are not.** A screenshot walk
+  that stops "2.7 m short of the pool" in the sim is not 2.7 m short in the
+  browser: key dispatch latency lands on top, and the walk crossed into the
+  realm shift — which would have filed pictures of the lens under the physical
+  world's name. The screenshot specs now assert the realm *before* taking each
+  picture, so a walk that goes wrong fails instead of quietly mislabelling the
+  owner's evidence.

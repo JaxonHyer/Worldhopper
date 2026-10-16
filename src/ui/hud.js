@@ -10,11 +10,11 @@
 const HINT_AUTO_HIDE_MS = 12000;
 
 export const HINTS = Object.freeze({
-  touch: 'left thumb: move · right thumb: look · jump · sprint · realm',
+  touch: 'left thumb: move · right thumb: look · jump · sprint · walk into the pool',
   desktopUncaptured:
-    'click the world to capture the mouse · Esc to release · W A S D move · shift run · F realm',
-  desktopCaptured: 'mouse captured · Esc releases it · shift runs · F realm',
-  desktopNoCapture: 'drag to look · W A S D move · shift run · F realm',
+    'click the world to capture the mouse · Esc to release · W A S D move · shift run · walk into the pool',
+  desktopCaptured: 'mouse captured · Esc releases it · shift runs · the pool shifts realms',
+  desktopNoCapture: 'drag to look · W A S D move · shift run · walk into the pool',
 });
 
 export function createHud({ mount, onJump, coarsePointer = false }) {
@@ -40,16 +40,6 @@ export function createHud({ mount, onJump, coarsePointer = false }) {
     event.preventDefault();
     onJump?.();
   });
-
-  // Realm (M2): the core verb of the game, so it is a button, not a gesture.
-  // Above the jump button on the right: both are taps, and neither can be
-  // confused with the stick.
-  const realm = document.createElement('button');
-  realm.type = 'button';
-  realm.className = 'touch-realm';
-  realm.textContent = 'realm';
-  realm.setAttribute('aria-label', 'Shift realm');
-  realm.hidden = !coarsePointer;
 
   // Sprint, bottom-left: a *toggle*, because the thumb that would hold it is
   // already on the stick. Desktop holds shift instead, so this is touch chrome
@@ -82,7 +72,7 @@ export function createHud({ mount, onJump, coarsePointer = false }) {
   realmBadge.hidden = true;
   realmBadge.textContent = 'cognitive';
 
-  root.append(stick, jump, sprint, realm, crosshair, realmBadge, hint);
+  root.append(stick, jump, sprint, crosshair, realmBadge, hint);
   mount.appendChild(root);
 
   let hideTimer = null;
@@ -93,7 +83,6 @@ export function createHud({ mount, onJump, coarsePointer = false }) {
     knob,
     jump,
     sprint,
-    realm,
     realmBadge,
     crosshair,
     get hintVisible() {
@@ -110,7 +99,6 @@ export function createHud({ mount, onJump, coarsePointer = false }) {
     setTouchControls(visible) {
       jump.hidden = !visible;
       sprint.hidden = !visible;
-      realm.hidden = !visible;
       root.classList.toggle('is-touch', visible);
       if (visible) api.hideHint();
     },

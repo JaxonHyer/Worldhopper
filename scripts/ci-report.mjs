@@ -24,12 +24,6 @@ export function readReport(file = DEFAULT_REPORT) {
   }
 }
 
-function collectSpecs(suite, out = []) {
-  for (const spec of suite.specs ?? []) out.push(spec);
-  for (const child of suite.suites ?? []) collectSpecs(child, out);
-  return out;
-}
-
 function flatten(report) {
   const results = [];
   const visit = (suite, trail) => {
@@ -73,11 +67,19 @@ export function summarizeReport(report, { runUrl, ref, sha, title = 'Headless te
 
   const failures = [];
   const probeLines = [];
+  const timings = [];
 
   for (const { spec, trail } of entries) {
     const isOk = spec.ok !== false;
     for (const test of spec.tests ?? []) {
       for (const result of test.results ?? []) {
+        if (result.status !== 'skipped' && typeof result.duration === 'number') {
+          timings.push({
+            name: [...trail, spec.title].filter(Boolean).join(' › '),
+            project: test.projectName ?? test.projectId ?? '',
+            duration: result.duration,
+          });
+        }
         for (const chunk of result.stdout ?? []) {
           const text = typeof chunk === 'string' ? chunk : chunk?.text;
           if (text && /\[probe\]/.test(text)) probeLines.push(text.trim());
@@ -106,6 +108,18 @@ export function summarizeReport(report, { runUrl, ref, sha, title = 'Headless te
         lines.push('', '```', failure.detail.replace(/\u001b\[[0-9;]*m/g, '').slice(0, 1800), '```', '');
       }
     }
+  }
+
+  // Which tests actually ate the clock. A run that overruns its step budget is
+  // otherwise invisible from the outside — the job simply stops — so the timings
+  // are published with every run, green or red.
+  if (timings.length > 1) {
+    const slowest = [...timings].sort((a, b) => b.duration - a.duration).slice(0, 8);
+    lines.push('### Slowest tests', '');
+    for (const timing of slowest) {
+      lines.push(`- ${(timing.duration / 1000).toFixed(1)}s — ${timing.name}${timing.project ? ` _(${timing.project})_` : ''}`);
+    }
+    lines.push('');
   }
 
   if (probeLines.length > 0) {

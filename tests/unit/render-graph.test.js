@@ -26,6 +26,49 @@ function buildWorld(overrides = {}) {
   return { settings, state, world };
 }
 
+test('the Perpendicularity is drawn as map furniture, once', () => {
+  const { world } = buildWorld();
+  const pool = world.scene.getObjectByName('perpendicularity');
+  assert.ok(pool, 'the pool must be in the scene');
+  assert.equal(world.stats().pool.meshes, 3, 'shore, pool and the column of light');
+  assert.ok(world.stats().pool.radius >= 1);
+  // It is map data, not state: no entity id, and it is not one of the entities.
+  assert.equal(pool.userData.entityId, undefined);
+  assert.equal(world.entityObjects.size, buildWorld().world.entityObjects.size);
+});
+
+test('the pool is a surface you can see from the shore', () => {
+  // The regression this pins: the disc was triangulated with the other winding,
+  // so every face pointed *down*, the front faces were culled, and the water was
+  // invisible in the physical realm — while the gate logic underneath it kept
+  // working perfectly. No interaction test can see a hole in the ground.
+  const { world } = buildWorld();
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+
+  for (const name of ['perpendicularity-pool', 'perpendicularity-shore']) {
+    const mesh = world.scene.getObjectByName(name);
+    assert.ok(mesh, `${name} must be named in the scene`);
+    const position = mesh.geometry.getAttribute('position');
+    const index = mesh.geometry.getIndex();
+    let upward = 0;
+    let downward = 0;
+    for (let i = 0; i < index.count; i += 3) {
+      a.fromBufferAttribute(position, index.getX(i));
+      b.fromBufferAttribute(position, index.getX(i + 1));
+      c.fromBufferAttribute(position, index.getX(i + 2));
+      // The face normal, before any smoothing: (b - a) x (c - a).
+      const normal = b.clone().sub(a).cross(c.clone().sub(a));
+      if (normal.lengthSq() < 1e-12) continue; // the degenerate hub at the centre
+      if (normal.y > 0) upward++;
+      else downward++;
+    }
+    assert.ok(upward > 0, `${name} must have faces at all`);
+    assert.equal(downward, 0, `${name} has downward faces, which are culled from above`);
+  }
+});
+
 test('the world builds, with one object per state entity', () => {
   const { state, world } = buildWorld();
   assert.equal(world.entityObjects.size, state.entities.length);
@@ -100,7 +143,7 @@ test('every sun direction is a normalised vector', () => {
 });
 
 test('the player is a blocky, pixelated figure in ten boxes', () => {
-  const { state, world } = buildWorld();
+  const { world } = buildWorld();
   const avatar = world.scene.getObjectByName('player-avatar');
   assert.ok(avatar, 'the scene has no player-avatar group');
   assert.equal(avatar.visible, true, 'third person draws the body');

@@ -9,14 +9,12 @@
 export function createFrameStats({ windowSeconds = 10, longFrameMs = 50 } = {}) {
   const samples = [];
   let total = 0;
-  let lastMs = 0;
   let longFrames = 0;
   let longFramesTotal = 0;
 
   return {
     sample(dtSeconds) {
       const ms = Math.max(0, dtSeconds * 1000);
-      lastMs = ms;
       samples.push({ t: dtSeconds, ms });
       total += dtSeconds;
       if (ms > longFrameMs) {
@@ -56,7 +54,6 @@ export function createFrameStats({ windowSeconds = 10, longFrameMs = 50 } = {}) 
     reset() {
       samples.length = 0;
       total = 0;
-      lastMs = 0;
       longFrames = 0;
       longFramesTotal = 0;
     },

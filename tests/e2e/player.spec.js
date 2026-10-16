@@ -13,7 +13,6 @@ import { SETTING_BY_KEY } from '../../src/core/settings.js';
  */
 
 const WALK = SETTING_BY_KEY.walkSpeed.default;
-const SPRINT = SETTING_BY_KEY.sprint.default;
 
 /** Step in slices and track the highest point, for apex assertions. */
 async function jumpPeak(page, { seconds = 1.6, slice = 0.05 } = {}) {

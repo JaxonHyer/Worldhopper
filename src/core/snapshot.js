@@ -166,7 +166,19 @@ export function buildSnapshot({
     drawCalls: render.drawCalls,
     triangles: render.triangles,
     gl: { version: render.gl.version, gpu: render.gl.gpu },
-    ui: { overlay: ui.overlay, panel: ui.panel, credits: ui.credits, touch: Boolean(ui.touch) },
+    // This object is the whitelist half of the contract, and a field the caller
+    // passes but this line does not name disappears in silence — which is how
+    // `fade` and `fades` went missing while everything else about the fade
+    // still looked fine (M2, 2026-10-16). A unit test now fails if a field is
+    // added on one side and not the other.
+    ui: {
+      overlay: ui.overlay,
+      panel: ui.panel,
+      credits: ui.credits,
+      touch: Boolean(ui.touch),
+      fade: Boolean(ui.fade),
+      fades: Number.isFinite(ui.fades) ? ui.fades : 0,
+    },
     settings: { ...settings },
     settingsHint: describeSettings(settings),
     avatarVariant: render.avatarVariant === 'girl' ? 'girl' : 'boy',

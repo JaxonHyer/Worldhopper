@@ -8,7 +8,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PLAYER, createPlayer, eyePosition, horizontalSpeed, sampleSupport, stepPlayer } from '../../src/core/player.js';
+import { PLAYER, eyePosition, horizontalSpeed, sampleSupport, stepPlayer } from '../../src/core/player.js';
 import { CAMERA } from '../../src/core/config.js';
 import { PITCH_LIMIT, wrapAngle } from '../../src/core/math.js';
 import { createWorldState, buildObstacles, terrainHeight } from '../../src/core/world-state.js';

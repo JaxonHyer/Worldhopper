@@ -10,10 +10,13 @@
  */
 
 import './style.css';
-import { APP, SIM, PLAYER } from './core/config.js';
+import { APP, REALMS, SIM } from './core/config.js';
 import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
-import { createWorldState, countEntities, entityHash, stepWorld, toggleRealm } from './core/world-state.js';
+import { createWorldState, setRealm, stepWorld, toggleRealm } from './core/world-state.js';
+// The Perpendicularity's rule lives in the core, where it can be tested without
+// a browser: this file only decides *when* to ask it (M2).
+import { gateStatus, gateStep } from './core/gate.js';
 import { buildSnapshot } from './core/snapshot.js';
 import { createCameraState, resolveCamera } from './core/camera.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from './core/maps/index.js';
@@ -31,6 +34,7 @@ import { createView } from './render/renderer.js';
 import { createWorldView } from './render/world-view.js';
 import { createInput } from './platform/input.js';
 import { createDebugOverlay } from './ui/debug-overlay.js';
+import { createFade } from './ui/fade.js';
 import { createTuningPanel } from './ui/tuning-panel.js';
 import { createCredits } from './ui/credits.js';
 import { createDock } from './ui/dock.js';
@@ -39,7 +43,12 @@ import { HINTS, createHud } from './ui/hud.js';
 const canvas = document.getElementById('game');
 const uiMount = document.getElementById('ui');
 
-bootstrap();
+try {
+  bootstrap();
+} catch (error) {
+  reportStartFailure(error);
+  throw error;
+}
 
 function bootstrap() {
   const params = new URLSearchParams(location.search);
@@ -49,11 +58,16 @@ function bootstrap() {
     debug: parseFlag(params, 'debug'),
     dev: parseFlag(params, 'dev'),
     touch: parseFlag(params, 'touch'),
+    /** start in the lens: `?realm=cognitive` (a start state, not a control) */
+    cognitive: params.get('realm')?.toLowerCase() === 'cognitive',
   };
 
   const map = getMap(DEFAULT_MAP_ID);
   let variant = getVariant(map.id, settings.palette);
   let state = createWorldState({ map, seed: settings.seed });
+  // The realm is a lens over the world, and `?realm=cognitive` is how a
+  // screenshot or an automated run starts inside it without walking there.
+  if (flags.cognitive) setRealm(state, REALMS.cognitive);
 
   const view = createView({
     canvas,
@@ -79,6 +93,19 @@ function bootstrap() {
   // phone because the element did not exist yet when input looked for it.
   const coarse = detectTouch(flags.touch);
   const hud = createHud({ mount: uiMount, coarsePointer: coarse, onJump: () => {} });
+  // The realm transition. Reduced motion gets a short beat instead of a long
+  // one — the black frame is the one piece of the UI a photosensitivity setting
+  // has to respect (M8 lists the option; it costs three lines to honour now).
+  const reduceMotion =
+    typeof globalThis.matchMedia === 'function' && globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The transition is a feel number (a slider), except that a reduced-motion
+  // session caps it: the black frame is the one piece of this UI that has to
+  // respect that preference.
+  const fadeDuration = () => {
+    const wanted = Number.isFinite(settings.realmFade) ? Math.max(0, settings.realmFade) : 420;
+    return reduceMotion ? Math.min(wanted, 120) : wanted;
+  };
+  const fade = createFade({ mount: uiMount, fadeMs: fadeDuration() });
   const input = createInput({
     canvas,
     onHotkey,
@@ -90,7 +117,6 @@ function bootstrap() {
       knob: hud.knob,
       jump: hud.jump,
       sprint: hud.sprint,
-      realm: hud.realm,
     },
   });
 
@@ -119,6 +145,16 @@ function bootstrap() {
     version: APP.version,
     milestone: APP.milestone,
     debug: () => snapshot(),
+    /**
+     * The realm, for the harness and for the owner's troubleshooting. Not a
+     * player control: in the game the only way to shift is to walk into the
+     * Perpendicularity, which is why this is on `__worldhopper` and not on an
+     * input binding.
+     */
+    realm: (id) => {
+      if (id === undefined) return state.realm;
+      return setRealm(state, id);
+    },
     settings: () => ({ ...settings }),
     describe: () => describeSettingsSafe(settings),
     setSetting: (key, raw) => applySetting(key, raw),
@@ -175,7 +211,6 @@ function bootstrap() {
       configUrl: () => panel.configValue,
     },
   };
-  // eslint-disable-next-line no-underscore-dangle
   window.__debug = debugApi.debug;
   window.__worldhopper = debugApi;
 
@@ -197,14 +232,42 @@ function bootstrap() {
   let frames = 0;
   let touchSeen = coarse;
   let pausedSim = false;
+  /**
+   * Has the Perpendicularity got its "you may fire" flag?
+   *
+   * This one declaration is load-bearing: without it, `gateArmed = ...` inside
+   * the frame loop is an assignment to an undeclared name, which is a
+   * ReferenceError in a module — thrown on the *first frame*, so the loop never
+   * reschedules, `ready` is never set, and every test in the suite times out
+   * waiting for a game that stopped before it drew anything. It cost three CI
+   * runs to find (2026-10-16), which is why the loop below now reports a crash
+   * instead of going quiet.
+   */
+  let gateArmed = true;
 
-  function frame(now) {
+  function runFrame(now) {
     const dtSeconds = Math.min((now - last) / 1000, SIM.maxFrameDelta);
     last = now;
     frameStats.sample(dtSeconds);
 
-    // Paused (debug only): time stands still, so the sim can be stepped by hand.
-    const steps = pausedSim ? 0 : clock.advance(dtSeconds);
+    // The Perpendicularity (M2): walking into the pool shifts the realm, with a
+    // fade to black over the moment it happens. `gateStep` is edge-triggered, so
+    // standing in the pool does not flap between realms and arriving in the pool
+    // (which is where a shift leaves you) does not fire straight back.
+    const gate = gateStatus(state.player.position, map.perpendicularity);
+    const gateDecision = gateStep(gateArmed, gate.inside, fade.active);
+    gateArmed = gateDecision.armed;
+    if (gateDecision.fire) {
+      fade.play(() => {
+        hud.setRealm(toggleRealm(state));
+      });
+    }
+    // The beat the fade is covering: the world holds still while the screen is
+    // black, so nothing can happen to the player that they cannot see.
+    const transitioning = fade.active;
+    // Paused (debug only), or mid-transition: time stands still, so the sim can
+    // be stepped by hand — and so nothing happens to the player behind the fade.
+    const steps = pausedSim || transitioning ? 0 : clock.advance(dtSeconds);
     if (steps > 0) {
       const look = input.look();
       const move = input.move();
@@ -238,10 +301,6 @@ function bootstrap() {
 
     view.setFov(settings.fov);
     view.resize();
-    // The core verb: one key (or one button) shifts the lens. It changes what
-    // the world is drawn as, never what it is — the world state is untouched,
-    // so a shift costs a render and nothing else.
-    if (input.consumeRealm()) hud.setRealm(toggleRealm(state));
     // The camera is derived from the player; the sim never reads it back.
     resolveCamera(
       { player: state.player, settings, map, seed: state.seed, obstacles: state.obstacles, realm: state.realm },
@@ -259,6 +318,24 @@ function bootstrap() {
       debugApi.ready = true;
       document.documentElement.dataset.ready = 'true';
       document.title = `${APP.title} — ${map.label}`;
+    }
+  }
+
+  /**
+   * The frame loop, with a crash reporter around it.
+   *
+   * Anything thrown in here used to kill the loop silently: no `ready`, no
+   * error the harness could read, just eighty tests timing out one at a time.
+   * A failure in the first frames *is* the game failing to start, so it is
+   * recorded in the same channel as a bootstrap failure — and the loop stops
+   * rather than throwing once per frame.
+   */
+  function frame(now) {
+    try {
+      runFrame(now);
+    } catch (error) {
+      reportStartFailure(error);
+      throw error;
     }
     requestAnimationFrame(frame);
   }
@@ -298,6 +375,7 @@ function bootstrap() {
         variant = getVariant(map.id, value);
       }
       world.applySettings(settings, variant);
+      if (key === 'realmFade') fade.setDuration(fadeDuration());
       refreshContext();
     }
     if (persist) {
@@ -316,6 +394,7 @@ function bootstrap() {
     state = createWorldState({ map, seed: settings.seed });
     rebuildWorld();
     world.applySettings(settings, variant);
+    fade.setDuration(fadeDuration());
     refreshContext();
     panel.sync(settings);
     syncUrl();
@@ -397,6 +476,8 @@ function bootstrap() {
         panel: panel.visible,
         credits: credits.visible,
         touch: !hud.jump.hidden,
+        fade: fade.active,
+        fades: fade.count,
       },
       paused: pausedSim,
       input: {
@@ -448,6 +529,19 @@ function safeStorage() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Record a failure that stopped the game from starting, in the one place a
+ * headless harness can read it, and tell the player too.
+ *
+ * A blank page with a stack trace in a console nobody opens is not a failure
+ * mode; it is a mystery. This makes it a sentence.
+ */
+function reportStartFailure(error) {
+  const message = `${error?.message ?? error}`;
+  window.__worldhopper = { ready: false, bootError: message };
+  showBanner(`Something broke: ${message}`);
 }
 
 function showBanner(message) {
