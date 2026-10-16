@@ -168,8 +168,13 @@ test('the phone gets the manifestation too', async ({ page, isMobile }) => {
 
   expect(shifted, 'the thumb-stick path must reach the pool on Roshar').toBe(true);
   await expect.poll(async () => (await readDebug(page)).realm, { timeout: 10_000 }).toBe('cognitive');
+  // The beat is wall clock (`src/ui/fade.js`): the realm swaps in the middle of
+  // it and the overlay clears ~380 ms after that, so the read lands mid-beat on
+  // a slow emulated phone and a bare assert here is a race (seen as CI flake in
+  // run 38927390256). Poll for the beat to end — a fade that never clears still
+  // fails, on the timeout.
+  await expect.poll(async () => (await readDebug(page)).ui.fade, { timeout: 10_000 }).toBe(false);
   const arrived = await readDebug(page);
   expect(arrived.skin.beads).toBeGreaterThan(1000);
-  expect(arrived.ui.fade).toBe(false);
   watch.assertClean();
 });
