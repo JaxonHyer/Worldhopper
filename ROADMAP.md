@@ -401,16 +401,23 @@ movement feel; landmark readability.)* — **signed off** (PRs #2–#6).
       14 m from the spawn, the shift is edge-triggered (walk out and back in to
       shift again), and the transition length is a feel slider
       (`Realm transition (ms)`, `?fadems=`)
-- [ ] `cognitiveSkin` config introduced — the config, the per-map contract and
-      the canon guard (beads are Rosharan-only) are **in**; Roshar's own skin is
-      not authored yet, because the first authored world is not in the repo
-- [ ] Orthographic camera + abstraction pass — the orthographic, high-angle lens
-      is **in** (fixed diagram pitch, zoom as a setting, never under the terrain);
-      the abstraction pass (beads, flames, connection lines) is **not**
+- [x] `cognitiveSkin` config introduced — the per-map contract, the canon guard
+      (the *map's* system decides; beads and the bead sea are Rosharan-only) and
+      **Roshar's own skin are in** (`?map=roshar`): the first authored world is
+      the peaks above the pool, and the realm manifests there — beads for
+      objects, a flame for the living, obsidian for the pool, a bead sea for the
+      land, a black sky with one frail fixed sun. The test range still has no
+      skin at all, and correctly draws nothing in either realm
+- [~] Orthographic camera + abstraction pass — the lens is **in** (fixed diagram
+      pitch, zoom as a setting, never under the terrain); the abstraction pass is
+      **in for beads and flames** and has no connection lines yet. Roshar's
+      terrain kit is still the M0 basin (M5 work), and the patch is not the
+      default map until the owner says so
 - [ ] One interaction only solvable there (reveal a route across the bead sea)
 - [ ] Shifting back shows the world changed (state, not illusion)
-- [ ] **Contracts frozen** (`CONTRACTS.md`, `OWNERSHIP.md`) so Phase B can be
-      briefed from files alone
+- [~] **Contracts frozen** — `OWNERSHIP.md` is in (Phase B starts with two
+      agents, and the lanes are split there). `CONTRACTS.md` lands with WP-3.1/3.2,
+      which define the last shared schema (the enemy state machine)
 
 **Exit:** the switch feels like a tool you think with. *(Owner
 playtest: is the realm legible and beautiful? Does the inversion read?)*

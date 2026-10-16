@@ -68,7 +68,7 @@ function conformingDisc({ map, seed, radius, innerRadius = 0, lift = LIFT, cente
   return geometry;
 }
 
-export function createPerpendicularityView({ map, seed, variant }) {
+export function createPerpendicularityView({ map, seed, variant, skin = null }) {
   const gate = map.perpendicularity;
   const group = new THREE.Group();
   group.name = 'perpendicularity';
@@ -84,6 +84,10 @@ export function createPerpendicularityView({ map, seed, variant }) {
   const center = { x: gate.position.x, z: gate.position.z };
   const radius = Math.max(0.6, gate.radius);
   const colors = variant.perpendicularity ?? { pool: '#9fded6', glow: '#e6fbf7' };
+  const palette = skin?.palette ?? { obsidian: '#05070a', obsidianHighlight: '#8fb6d8' };
+  // The physical colours are kept, so leaving the realm restores the pool
+  // exactly — the shift is a lens, not a one-way change.
+  const physicalPool = new THREE.Color(colors.pool);
 
   const shoreGeometry = conformingDisc({ map, seed, radius: radius + SHORE_WIDTH, center, lift: LIFT * 0.5 });
   const shore = new THREE.Mesh(
@@ -99,6 +103,22 @@ export function createPerpendicularityView({ map, seed, variant }) {
     // Unlit on purpose: the pool is the one surface that does not need the sun.
   });
   const pool = new THREE.Mesh(poolGeometry, poolMaterial);
+
+  /**
+   * The same water, in the other realm.
+   *
+   * Canon: bodies of water invert to solid stone — obsidian on Roshar, dark
+   * smoky stone on Scadrial. So the pool does not disappear when the realm
+   * shifts; it *inverts*, and the gate's light (which canon says appears as a
+   * glowing light in the subastral) stays to mark the place. Built once, swapped
+   * on the shift: a realm change allocates nothing.
+   */
+  const obsidianMaterial = new THREE.MeshPhongMaterial({
+    color: new THREE.Color(palette.obsidian),
+    specular: new THREE.Color(palette.obsidianHighlight),
+    shininess: 58,
+    flatShading: false,
+  });
 
   const columnGeometry = new THREE.CylinderGeometry(radius * 0.62, radius * 0.94, COLUMN_HEIGHT, SEGMENTS, 1, true);
   const columnMaterial = new THREE.MeshBasicMaterial({
@@ -124,9 +144,13 @@ export function createPerpendicularityView({ map, seed, variant }) {
 
   group.add(shore, pool, column);
 
-  const materials = [shore.material, poolMaterial, columnMaterial];
+  const materials = [shore.material, poolMaterial, obsidianMaterial, columnMaterial];
   const geometries = [shoreGeometry, poolGeometry, columnGeometry];
   let pulseTime = 0;
+  // Which material the pulse drives: the pool's own, or the inverted one.
+  let pulseMaterial = poolMaterial;
+  let inverted = false;
+  const physicalGlow = new THREE.Color(colors.glow);
 
   return {
     group,
@@ -137,20 +161,44 @@ export function createPerpendicularityView({ map, seed, variant }) {
     sync(time = 0) {
       pulseTime = Number.isFinite(time) ? time : pulseTime;
       const wave = Math.sin(pulseTime * Math.PI * 2 * PULSE_HZ);
-      poolMaterial.opacity = 0.82 + wave * 0.08;
-      columnMaterial.opacity = COLUMN_OPACITY + wave * 0.02;
+      if (pulseMaterial === poolMaterial) poolMaterial.opacity = 0.82 + wave * 0.08;
+      columnMaterial.opacity = (inverted ? COLUMN_OPACITY * 1.6 : COLUMN_OPACITY) + wave * 0.02;
       // The column turns slowly, so a still frame of it is never the same two
       // frames running — and it costs one number per frame.
       column.rotation.y = pulseTime * 0.03;
     },
     setVariant(next) {
       const nextColors = next.perpendicularity ?? colors;
+      physicalPool.set(nextColors.pool);
+      physicalGlow.set(nextColors.glow);
       shore.material.color.set(nextColors.pool).multiplyScalar(0.34);
-      poolMaterial.color.set(nextColors.pool);
-      columnMaterial.color.set(nextColors.glow);
+      if (!inverted) poolMaterial.color.copy(physicalPool);
+      columnMaterial.color.copy(inverted ? new THREE.Color(palette.obsidianHighlight) : physicalGlow);
+    },
+    /**
+     * Invert the water when the realm shifts, and put it back on the way home.
+     *
+     * @param {'physical'|'cognitive'} realm
+     * @param {object|null} activeSkin resolved skin, when one is drawing
+     */
+    setRealm(realm, activeSkin = null) {
+      const wanted = realm === 'cognitive' && activeSkin?.waterForm === 'solid-obsidian';
+      if (wanted === inverted) return inverted;
+      inverted = wanted;
+      if (inverted) {
+        pool.material = obsidianMaterial;
+        pulseMaterial = obsidianMaterial;
+        columnMaterial.color.set(palette.obsidianHighlight);
+      } else {
+        pool.material = poolMaterial;
+        pulseMaterial = poolMaterial;
+        poolMaterial.color.copy(physicalPool);
+        columnMaterial.color.copy(physicalGlow);
+      }
+      return inverted;
     },
     stats() {
-      return { meshes: group.children.length, radius, visible: group.visible, gateId: gate.id };
+      return { meshes: group.children.length, radius, visible: group.visible, gateId: gate.id, water: inverted ? 'solid-obsidian' : 'liquid' };
     },
     dispose() {
       for (const geometry of geometries) geometry.dispose();

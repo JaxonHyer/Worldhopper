@@ -19,16 +19,17 @@ import { createWorldState, setRealm, stepWorld, toggleRealm } from './core/world
 import { gateStatus, gateStep } from './core/gate.js';
 import { buildSnapshot } from './core/snapshot.js';
 import { createCameraState, resolveCamera } from './core/camera.js';
-import { getMap, getVariant, DEFAULT_MAP_ID } from './core/maps/index.js';
+import { getMap, getVariant, hasMap, DEFAULT_MAP_ID } from './core/maps/index.js';
 import {
-  parseSettings,
-  coerceSetting,
   SETTING_BY_KEY,
-  defaultSettings,
-  saveSettings,
-  loadSettings,
   clearStoredSettings,
+  coerceSetting,
+  defaultSettings,
+  loadSettings,
   parseFlag,
+  parseSettings,
+  saveSettings,
+  setPaletteOptions,
 } from './core/settings.js';
 import { createView } from './render/renderer.js';
 import { createWorldView } from './render/world-view.js';
@@ -53,6 +54,13 @@ try {
 function bootstrap() {
   const params = new URLSearchParams(location.search);
   const storage = safeStorage();
+  // Which world, before the settings are parsed: the palette dropdown is
+  // per-map data (`listVariants`), and a palette name only coerces if it is in
+  // the list — so `?map=roshar&palette=highstorm-light` has to know the map
+  // *first*, or the palette it names is rejected as unknown.
+  const wantedMap = params.get('map')?.toLowerCase() ?? '';
+  const mapId = hasMap(wantedMap) ? wantedMap : DEFAULT_MAP_ID;
+  setPaletteOptions(mapId);
   const settings = parseSettings({ search: location.search, stored: loadSettings(storage) });
   const flags = {
     debug: parseFlag(params, 'debug'),
@@ -62,7 +70,10 @@ function bootstrap() {
     cognitive: params.get('realm')?.toLowerCase() === 'cognitive',
   };
 
-  const map = getMap(DEFAULT_MAP_ID);
+  // A URL flag rather than a setting, because a map is not a feel number: the
+  // owner's tuned sliders and pinned defaults belong to the map they were tuned
+  // on, and `?map=roshar` must not quietly rewrite them.
+  const map = getMap(mapId);
   let variant = getVariant(map.id, settings.palette);
   let state = createWorldState({ map, seed: settings.seed });
   // The realm is a lens over the world, and `?realm=cognitive` is how a
@@ -421,6 +432,9 @@ function bootstrap() {
     }
     if (flags.debug) query.set('debug', '1');
     if (flags.dev) query.set('dev', '1');
+    // The world is a boot flag, and rebuilding this query from scratch would
+    // silently drop it on the first settings change (which is at boot).
+    if (map.id !== DEFAULT_MAP_ID) query.set('map', map.id);
     const search = query.toString();
     try {
       history.replaceState(null, '', search ? `?${search}` : location.pathname);
@@ -469,6 +483,9 @@ function bootstrap() {
         // The renderer's own answer to "which body is on screen", not the
         // setting read back: the test is that the swap happened.
         avatarVariant: world.stats().avatarVariant,
+        // Which cognitive manifestation is drawing (M2 skins) — the renderer's
+        // own answer, for the same reason as the avatar's.
+        skin: world.stats().skin,
         gl: view.contextInfo(),
       },
       ui: {

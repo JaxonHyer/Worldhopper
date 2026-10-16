@@ -85,6 +85,44 @@ function realSnapshot(overrides = {}) {
   });
 }
 
+test('the snapshot reports the cognitive skin the renderer is drawing', () => {
+  // The renderer's answer, not the map's data read back: a test that asserts
+  // which manifestation is on screen has to be able to fail when the renderer
+  // decides not to draw it (a canon violation, a missing layer).
+  const roshar = getMap('roshar');
+  const settings = defaultSettings();
+  const state = createWorldState({ map: roshar, seed: settings.seed });
+  const clock = createFixedClock({ stepHz: 60 });
+  const snapshot = buildSnapshot({
+    app: APP,
+    state,
+    map: roshar,
+    variant: getVariant(roshar.id, 'storm-shore'),
+    settings,
+    clock,
+    frameStats: createFrameStats(),
+    render: {
+      drawCalls: 1,
+      triangles: 2,
+      gl: { version: 'stub', gpu: 'stub' },
+      avatarVariant: 'boy',
+      skin: { id: 'roshar-shadesmar', system: 'rosharan', objectForm: 'glass-beads', authored: true, beads: 2025, souls: 31, flame: true },
+    },
+    ui: { overlay: false, panel: false, credits: false },
+    ready: true,
+  });
+  assert.equal(snapshot.skin.id, 'roshar-shadesmar');
+  assert.equal(snapshot.skin.objectForm, 'glass-beads');
+  assert.equal(snapshot.skin.authored, true);
+  assert.equal(snapshot.skin.beads, 2025);
+
+  // And a map with no skin says so, rather than reporting a blank.
+  const plain = realSnapshot();
+  assert.equal(plain.skin.authored, false);
+  assert.equal(plain.skin.objectForm, 'unassigned');
+  assert.equal(plain.skin.beads, 0);
+});
+
 test('the snapshot drops no UI field it is given', () => {
   // `ui` is a whitelist, so a field can be handed to the snapshot, silently
   // dropped, and then read as `undefined` by every test that asks for it. That
@@ -99,6 +137,25 @@ test('the snapshot drops no UI field it is given', () => {
   );
   assert.equal(snapshot.ui.fade, true);
   assert.equal(snapshot.ui.fades, 2);
+
+  // The render block is the same kind of whitelist — the fields it is handed
+  // are lifted to the top level, and one that is not named there disappears in
+  // silence. `skin` was added last, so each of these would have caught it.
+  const render = {
+    drawCalls: 3,
+    triangles: 9,
+    gl: { version: 'stub', gpu: 'stub' },
+    avatarVariant: 'girl',
+    skin: { id: 'roshar-shadesmar', system: 'rosharan', objectForm: 'glass-beads', authored: true, beads: 4, souls: 5 },
+  };
+  const withRender = realSnapshot({ snapshot: { render } });
+  assert.equal(withRender.drawCalls, 3);
+  assert.equal(withRender.triangles, 9);
+  assert.equal(withRender.avatarVariant, 'girl');
+  assert.equal(withRender.skin.id, 'roshar-shadesmar');
+  assert.equal(withRender.skin.objectForm, 'glass-beads');
+  assert.equal(withRender.skin.beads, 4);
+  assert.equal(withRender.skin.souls, 5);
 });
 
 test('the snapshot carries every documented key', () => {

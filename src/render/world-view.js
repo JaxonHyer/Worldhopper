@@ -6,8 +6,12 @@
  *  - flat shading, one palette, one landmark silhouette;
  *  - geometry never doubles as state: this module only *reads* world state.
  *
- * The Cognitive-Realm lens (M2) will reuse the same scene graph via its own
- * camera + material pass; nothing here should ever fork the state.
+ * The Cognitive-Realm lens (M2) reuses this same scene graph — same objects,
+ * same coordinates — and this module is also where the *policy* of a realm
+ * shift lives: which furniture is drawn, what the sky is made of, what the
+ * water is. The manifestation itself belongs to the world's `cognitiveSkin`
+ * (see render/cognitive-view.js); the choice of when it applies is made once,
+ * here, and nowhere else. Nothing in this file ever forks the state.
  */
 
 import * as THREE from 'three';
@@ -17,6 +21,8 @@ import { terrainHeight } from '../core/world-state.js';
 import { createSky } from './sky.js';
 import { createPlayerAvatar } from './player-view.js';
 import { createPerpendicularityView } from './perpendicularity-view.js';
+import { createCognitiveView } from './cognitive-view.js';
+import { resolveCognitiveSkin } from '../core/skin.js';
 
 export function createWorldView({ map, state, variant, settings }) {
   const scene = new THREE.Scene();
@@ -40,9 +46,16 @@ export function createWorldView({ map, state, variant, settings }) {
   const ground = buildGround({ map, seed: state.seed, variant });
   group.add(ground.mesh);
 
+  // The Cognitive manifestation (M2): what this world looks like from inside
+  // the other realm. Data-driven; a map with no authored skin draws nothing.
+  const skin = resolveCognitiveSkin(map);
+  const cognitive = createCognitiveView({ map, state, variant, settings });
+  scene.add(cognitive.group);
+
   // The Perpendicularity (M2): map furniture, drawn from the map's own data —
-  // never from state, so a realm shift cannot move it or hide it.
-  const pool = createPerpendicularityView({ map, seed: state.seed, variant });
+  // never from state, so a realm shift cannot move it or hide it. It does
+  // change *substance* with the realm: water inverts to stone.
+  const pool = createPerpendicularityView({ map, seed: state.seed, variant, skin });
   group.add(pool.group);
 
   const landmarkMaterials = {
@@ -66,6 +79,8 @@ export function createWorldView({ map, state, variant, settings }) {
   let avatar = createPlayerAvatar({ variant: avatarVariant });
   scene.add(avatar.group);
 
+  /** Physical furniture hidden while the cognitive manifestation is drawn. */
+  const physicalFurniture = [ground.mesh];
   /** entity id -> Object3D, so state changes can be mirrored without a rebuild. */
   const entityObjects = new Map();
   const disposables = [ground.geometry, ...rockMaterials, ...Object.values(landmarkMaterials)];
@@ -77,6 +92,70 @@ export function createWorldView({ map, state, variant, settings }) {
     object.userData.entityId = entity.id;
     group.add(object);
     entityObjects.set(entity.id, object);
+    // A non-living object's cognitive aspect is its bead, not its geometry.
+    physicalFurniture.push(object);
+  }
+
+  /** Which look is on screen, so the switch happens on the edge, not per frame. */
+  let realmLook = null;
+  /**
+   * Is the cognitive manifestation drawing?
+   *
+   * Kept here rather than read back from `cognitive.group.visible`: the realm is
+   * world state — `state.realm` decides it, via the one call in `sync` — and a
+   * settings change that arrives before the first frame still has to know which
+   * realm it is applying its fog and sun to.
+   */
+  let cognitiveOn = false;
+
+  /**
+   * Apply one realm's look. Called on the edge (a shift, a settings change or a
+   * palette change), never per frame: it moves colours and visibilities, and
+   * doing that sixty times a second would be churn for no new pixels.
+   */
+  function applyRealmLook(cognitiveActive) {
+    const wanted = cognitiveActive ? 'cognitive' : 'physical';
+    if (wanted === realmLook) return;
+    realmLook = wanted;
+
+    // The sky: the world's own gradient, or the skin's black sky and one frail
+    // fixed white sun.
+    if (cognitiveActive) {
+      sky.setBackdrop({
+        horizon: skin.light.sky.horizon,
+        zenith: skin.light.sky.zenith,
+        haze: skin.light.sky.haze,
+        sunColor: skin.light.sun.color,
+        sunDir: skin.light.sun.direction,
+        sunDisc: skin.light.sun.discSize,
+        sunStrength: skin.light.sun.strength,
+      });
+      scene.fog.color.set(skin.fog.color);
+      scene.fog.density = Math.max(0, settings.fog) * skin.fog.densityScale;
+      hemi.color.set(skin.light.ambient.color);
+      hemi.groundColor.set(skin.palette.obsidian);
+      hemi.intensity = settings.ambient * skin.light.ambient.scale;
+      sun.color.set(skin.light.sun.color);
+      sunDir.set(skin.light.sun.direction.x, skin.light.sun.direction.y, skin.light.sun.direction.z).normalize();
+      sun.position.copy(sunDir).multiplyScalar(500);
+      sun.intensity = settings.sun * skin.light.sun.scale;
+      // A bead sea does not have grass: the ground under the beads goes dark so
+      // the gaps between them read as depth rather than as a lawn.
+      ground.setTint('#0a0f16');
+    } else {
+      sky.setVariant(variant);
+      scene.fog.color.set(variant.fog.color);
+      scene.fog.density = Math.max(0, settings.fog);
+      hemi.color.set(variant.sky.horizon);
+      hemi.groundColor.set(variant.ground.low);
+      hemi.intensity = settings.ambient;
+      sun.color.set(variant.sun.color);
+      sunDir.set(variant.sun.direction.x, variant.sun.direction.y, variant.sun.direction.z).normalize();
+      sun.position.copy(sunDir).multiplyScalar(500);
+      sun.intensity = settings.sun;
+      ground.setTint('#ffffff');
+    }
+    pool.setRealm(wanted, skin);
   }
 
   return {
@@ -88,6 +167,17 @@ export function createWorldView({ map, state, variant, settings }) {
       // The sky follows the player's feet, not the eye: the bob is a camera
       // effect and must not make the skyline jitter against the world.
       sky.follow(currentState.player.position);
+
+      // The realm decides what exists on screen. The cognitive view answers
+      // whether its manifestation is drawing; everything physical takes the
+      // opposite answer. Note what is *not* here: no entity is added, removed,
+      // moved or hidden from the simulation by any of this.
+      cognitiveOn = cognitive.sync(currentState);
+      applyRealmLook(cognitiveOn);
+      const physical = !cognitiveOn;
+      avatar.group.visible = physical;
+      for (const object of physicalFurniture) object.visible = physical;
+
       for (const entity of currentState.entities) {
         const object = entityObjects.get(entity.id);
         if (!object) continue;
@@ -95,7 +185,7 @@ export function createWorldView({ map, state, variant, settings }) {
           object.position.set(entity.position.x, entity.position.y, entity.position.z);
         }
       }
-      avatar.sync(currentState.player, camera, dt);
+      if (physical) avatar.sync(currentState.player, camera, dt);
       // The pool breathes on the sim clock, so a run looks the same on replay.
       pool.sync(currentState.simTime);
     },
@@ -108,10 +198,12 @@ export function createWorldView({ map, state, variant, settings }) {
         avatar = createPlayerAvatar({ variant: avatarVariant });
         scene.add(avatar.group);
       }
-      scene.fog.color.set(nextVariant.fog.color);
-      scene.fog.density = next.fog;
-      hemi.intensity = next.ambient;
-      sun.intensity = next.sun;
+      settings = next;
+      // A slider change may have moved fog, ambient or sun while the *other*
+      // realm is on screen: re-run the realm look rather than letting the
+      // physical values leak into the cognitive one.
+      realmLook = null;
+      applyRealmLook(cognitiveOn);
       if (nextVariant !== variant) {
         variant = nextVariant;
         sky.setVariant(nextVariant);
@@ -123,6 +215,10 @@ export function createWorldView({ map, state, variant, settings }) {
         sun.position.copy(sunDir).multiplyScalar(500);
         ground.setColors(nextVariant);
         pool.setVariant(nextVariant);
+        // The palette is the physical world's weather; the cognitive look comes
+        // from the skin, so it is re-applied *after* the variant swap.
+        realmLook = null;
+        applyRealmLook(cognitiveOn);
         landmarkMaterials.stone.color.set(nextVariant.props.landmark);
         landmarkMaterials.base.color.set(nextVariant.props.landmark).multiplyScalar(0.82);
         rockMaterials.forEach((material, tint) => {
@@ -139,11 +235,14 @@ export function createWorldView({ map, state, variant, settings }) {
         avatarTextures: avatar.stats().textures,
         avatarVariant,
         pool: pool.stats(),
+        realmLook,
+        skin: cognitive.stats(),
       };
     },
     dispose() {
       for (const item of disposables) item.dispose?.();
       pool.dispose();
+      cognitive.dispose();
       avatar.dispose();
       sky.dispose();
       scene.clear();
@@ -177,6 +276,16 @@ function buildGround({ map, seed, variant }) {
   return {
     mesh,
     geometry: faceted,
+    /**
+     * Tint the whole surface by multiplying the material colour.
+     *
+     * The terrain's colours are per-face vertex colours, so this is how the
+     * ground is darkened under a bead sea (or restored) without rebuilding a
+     * 20k-vertex geometry.
+     */
+    setTint(color) {
+      material.color.set(color);
+    },
     setColors(nextVariant) {
       applyGroundColors(faceted, nextVariant, map.ground.amplitude);
       faceted.attributes.color.needsUpdate = true;

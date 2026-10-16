@@ -519,3 +519,54 @@ Two smaller consequences worth keeping:
   world's name. The screenshot specs now assert the realm *before* taking each
   picture, so a walk that goes wrong fails instead of quietly mislabelling the
   owner's evidence.
+
+## M2 — the skins: Roshar is the first world, and what it looks like (agent, 2026-10-16)
+
+The owner: *"make the skins"*. Until now the Cognitive Realm was a **camera** and
+nothing else — the same world, seen from a diagram angle. That is exactly what the
+roadmap's M2 checklist called out ("the abstraction pass (beads, flames,
+connection lines) is **not**") and what its exit question is about ("is the realm
+legible and beautiful? Does the inversion read?").
+
+**Decisions, and what each one is reversible by:**
+
+- **Roshar is authored as a world, at `src/worlds/roshar/`** (the roadmap's
+  "planets live at `src/worlds/<name>/`"), with a design page at
+  `design/planets/roshar.md`. The skin needed a world to belong to; the roadmap
+  said as much ("Roshar's own skin is not authored yet, because the first
+  authored world is not in the repo"). This is *not* the world work package —
+  the terrain kit is still the M0 basin, and the file says so at the top rather
+  than pretending otherwise.
+- **The patch is the peaks above the pool.** Roshar's Perpendicularity is
+  canonically the pool at the Horneater Peaks, so putting the first gate there
+  means the gate is the canon one. *Reversible:* it is a name and a blurb.
+- **The test range stays the default map, and `?map=` picks the world.** The
+  owner's pinned playtest config (`palette=cold-ridge` and the rest) belongs to
+  the map they tuned it on; making Roshar the default would silently re-point
+  their settings. **This is a question for the owner in the PR** — flipping it is
+  one line plus the palette list.
+- **The cognitive look is *not* per palette variant.** A palette variant is the
+  physical world's weather; the subastral is not weather. So the bead sea is the
+  same sea under every physical palette, which also means the skin's colours are
+  world data rather than variant data.
+- **The canon guard uses the map's `system`, never the skin's own copy.** A skin
+  that claims `rosharan` on a Scadrian map is refused twice over (a mismatch
+  violation and the bead violation); a skin that is a copy of itself is not a
+  guard. Proven by unit tests, including the negative cases.
+- **A skin that is not fully authored draws nothing.** "Unassigned" is a state,
+  not a fallback style: the test range behaves exactly as it did in M2 slice 1.
+- **The beads are a rendering of the same world, never a second one.** Beads sit
+  on the terrain height field, a soul sits where its object is, the flame sits
+  where the player is. The simulation never learns that any of this exists, and
+  the entity hash is asserted identical across a shift (as in slice 1). A bead's
+  size is a hash of its lattice *cell*, not of the frame, so the sea does not
+  crawl when the camera moves — pinned by a determinism test.
+- **What is not done, deliberately:** connection lines (they belong with M4's
+  "reveal a route across the bead sea", which is the interaction that must be
+  solvable only in the realm); Scadrial's skin (WP-7.3, Agent 3); Roshar's real
+  terrain, gravity, crem and highstorms (M5, with the owner).
+
+**A seam worth recording for Phase B:** with two agents about to touch the repo,
+`OWNERSHIP.md` now maps every directory to a lane, and the second agent's brief
+(`AGENT-2-START.md`) points at it. `CONTRACTS.md` waits for WP-3.1/3.2, which
+define the last shared schema.

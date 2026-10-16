@@ -386,6 +386,18 @@ function readSource(def, source) {
  * Merge defaults <- stored <- URL.
  * @param {{ search?: string, stored?: object }} [input]
  */
+/**
+ * Point the palette dropdown at a map's variants.
+ *
+ * Called at boot with the map that is actually loaded: the palette *names* are
+ * per-world data, so a Roshar session must not offer the test range's three.
+ * The setting itself does not change — only the list of names in the panel.
+ */
+export function setPaletteOptions(mapId) {
+  SETTING_BY_KEY.palette.values = listVariants(mapId);
+  return SETTING_BY_KEY.palette.values;
+}
+
 export function parseSettings({ search = '', stored = null, urlParams = null } = {}) {
   const params = urlParams ?? new URLSearchParams(search ?? '');
   const urlObject = {};

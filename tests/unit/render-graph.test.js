@@ -9,7 +9,8 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createWorldView } from '../../src/render/world-view.js';
 import { createSky, sunDirection } from '../../src/render/sky.js';
-import { createWorldState } from '../../src/core/world-state.js';
+import { createWorldState, setRealm } from '../../src/core/world-state.js';
+import { REALMS } from '../../src/core/config.js';
 import { createCameraState, resolveCamera } from '../../src/core/camera.js';
 import { AVATAR, createPlayerAvatar, nextFacing } from '../../src/render/player-view.js';
 import { wrapAngle } from '../../src/core/math.js';
@@ -389,4 +390,115 @@ test('first person hides the body; third person shows it', () => {
   resolveCamera({ player: state.player, settings: { view: 'third', camDistance: 4.2 }, map, seed: state.seed, obstacles: state.obstacles }, camera);
   world.sync(state, camera, 1 / 60);
   assert.equal(avatar.visible, true);
+});
+
+// --- the cognitive skin (M2): the same world, the other realm's furniture ---
+
+const roshar = getMap('roshar');
+const rosharVariant = getVariant('roshar', 'storm-shore');
+
+function buildRosharan(overrides = {}) {
+  const settings = { ...defaultSettings(), ...overrides };
+  const state = createWorldState({ map: roshar, seed: settings.seed });
+  const world = createWorldView({ map: roshar, state, variant: rosharVariant, settings });
+  return { settings, state, world };
+}
+
+test('a world with no authored skin draws nothing in either realm', () => {
+  const { state, world } = buildWorld();
+  const skinGroup = world.scene.getObjectByName('cognitive-skin');
+  assert.ok(skinGroup, 'the layer exists so the realm can be switched at all');
+  assert.equal(skinGroup.visible, false, 'the test range has no canon, so it has no manifestation');
+  assert.equal(world.stats().skin.authored, false);
+
+  setRealm(state, REALMS.cognitive);
+  world.sync(state);
+  assert.equal(skinGroup.visible, false, 'and an unassigned skin stays off in the realm it belongs to');
+  assert.equal(world.stats().skin.objectForm, 'unassigned');
+  // The lens still works: this is a rendering absence, not a broken realm.
+  assert.equal(state.realm, 'cognitive');
+});
+
+test("Roshar's skin builds: a bead sea, souls, and one flame", () => {
+  const { world } = buildRosharan();
+  const skinGroup = world.scene.getObjectByName('cognitive-skin');
+  const sea = world.scene.getObjectByName('bead-sea');
+  const souls = world.scene.getObjectByName('object-souls');
+  assert.ok(skinGroup && sea && souls, 'the manifestation must be in the scene graph');
+  assert.equal(skinGroup.visible, false, 'and hidden while the player is in the physical realm');
+
+  const stats = world.stats().skin;
+  assert.equal(stats.authored, true);
+  assert.equal(stats.objectForm, 'glass-beads');
+  assert.equal(stats.livingForm, 'flame');
+  assert.equal(stats.waterForm, 'solid-obsidian');
+  assert.equal(stats.landForm, 'bead-sea');
+  // A sea, not a handful: the window has to cover the lens at 46 m.
+  assert.ok(sea.count > 1000, `expected a bead sea, got ${sea.count} beads`);
+  assert.ok(sea.count < 6000, 'an unbounded sea would be a performance bug, not a look');
+  // One soul per non-living object, plus nothing else.
+  assert.equal(souls.count, world.entityObjects.size);
+});
+
+test('the realm shift swaps the furniture in both directions', () => {
+  const { state, world } = buildRosharan();
+  const skinGroup = world.scene.getObjectByName('cognitive-skin');
+  const avatar = world.scene.getObjectByName('player-avatar');
+  const ground = world.scene.getObjectByName('ground');
+  const skyUniforms = world.scene.getObjectByName('sky').material.uniforms;
+  const firstEntityId = [...world.entityObjects.keys()][0];
+  const firstEntity = world.scene.getObjectByName(firstEntityId);
+  const physicalZenith = skyUniforms.uZenith.value.getHex();
+
+  world.sync(state);
+  assert.equal(avatar.visible, true, 'physical: the body is drawn');
+  assert.equal(firstEntity.visible, true, 'physical: objects are drawn');
+  assert.equal(world.stats().pool.water, 'liquid', 'physical: the pool is water');
+
+  // --- shift ---------------------------------------------------------------
+  setRealm(state, REALMS.cognitive);
+  world.sync(state);
+  assert.equal(skinGroup.visible, true, 'cognitive: the manifestation is drawn');
+  assert.equal(world.stats().realmLook, 'cognitive');
+  assert.equal(avatar.visible, false, "the player is a flame now, so the body is not drawn twice");
+  assert.equal(firstEntity.visible, false, "an object's cognitive aspect is its bead");
+  assert.equal(world.stats().pool.water, 'solid-obsidian', 'water inverts to stone');
+  assert.equal(skyUniforms.uZenith.value.getHex(), 0x000000, 'black sky');
+  assert.equal(skyUniforms.uSunStrength.value < 1, true, 'one frail sun, not a noon sun');
+  // The bead sea does not sit on a lawn: the ground goes dark under it.
+  assert.notEqual(ground.material.color.getHex(), 0xffffff);
+  assert.notEqual(skyUniforms.uZenith.value.getHex(), physicalZenith);
+
+  // The camera is the lens in this realm, and the snapshot says so.
+  assert.equal(state.realm, 'cognitive');
+
+  // --- and home again ------------------------------------------------------
+  setRealm(state, REALMS.physical);
+  world.sync(state);
+  assert.equal(skinGroup.visible, false);
+  assert.equal(avatar.visible, true);
+  assert.equal(firstEntity.visible, true);
+  assert.equal(world.stats().pool.water, 'liquid');
+  assert.equal(ground.material.color.getHex(), 0xffffff, 'the ground tint is restored, not left dark');
+  assert.equal(skyUniforms.uZenith.value.getHex(), physicalZenith, 'and so is the sky');
+});
+
+test('a bead is where it was, whatever the camera does', () => {
+  // Determinism: the same seed lays the same sea, and a different seed does not.
+  const a = buildRosharan();
+  const b = buildRosharan();
+  const c = buildRosharan({ seed: 99 });
+  const matrixOf = (world, i) => {
+    const array = world.scene.getObjectByName('bead-sea').instanceMatrix.array;
+    return Array.from(array.slice(i * 16, i * 16 + 16));
+  };
+  const state = a.state;
+  setRealm(state, REALMS.cognitive);
+  a.world.sync(state);
+  setRealm(b.state, REALMS.cognitive);
+  b.world.sync(b.state);
+  setRealm(c.state, REALMS.cognitive);
+  c.world.sync(c.state);
+  assert.deepEqual(matrixOf(a.world, 7), matrixOf(b.world, 7), 'same seed, same bead');
+  assert.notDeepEqual(matrixOf(a.world, 7), matrixOf(c.world, 7), 'a different seed is a different sea');
 });
