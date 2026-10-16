@@ -89,7 +89,7 @@ export default [
   },
   {
     files: ['**/*.js', '**/*.mjs'],
-    languageOptions: { ecmaVersion: 2023, sourceType: 'module' },
+    languageOptions: { ecmaVersion: 2025, sourceType: 'module' },
     rules: correctness,
   },
   {

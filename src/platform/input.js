@@ -35,6 +35,9 @@ const MOVE_KEYS = {
   ArrowRight: [1, 0],
 };
 
+/** Keys that act as "interact / talk" on desktop. */
+const INTERACT_KEYS = new Set(['KeyF', 'Enter']);
+
 /**
  * Pointer-lock state machine, so the whole feature is one small table.
  * unlocked -> (click) -> pending -> locked
@@ -69,6 +72,7 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     stickSamples: 0,
     stickDistance: 0,
     jumps: 0,
+    interact: 0,
     touchPointers: 0,
     captureRequests: 0,
     captureFallbacks: 0,
@@ -109,6 +113,8 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
 
   // --- jump ---------------------------------------------------------------
   let jumpQueued = false;
+  // --- interact (talk to NPC, etc) ----------------------------------------
+  let interactQueued = false;
 
   // --- sprint -------------------------------------------------------------
   // Two ways in, because the two devices want different things: a desktop holds
@@ -275,6 +281,12 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       counters.jumps++;
       if (!event.repeat) event.preventDefault();
       keys.add('Space');
+      return;
+    }
+    if (INTERACT_KEYS.has(code) && !event.repeat) {
+      interactQueued = true;
+      counters.interact = (counters.interact ?? 0) + 1;
+      event.preventDefault();
       return;
     }
     if (code in MOVE_KEYS) {
@@ -515,6 +527,19 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       return queued;
     },
 
+    /** Interact edge (talk, activate); consumes the press. */
+    consumeInteract() {
+      const queued = interactQueued;
+      interactQueued = false;
+      return queued;
+    },
+
+    /** Queue interact from code (used by the on-screen prompt tap). */
+    queueInteract() {
+      interactQueued = true;
+      counters.interact = (counters.interact ?? 0) + 1;
+    },
+
     /** Whether capture is possible in this browser *and* wanted by the player. */
     canCapture: () => supported && captureWanted(),
 
@@ -538,6 +563,7 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       captured: isCaptured(),
       sprinting: sprintToggled || keys.has('ShiftLeft') || keys.has('ShiftRight'),
       sprintToggled,
+      interactQueued,
     }),
 
     reset() {
@@ -545,6 +571,7 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       lookYaw = 0;
       lookPitch = 0;
       jumpQueued = false;
+      interactQueued = false;
       endStick();
       lookPointerId = null;
     },

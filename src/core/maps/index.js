@@ -86,6 +86,22 @@ const blankBasin = {
   },
 
   /**
+   * Dialog NPCs (WP-3.4). One wanderer near the spawn — proves the framework
+   * works on both maps. The test range is non-canon (status: placeholder),
+   * so this figure is also a placeholder, not a lore claim.
+   */
+  npcs: [
+    {
+      id: 'npc-wanderer-01',
+      npcId: 'basin-wanderer',
+      position: { x: 4.5, z: -8 },
+      // Facing slightly toward the pool so the player sees the figure on approach.
+      rotationY: 0.2,
+      interactRadius: 3.0,
+    },
+  ],
+
+  /**
    * Declared per-world appearance of the Cognitive Realm. Rendering of this
    * arrives in a later milestone; M0 only *stores* it so the shape is frozen
    * early and tests can guard it.

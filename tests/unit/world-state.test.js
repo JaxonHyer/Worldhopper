@@ -69,7 +69,13 @@ test('the spawn apron is flat, and the player starts standing on it at eye heigh
   const eye = eyePosition(state.player);
   assert.equal(eye.y, PLAYER.eyeHeight, 'the camera sits one eye height above the feet');
   assert.ok(Math.abs(terrainHeight(map, 4242, 300, 120)) <= map.ground.amplitude + 1e-9);
-  assert.equal(countEntities(state), map.landmarks.length + state.entities.filter((e) => e.kind === 'rock').length);
+  // NPCs are also entities (WP-3.4) — include them in the count.
+  assert.equal(
+    countEntities(state),
+    map.landmarks.length +
+      state.entities.filter((e) => e.kind === 'rock').length +
+      state.entities.filter((e) => e.kind === 'npc').length,
+  );
 });
 
 test('every entity is inside the scale fence', () => {

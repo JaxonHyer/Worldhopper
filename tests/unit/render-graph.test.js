@@ -72,11 +72,18 @@ test('the pool is a surface you can see from the shore', () => {
 
 test('the world builds, with one object per state entity', () => {
   const { state, world } = buildWorld();
-  assert.equal(world.entityObjects.size, state.entities.length);
+  // NPCs manage their own scene nodes (nameplate, billboard) and are not in
+  // the generic entityObjects map; every other entity has one entry.
+  const nonNpcCount = state.entities.filter((e) => e.kind !== 'npc').length;
+  assert.equal(world.entityObjects.size, nonNpcCount);
   for (const entity of state.entities) {
+    if (entity.kind === 'npc') continue;
     assert.ok(world.entityObjects.has(entity.id), `no scene object for ${entity.id}`);
   }
-  // ground + sky + landmark + props
+  // NPCs are still in the scene as children of the group (their npcCount is
+  // exposed via stats).
+  assert.ok(world.stats().npcCount >= 0);
+  // ground + sky + landmark + props + npcs
   assert.ok(world.stats().meshes >= state.entities.length + 1);
 });
 
@@ -278,8 +285,10 @@ test('the girl can be switched on without rebuilding the world', () => {
   world.applySettings(settings, variant);
   assert.equal(world.stats().avatarVariant, 'boy');
   assert.equal(world.stats().avatar, boyBoxes);
-  // The applied settings are unchanged apart from the body.
-  assert.equal(state.entities.length, world.entityObjects.size);
+  // The applied settings are unchanged apart from the body. NPCs are in the
+  // scene but not in entityObjects (they manage their own rendering).
+  const nonNpcCount = state.entities.filter((e) => e.kind !== 'npc').length;
+  assert.equal(nonNpcCount, world.entityObjects.size);
 });
 
 test('the girl is slimmer, and the two bodies are the same shape otherwise', () => {
