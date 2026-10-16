@@ -157,6 +157,7 @@ cannot send them), physics engines, floating-origin precision systems (the
 npm run dev        # dev server
 npm run build      # production build -> dist/
 npm run preview    # serve dist/ locally
+npm run lint       # correctness only: undefined names, dead code (no style rules)
 npm run test:unit  # logic + scene-graph tests, headless, no browser
 npm run test:dist  # Pages constraints on dist/ (.nojekyll, relative paths, no external URLs, size)
 npm run test:e2e   # builds, serves, drives the game in headless Chromium
