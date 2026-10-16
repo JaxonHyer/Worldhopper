@@ -51,6 +51,10 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Headless smoke test (built game, screenshots, window.__debug assertions)
+        # Playwright stops itself at `globalTimeout`; this is the belt-and-braces
+        # guard so a wedged browser can never cost the job its whole budget and
+        # take the report down with it (see playwright.config.js).
+        timeout-minutes: 14
         run: npm run test:e2e
 
       - name: Upload screenshots

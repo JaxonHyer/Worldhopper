@@ -54,7 +54,11 @@ function conformingDisc({ map, seed, radius, innerRadius = 0, lift = LIFT, cente
       const b = ring * SEGMENTS + next;
       const c = (ring + 1) * SEGMENTS + segment;
       const d = (ring + 1) * SEGMENTS + next;
-      indices.push(a, c, b, b, c, d);
+      // Wound so the faces point *up*. The rings run counter-clockwise in the
+      // XZ plane seen from above, so the upward-facing triangle is
+      // (inner, next, outer) — the other winding draws a pool you cannot see
+      // from the shore (front faces culled, and the normals flip with them).
+      indices.push(a, b, c, b, d, c);
     }
   }
   const geometry = new THREE.BufferGeometry();
@@ -111,6 +115,12 @@ export function createPerpendicularityView({ map, seed, variant }) {
     terrainHeight(map, seed, center.x, center.z) + COLUMN_HEIGHT / 2 + LIFT,
     center.z,
   );
+
+  // Named, because a test that checks the water is *visible from the shore*
+  // has to be able to point at the right mesh.
+  shore.name = 'perpendicularity-shore';
+  pool.name = 'perpendicularity-pool';
+  column.name = 'perpendicularity-column';
 
   group.add(shore, pool, column);
 

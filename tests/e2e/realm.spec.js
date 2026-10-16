@@ -17,6 +17,14 @@ const POOL_Z = -14;
 const WALK_SPEED = 7.9;
 
 /**
+ * The transition length is a *feel* number (`?fadems=`, default 420 ms), and a
+ * full fade costs `2 x fade + hold` of real time. The tests below are about the
+ * rule — walk in, shift realm, once per visit — so they run it at 120 ms and
+ * leave the long beat to the screenshot test, which is the one judging it.
+ */
+const QUICK_FADE = '?fadems=120';
+
+/**
  * Walk into the pool by holding W until a transition has run.
  *
  * Detected by the *count* of fades rather than by catching `ui.fade` mid-flight:
@@ -38,7 +46,7 @@ async function walkIntoPool(page, { steps = 10 } = {}) {
 test('walking into the pool shifts the realm, behind a fade', async ({ page, isMobile }) => {
   test.skip(isMobile, 'keyboard path; the phone is covered below');
   const watch = attachWatch(page);
-  const before = await startFrozen(page);
+  const before = await startFrozen(page, QUICK_FADE);
   expect(before.realm).toBe('physical');
   expect(before.camera.projection).toBe('perspective');
   expect(before.ui.fade).toBe(false);
@@ -88,7 +96,7 @@ test('walking into the pool shifts the realm, behind a fade', async ({ page, isM
 test('the realm swap key and button are gone', async ({ page, isMobile }) => {
   test.skip(isMobile, 'the desktop half; the phone half is below');
   const watch = attachWatch(page);
-  const before = await startFrozen(page);
+  const before = await startFrozen(page, QUICK_FADE);
 
   // The old binding: F did this, and it must not any more.
   await page.keyboard.press('f');
@@ -105,7 +113,7 @@ test('the realm swap key and button are gone', async ({ page, isMobile }) => {
 test('the phone realm button is gone too, and the pool works by thumb', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch path');
   const watch = attachWatch(page);
-  const before = await startFrozen(page);
+  const before = await startFrozen(page, QUICK_FADE);
   expect(before.ui.touch).toBe(true);
   await expect(page.locator('.touch-realm')).toHaveCount(0);
 
@@ -123,8 +131,11 @@ test('the phone realm button is gone too, and the pool works by thumb', async ({
     });
     await page.waitForTimeout(16);
   }
+  // By count, not by catching `ui.fade` mid-flight: a beat can start and finish
+  // between two polls, and a test that races what it measures flakes.
+  const fadesBefore = (await readDebug(page)).ui.fades;
   let sawFade = false;
-  for (let i = 0; i < 10 && !sawFade; i++) sawFade = (await stepSim(page, 0.4)).ui.fade;
+  for (let i = 0; i < 10 && !sawFade; i++) sawFade = (await stepSim(page, 0.4)).ui.fades > fadesBefore;
   await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await client.detach();
   expect(sawFade, 'the thumb-stick path must reach the pool too').toBe(true);

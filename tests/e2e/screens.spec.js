@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { attachWatch, gotoGame, openStick, readDebug, saveShot } from './helpers.js';
 
 /**
@@ -7,6 +7,20 @@ import { attachWatch, gotoGame, openStick, readDebug, saveShot } from './helpers
  * variants, plus overlay / panel / credits. These are the images the owner
  * compares against the live build.
  */
+
+/**
+ * The pool is 14 m ahead of the spawn (M2: a Perpendicularity *by spawn*), and
+ * its edge — the point where walking forward takes you into the other realm —
+ * is 10.6 m out, and a standing start reaches it 1.42 s later (measured in the
+ * sim, run-up included). Every walk in
+ * this file exists to photograph the **physical** world and the character's
+ * pose, so the walks stop short of it and say so. Shorter-than-the-pool walks
+ * that a future speed change cannot quietly turn into lens screenshots: the
+ * realm is asserted at the end rather than assumed.
+ */
+const POOL_EDGE_SECONDS = 1.2;
+
+const isPhysical = async (page) => (await readDebug(page)).realm === 'physical';
 
 test('captures the deliverable screenshots', async ({ page, isMobile }, testInfo) => {
   const watch = attachWatch(page);
@@ -51,20 +65,22 @@ test('captures the deliverable screenshots', async ({ page, isMobile }, testInfo
 
   // Walking: hold W and photograph the world from where the player got to.
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(2200);
+  await page.waitForTimeout(POOL_EDGE_SECONDS * 1000);
   await page.keyboard.up('KeyW');
   await page.waitForTimeout(300);
   await saveShot(page, 'world-walked', testInfo);
+  expect(await isPhysical(page), 'the pool must not have swallowed the walk').toBe(true);
 
   // The third-person pose, from a few distances so the boom length is judgeable
   // in one image set rather than by dragging the slider back and forth.
   for (const distance of [3, 4.2, 6.5]) {
     await gotoGame(page, `?camdist=${distance}&debug=0`);
     await page.keyboard.down('KeyW');
-    await page.waitForTimeout(1400);
+    await page.waitForTimeout(POOL_EDGE_SECONDS * 1000);
     await page.keyboard.up('KeyW');
     await page.waitForTimeout(220); // catch them mid-stride, still walking
     await saveShot(page, `third-person-${String(distance).replace('.', '_')}m`, testInfo);
+    expect(await isPhysical(page), 'the pool must not have swallowed the walk').toBe(true);
   }
 
   // Looking down at the character, which is where a boom camera earns its keep.
@@ -75,9 +91,10 @@ test('captures the deliverable screenshots', async ({ page, isMobile }, testInfo
   await page.mouse.down();
   await page.mouse.move(800, 700, { steps: 10 });
   await page.mouse.up();
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(300); // still short of the pool edge at 1.35 s
   await page.keyboard.up('KeyW');
   await saveShot(page, 'third-person-looking-down', testInfo);
+  expect(await isPhysical(page), 'the pool must not have swallowed the walk').toBe(true);
 
   // The face. Walking backwards turns the body to face the camera — this is the
   // fix for "because of camera position I cannot see the face" — so both
