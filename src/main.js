@@ -40,7 +40,17 @@ import { HINTS, createHud } from './ui/hud.js';
 const canvas = document.getElementById('game');
 const uiMount = document.getElementById('ui');
 
-bootstrap();
+try {
+  bootstrap();
+} catch (error) {
+  // The window error handler below already tells the *player* something broke.
+  // This is the machine-readable half: without it a boot failure leaves the
+  // headless harness waiting on a `ready` flag that can never be set, which is
+  // how one bad line in the fade cost a whole CI run and arrived looking like
+  // nothing but slowness (2026-10-16).
+  window.__worldhopper = { ready: false, bootError: `${error?.message ?? error}` };
+  throw error;
+}
 
 function bootstrap() {
   const params = new URLSearchParams(location.search);

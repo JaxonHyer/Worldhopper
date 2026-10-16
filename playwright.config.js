@@ -30,6 +30,16 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  /**
+   * Stop the run after a handful of failures.
+   *
+   * When everything fails for one reason — the game not starting, a broken
+   * selector — repeating the same 30-second timeout eighty times tells you
+   * nothing the first six did not, and it is what turns a one-line bug into a
+   * run that has to be killed at the job's timeout. Six is enough to see a
+   * pattern and small enough to be cheap. Locally, run everything.
+   */
+  maxFailures: process.env.CI ? 6 : 0,
   workers: process.env.CI ? 2 : undefined,
   reporter: [
     ['list'],

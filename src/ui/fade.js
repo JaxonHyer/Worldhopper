@@ -18,14 +18,19 @@ const BLACK_HOLD_MS = 140;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function createFade({ mount, fadeMs: initialFadeMs = 420, holdMs: initialHoldMs = BLACK_HOLD_MS } = {}) {
+  // The durations are normalised *before* the element is touched: reading
+  // `fadeMs` on the line that sets the CSS variable would be a temporal dead
+  // zone reference, which throws at construction — and a fade that throws while
+  // the game is booting is a black screen with no clue in it.
+  let fadeMs = Number.isFinite(initialFadeMs) ? Math.max(0, initialFadeMs) : 420;
+  let holdMs = Number.isFinite(initialHoldMs) ? Math.max(0, initialHoldMs) : BLACK_HOLD_MS;
+
   const element = document.createElement('div');
   element.className = 'fade';
   element.setAttribute('aria-hidden', 'true');
   element.style.setProperty('--fade-ms', `${fadeMs}ms`);
   mount.appendChild(element);
 
-  let fadeMs = Number.isFinite(initialFadeMs) ? Math.max(0, initialFadeMs) : 420;
-  let holdMs = Number.isFinite(initialHoldMs) ? Math.max(0, initialHoldMs) : BLACK_HOLD_MS;
   let active = false;
   /** How many fades have run — the debug snapshot's proof that the beat happened. */
   let count = 0;

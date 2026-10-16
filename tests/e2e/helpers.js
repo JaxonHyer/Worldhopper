@@ -44,9 +44,42 @@ export function attachWatch(page) {
   };
 }
 
-/** Wait until the game has rendered its first frames. */
+/**
+ * Wait until the game has rendered its first frames.
+ *
+ * A boot failure must not read as slowness. `ready` is only set once the frame
+ * loop has run cleanly, so anything that throws while the game is starting —
+ * a bad line in a UI module, a missing DOM node — leaves this function waiting
+ * out its 30-second timeout on *every* test in the suite, which is how a
+ * one-line bug once cost a whole CI run and published nothing to explain it
+ * (2026-10-16). The game now records the exception (`bootError`), and this
+ * turns it into an immediate, readable failure with the message in the report.
+ */
 export async function waitForReady(page) {
-  await page.waitForFunction(() => window.__worldhopper?.ready === true, null, { timeout: 30_000 });
+  const consoleErrors = [];
+  const onError = (message) => consoleErrors.push(message.text());
+  page.on('console', (message) => {
+    if (message.type() === 'error') onError(message);
+  });
+  const bootError = () =>
+    page.evaluate(() => window.__worldhopper?.bootError ?? null).catch(() => null);
+
+  try {
+    await page.waitForFunction(
+      () => window.__worldhopper?.ready === true || window.__worldhopper?.bootError,
+      null,
+      { timeout: 30_000 },
+    );
+  } catch (error) {
+    const reason = await bootError();
+    const console_ = consoleErrors.slice(0, 3).join(' | ');
+    throw new Error(
+      `the game never became ready (30s)${reason ? ` — boot error: ${reason}` : ''}${console_ ? ` — console: ${console_}` : ''}`,
+    );
+  }
+
+  const reason = await bootError();
+  if (reason) throw new Error(`the game failed to start — boot error: ${reason}`);
 }
 
 /** Read the game-state snapshot exposed by the debug hook. */
