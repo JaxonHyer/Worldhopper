@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { attachWatch, gotoGame, readDebug, saveShot, waitForReady } from './helpers.js';
 import { SETTING_BY_KEY } from '../../src/core/settings.js';
 
@@ -15,7 +16,11 @@ test('loads, renders, and reports state through the debug hook', async ({ page }
   const debug = await readDebug(page);
   expect(debug.ready).toBe(true);
   expect(debug.realm).toBe('physical');
-  expect(debug.mapId).toBe('blank-basin');
+  // No `?map=` in the URL, so this is the world the game opens on. Asserting
+  // the constant rather than a name keeps the test honest when the opening
+  // world changes (it did, at the owner's request: the test range has no
+  // cognitive realm to look at, so it is no longer what a player lands on).
+  expect(debug.mapId).toBe(DEFAULT_MAP_ID);
   // Whatever the tuned default seed is, the built game must load it.
   expect(debug.seed).toBe(SETTING_BY_KEY.seed.default);
   expect(debug.entityCount).toBeGreaterThan(0);

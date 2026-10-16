@@ -101,7 +101,16 @@ test('captures Roshar in both realms', async ({ page, isMobile }, testInfo) => {
   const watch = attachWatch(page);
   test.setTimeout(120_000);
 
-  // The physical world, from the spawn.
+  // **No parameters at all.** This is what a player sees when they open the
+  // game, and the reason this test exists: the opening world used to be the M0
+  // test range, so the owner — who plays on a phone and does not type URLs —
+  // saw nothing new when the skins shipped ("Nothing changed from last time").
+  await gotoGame(page, '?debug=0');
+  await page.waitForTimeout(600);
+  await saveShot(page, 'default-load', testInfo);
+  expect((await readDebug(page)).mapId, 'the game must open on the world with a realm to see').toBe('roshar');
+
+  // The same world with the parameter it no longer needs.
   await gotoGame(page, '?map=roshar&debug=0');
   await page.waitForTimeout(600);
   await saveShot(page, 'roshar-physical', testInfo);

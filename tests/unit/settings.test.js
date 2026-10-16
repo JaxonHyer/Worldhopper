@@ -10,10 +10,21 @@ import {
   parseFlag,
   parseSettings,
   serializeSettings,
+  setPaletteOptions,
   SETTING_BY_KEY,
 } from '../../src/core/settings.js';
+import { DEFAULT_MAP_ID, getMap } from '../../src/core/maps/index.js';
 
 const def = (key) => SETTING_BY_KEY[key];
+
+/**
+ * A palette name only means something on the world that invented it, so a test
+ * that uses one has to say which world it is talking about. This is also what
+ * the game does at boot (before the settings are parsed), which is why the
+ * helper exists at all.
+ */
+const useMap = (id) => setPaletteOptions(id);
+const TEST_RANGE = 'blank-basin';
 
 test('defaults are self-consistent with their defs', () => {
   for (const d of SETTING_DEFS) {
@@ -27,6 +38,7 @@ test('defaults are self-consistent with their defs', () => {
 });
 
 test('URL parameters override stored settings, which override defaults', () => {
+  useMap(TEST_RANGE); // the stored palette names a test-range variant
   const stored = { fog: 0.008, palette: 'mist-sea', sun: 2 };
   const settings = parseSettings({ search: '?fog=0.001&seed=777', stored });
   assert.equal(settings.fog, 0.001); // URL wins
@@ -87,6 +99,7 @@ test('int settings are rounded, float settings are quantised to their decimals',
 });
 
 test('serialize -> parse round-trips a tuned config', () => {
+  useMap(TEST_RANGE); // ...and its tuned palette is the owner's test-range pick
   const tuned = { ...defaultSettings(), fog: 0.0042, palette: 'cold-ridge', seed: 4242, look: 1.35 };
   const query = serializeSettings(tuned, { includeDefaults: true });
   assert.deepEqual(parseSettings({ search: `?${query}` }), tuned);
@@ -146,9 +159,16 @@ test('the owner’s playtested feel is the default (guard against a silent reset
   // Numbers pasted back from the tuning panel on 2026-10-15, together with the
   // playtest that passed M1. If a change moves one of these, it is a decision
   // the owner has to make, not a side effect of an edit.
+  //
+  // The palette is deliberately *not* in this table any more (2026-10-16): a
+  // palette name is per-world data, and the game's opening world changed at the
+  // owner's request ("nothing changed from last time" — they were looking at the
+  // test range, which is the one map with no cognitive realm to see). The rule
+  // that replaces the constant is stricter than it was: each world opens on the
+  // palette *it* declares, and the owner's pick is still the test range's.
+  useMap(TEST_RANGE);
   const tuned = {
     seed: 1607255203,
-    palette: 'cold-ridge',
     fog: 0.0026,
     sun: 2.4,
     ambient: 1.25,
@@ -172,6 +192,24 @@ test('the owner’s playtested feel is the default (guard against a silent reset
   for (const [key, value] of Object.entries(tuned)) {
     assert.equal(parsed[key], value, `${key} did not survive the config link`);
   }
+
+  // The palette rule that replaces the old constant: every world opens on the
+  // palette it declares, and the owner's pick is intact where they picked it.
+  assert.equal(getMap(TEST_RANGE).defaultPalette, 'cold-ridge', "the owner's test-range palette moved");
+  for (const mapId of [TEST_RANGE, DEFAULT_MAP_ID]) {
+    useMap(mapId);
+    const map = getMap(mapId);
+    assert.equal(
+      defaultSettings().palette,
+      map.defaultPalette,
+      `${mapId} must open on the palette it declares`,
+    );
+    assert.ok(
+      map.variants.some((variant) => variant.id === map.defaultPalette),
+      `${mapId} declares a default palette that does not exist on it`,
+    );
+  }
+  useMap(DEFAULT_MAP_ID); // leave the table as the game boots it
 });
 
 test('the camera controls are live in M1', () => {

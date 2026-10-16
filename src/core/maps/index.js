@@ -27,6 +27,14 @@ const blankBasin = {
   defaultSeed: 20261014,
   /** Brief description shown in the debug overlay / credits. */
   blurb: 'A foggy basin built to test palette, fog and the harness. No canon attached.',
+  /**
+   * Which of this map's own palettes it opens on.
+   *
+   * A palette name is per-world data — "cold-ridge" means nothing on Roshar —
+   * so the default belongs to the map rather than to the settings table. This is
+   * the owner's pick from the three the basin shipped with, kept exactly.
+   */
+  defaultPalette: 'cold-ridge',
 
   ground: {
     /** metres, square. Kept far inside the scale fence (§5). */
@@ -150,7 +158,20 @@ const blankBasin = {
  */
 export const MAPS = Object.freeze({ [blankBasin.id]: blankBasin, [roshar.id]: roshar });
 
-export const DEFAULT_MAP_ID = blankBasin.id;
+/**
+ * The world the game opens on.
+ *
+ * Roshar, since M2: it is the only map with a Cognitive Realm to look at
+ * (the test range has no canon, so its subastral is empty by design), and a
+ * player on a phone should not have to know a URL parameter to see the game's
+ * own core verb. The test range is still `?map=blank-basin`.
+ *
+ * Flipping this back is one line. The feel numbers the owner tuned are
+ * map-agnostic and unchanged; the palette default follows the map
+ * (`defaultPalette`), because a palette name only means something on the world
+ * that invented it.
+ */
+export const DEFAULT_MAP_ID = roshar.id;
 
 export function getMap(id) {
   const map = MAPS[id];

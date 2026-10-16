@@ -33,6 +33,8 @@ export const roshar = {
   system: 'rosharan',
   defaultSeed: 1607255203,
   blurb: 'Storm-scoured rock above the pool at the peaks. The first authored world.',
+  /** Which of this map's palettes it opens on. A taste call — see the PR. */
+  defaultPalette: 'storm-shore',
 
   ground: {
     size: 1600,

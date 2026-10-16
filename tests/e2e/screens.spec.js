@@ -57,8 +57,10 @@ test('captures the deliverable screenshots', async ({ page, isMobile }, testInfo
     return;
   }
 
+  // The test range's three palettes, named along with the map they belong to:
+  // palette names are per-world data, and the game no longer opens on this map.
   for (const variant of ['ashen-basin', 'mist-sea', 'cold-ridge']) {
-    await gotoGame(page, `?palette=${variant}`);
+    await gotoGame(page, `?map=blank-basin&palette=${variant}`);
     const debug = await readDebug(page);
     if (debug.palette !== variant) throw new Error(`palette ${variant} did not load (got ${debug.palette})`);
     await saveShot(page, `world-${variant}`, testInfo);

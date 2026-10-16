@@ -10,7 +10,7 @@
  * fall back to the next source, never NaN.
  */
 
-import { DEFAULT_MAP_ID, listVariants } from './maps/index.js';
+import { DEFAULT_MAP_ID, getMap, listVariants } from './maps/index.js';
 import { hashSeed } from './rng.js';
 
 export const SETTINGS_STORAGE_KEY = 'worldhopper.settings.v1';
@@ -55,8 +55,12 @@ export const SETTING_DEFS = Object.freeze([
     kind: 'enum',
     label: 'Palette variant',
     help: 'A taste call: same geometry, different atmosphere.',
+    // Derived from the world the game opens on, because a palette name is
+    // per-world data. `setPaletteOptions` re-points both of these when the
+    // player is somewhere else — but the table has to be self-consistent on its
+    // own, before any boot code runs (a unit test checks exactly that).
     values: listVariants(DEFAULT_MAP_ID),
-    default: 'cold-ridge',
+    default: defaultPaletteOf(DEFAULT_MAP_ID),
     phase: 'm0',
   },
   {
@@ -386,16 +390,30 @@ function readSource(def, source) {
  * Merge defaults <- stored <- URL.
  * @param {{ search?: string, stored?: object }} [input]
  */
+/** A map's declared opening palette, with a safe fallback to its first. */
+function defaultPaletteOf(mapId) {
+  const map = getMap(mapId);
+  const values = listVariants(map.id);
+  return values.includes(map.defaultPalette) ? map.defaultPalette : values[0];
+}
+
 /**
- * Point the palette dropdown at a map's variants.
+ * Point the palette setting at a map's variants, and at that map's default.
  *
- * Called at boot with the map that is actually loaded: the palette *names* are
- * per-world data, so a Roshar session must not offer the test range's three.
- * The setting itself does not change — only the list of names in the panel.
+ * Called at boot with the map that is actually loaded, *before* the settings are
+ * parsed, because both halves are per-world data: a palette name only means
+ * something on the world that invented it. `cold-ridge` is the owner's pick on
+ * the test range and stays exactly that; Roshar opens on its own palette.
+ *
+ * Everything that reads a default (parsing, serialising, the panel, reset)
+ * goes through the def, so this one call keeps them all consistent.
  */
 export function setPaletteOptions(mapId) {
-  SETTING_BY_KEY.palette.values = listVariants(mapId);
-  return SETTING_BY_KEY.palette.values;
+  const map = getMap(mapId);
+  const values = listVariants(map.id);
+  SETTING_BY_KEY.palette.values = values;
+  SETTING_BY_KEY.palette.default = defaultPaletteOf(map.id);
+  return values;
 }
 
 export function parseSettings({ search = '', stored = null, urlParams = null } = {}) {
