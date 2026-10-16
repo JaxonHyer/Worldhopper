@@ -72,17 +72,24 @@ it multiplies the walk speed by `Sprint speed` (`?sprint=`, default 2.2×) while
 you are actually moving, and it is the *speed* that changes: the stride rate
 stays capped, so a sprint widens the swing rather than blurring it.
 
-**The realm shift (M2).** Press <kbd>F</kbd> (or tap **realm** on a phone) and the
-same world is drawn again through the **Cognitive lens**: an orthographic,
-high-angle view of the same coordinates, with a badge at the bottom of the screen
-saying which realm you are in. It is instant and it costs nothing but a render —
-the world state is untouched, which is asserted two ways (a unit test walks the
-same seed in both realms to the same entity hash, and the browser test checks the
-tick and player position across a shift). Walking, jumping and looking all still
-work in the lens; `?realmzoom=` sets how much of the world it shows. The *look* of
-the Cognitive realm — its palette and fog, and what objects and living things
-become — is per-world data (`cognitiveSkin` in the map), and arrives with the
-first authored world.
+**The realm shift (M2) — walk into the Perpendicularity.** Fourteen metres
+ahead of where you land there is a **pool**, and stepping into it shifts you
+between the Physical and the Cognitive Realm, behind a **fade to black**. There
+is no key for it and no button: a Perpendicularity is a gate between realms, so
+the shift is a place you go, not a control you press. Walk out and back in to
+shift again (standing in it does not flap you between realms, and arriving in it
+does not bounce you straight back).
+
+The **Cognitive lens** is the same world drawn again: orthographic, high-angle,
+centred on you, with a badge at the bottom of the screen saying which realm you
+are in. The world state is untouched by a shift — asserted two ways (a unit test
+walks the same seed in both realms to the same entity hash; the browser test
+steps into the pool and checks the tick, the entity hash and the player position
+across the fade). Walking, jumping and looking all still work in the lens;
+`Realm transition (ms)` sets the length of the fade, and `Cognitive lens height`
+sets how much of the world it shows. The *look* of the Cognitive realm — its
+palette and fog, and what objects and living things become — is per-world data
+(`cognitiveSkin` in the map), and arrives with the first authored world.
 
 **Camera:** third person by default — you are looking at your character from
 behind, and the camera slides closer when a hill or a rock is in the way. Look
@@ -111,6 +118,8 @@ buttons (add `?dev=1` to the URL) give the same tools.
 | `sprint` | `?sprint=1.5` | sprint speed multiplier (1–3, default 2.2) |
 | `girl` | `?girl=1` | the girl player character (default `0`, the boy) |
 | `realmzoom` | `?realmzoom=80` | how much world the Cognitive lens shows, in metres (16–140) |
+| `fadems` | `?fadems=900` | how long the realm transition takes (0–2000 ms; 0 is a cut) |
+| `realm` | `?realm=cognitive` | start in the Cognitive lens, without walking to the pool |
 | `fog`, `sun`, `ambient`, `fov` | `?fog=0.0042` | atmosphere |
 | `view` | `?view=first` | `third` (default, over the shoulder) or `first` (through the eyes) |
 | `camdist` | `?camdist=6` | third-person boom length in metres (1.2–8) |
@@ -175,6 +184,7 @@ src/core/                  logic only, no DOM, no three.js (all headless-tested)
   stick.js                 virtual-stick + move-intent maths
   look.js / math.js        look maths, clamped and NaN-proof
   settings.js              tunables: schema, URL/localStorage, clamping
+  gate.js                  the Perpendicularity: where it is, and when it fires
   maps/index.js            map data: palettes, landmark, prop policy, cognitiveSkin
   terrain-color.js         per-facet ground colouring (world-space, tested)
   snapshot.js              the debug snapshot shape (window.__debug, overlay, reports)

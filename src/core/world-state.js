@@ -30,6 +30,12 @@ function placeProps(map, seed) {
       const tooCloseToLandmark =
         landmark && Math.hypot(x - landmark.position.x, z - landmark.position.z) < policy.landmarkClearance;
       if (tooCloseToLandmark) continue;
+      const gate = map.perpendicularity;
+      const tooCloseToGate =
+        gate &&
+        Math.hypot(x - gate.position.x, z - gate.position.z) <
+          (policy.perpendicularityClearance ?? gate.radius + 6);
+      if (tooCloseToGate) continue;
       const scale = policy.minScale + rng.next() * (policy.maxScale - policy.minScale);
       placed = {
         id: `${policy.kind}-${String(i + 1).padStart(2, '0')}`,

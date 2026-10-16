@@ -16,6 +16,7 @@ import { facetNoise, groundFacetColor, groundPalette } from '../core/terrain-col
 import { terrainHeight } from '../core/world-state.js';
 import { createSky } from './sky.js';
 import { createPlayerAvatar } from './player-view.js';
+import { createPerpendicularityView } from './perpendicularity-view.js';
 
 export function createWorldView({ map, state, variant, settings }) {
   const scene = new THREE.Scene();
@@ -38,6 +39,11 @@ export function createWorldView({ map, state, variant, settings }) {
 
   const ground = buildGround({ map, seed: state.seed, variant });
   group.add(ground.mesh);
+
+  // The Perpendicularity (M2): map furniture, drawn from the map's own data —
+  // never from state, so a realm shift cannot move it or hide it.
+  const pool = createPerpendicularityView({ map, seed: state.seed, variant });
+  group.add(pool.group);
 
   const landmarkMaterials = {
     stone: new THREE.MeshLambertMaterial({ color: new THREE.Color(variant.props.landmark), flatShading: true }),
@@ -90,6 +96,8 @@ export function createWorldView({ map, state, variant, settings }) {
         }
       }
       avatar.sync(currentState.player, camera, dt);
+      // The pool breathes on the sim clock, so a run looks the same on replay.
+      pool.sync(currentState.simTime);
     },
     applySettings(next, nextVariant) {
       const wanted = next.girlPlayer ? 'girl' : 'boy';
@@ -114,6 +122,7 @@ export function createWorldView({ map, state, variant, settings }) {
         sunDir.set(nextVariant.sun.direction.x, nextVariant.sun.direction.y, nextVariant.sun.direction.z).normalize();
         sun.position.copy(sunDir).multiplyScalar(500);
         ground.setColors(nextVariant);
+        pool.setVariant(nextVariant);
         landmarkMaterials.stone.color.set(nextVariant.props.landmark);
         landmarkMaterials.base.color.set(nextVariant.props.landmark).multiplyScalar(0.82);
         rockMaterials.forEach((material, tint) => {
@@ -129,10 +138,12 @@ export function createWorldView({ map, state, variant, settings }) {
         avatar: avatar.stats().boxes,
         avatarTextures: avatar.stats().textures,
         avatarVariant,
+        pool: pool.stats(),
       };
     },
     dispose() {
       for (const item of disposables) item.dispose?.();
+      pool.dispose();
       avatar.dispose();
       sky.dispose();
       scene.clear();

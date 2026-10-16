@@ -110,12 +110,6 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
   // --- jump ---------------------------------------------------------------
   let jumpQueued = false;
 
-  // --- realm (M2) ---------------------------------------------------------
-  // The core verb, so it gets the simplest possible input: one key on a
-  // keyboard, one button on a phone. Queued, not held: a realm shift is an
-  // event, and it must not be possible to fire twice for one press.
-  let realmQueued = false;
-
   // --- sprint -------------------------------------------------------------
   // Two ways in, because the two devices want different things: a desktop holds
   // Shift (a modifier, so it is deliberately not consumed or preventDefault'ed),
@@ -130,7 +124,6 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
   const knobEl = elements.knob ?? null;
   const jumpEl = elements.jump ?? null;
   const sprintEl = elements.sprint ?? null;
-  const realmEl = elements.realm ?? null;
 
   const isCaptured = () => typeof document !== 'undefined' && document.pointerLockElement === canvas;
 
@@ -260,15 +253,6 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     const key = event.key;
     const code = event.code;
     const lower = key.length === 1 ? key.toLowerCase() : key;
-
-    // The realm shift is its own key rather than a `hotkeys` entry: those are
-    // toggles for UI panels, and this is a game action.
-    if (lower === 'f') {
-      realmQueued = true;
-      counters.realmToggles = (counters.realmToggles ?? 0) + 1;
-      event.preventDefault();
-      return;
-    }
 
     for (const [action, hotkey] of Object.entries(hotkeys)) {
       if (lower === hotkey.toLowerCase()) {
@@ -441,14 +425,6 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     }
   }
 
-  // The realm button (phone): the game's core verb, so it gets a button of its
-  // own — and it is a *tap*, not a hold, for the same reason sprint is.
-  realmEl?.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    realmQueued = true;
-    counters.realmToggles = (counters.realmToggles ?? 0) + 1;
-  });
-
   // The sprint button (phone): a toggle, so it can be tapped once and left on.
   sprintEl?.addEventListener('pointerdown', (event) => {
     event.preventDefault();
@@ -531,13 +507,6 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     /** The phone button's state on its own, for tests and the overlay. */
     sprintToggled: () => sprintToggled,
     setSprint,
-
-    /** Realm edge (M2): consumes the press so one tap is one shift. */
-    consumeRealm() {
-      const queued = realmQueued;
-      realmQueued = false;
-      return queued;
-    },
 
     /** Jump edge; consumes the press so one tap is one jump. */
     consumeJump() {

@@ -26,6 +26,17 @@ function buildWorld(overrides = {}) {
   return { settings, state, world };
 }
 
+test('the Perpendicularity is drawn as map furniture, once', () => {
+  const { world } = buildWorld();
+  const pool = world.scene.getObjectByName('perpendicularity');
+  assert.ok(pool, 'the pool must be in the scene');
+  assert.equal(world.stats().pool.meshes, 3, 'shore, pool and the column of light');
+  assert.ok(world.stats().pool.radius >= 1);
+  // It is map data, not state: no entity id, and it is not one of the entities.
+  assert.equal(pool.userData.entityId, undefined);
+  assert.equal(world.entityObjects.size, buildWorld().world.entityObjects.size);
+});
+
 test('the world builds, with one object per state entity', () => {
   const { state, world } = buildWorld();
   assert.equal(world.entityObjects.size, state.entities.length);

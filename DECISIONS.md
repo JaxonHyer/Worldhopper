@@ -438,3 +438,43 @@ this to stay oriented; agents add to it in the same PR as the change.
   stay in one table, and no game logic reads a key directly. The swap UI and the
   kit binding tables are M6 work (the brief's `MagicKit` contract); the ground is
   being kept ready for them now.
+
+## M2 — the Perpendicularity is the realm gate (owner, 2026-10-15)
+
+- **The realm shift is a place, not a binding.** The owner: "make a
+  Perpendicularity by spawn with a fade to black transition. Remove the realm
+  swap button and key binding." So the F key and the phone's *realm* button are
+  gone: the shift happens when you **walk into the pool**, which is what canon
+  says a Perpendicularity is (a gate between realms — ROADMAP.md Canon anchors).
+  The old binding was not deleted and replaced with a new one on purpose; the
+  only input that shifts realms is walking.
+- **The pool is map data, drawn as furniture.** `map.perpendicularity` holds its
+  id, position, radius and `open` flag; the renderer builds a disc whose
+  vertices sample `terrainHeight`, so a pool follows a slope like liquid instead
+  of floating over it or fighting the ground it lies on (3 cm proud, the fence's
+  coplanar rule). Its colour is per palette variant, like fog and sky. `open` is
+  already honoured by the gate — M4's "find it, then open it" is a puzzle about
+  turning that flag on, not a rewrite.
+- **The trigger is an edge, and arrivals are quiet.** `gateStep` fires once per
+  *visit*: standing in the pool does not shift you every frame, and arriving in
+  the pool — which is where a shift leaves you — does not fire straight back. A
+  transition in flight blocks the gate entirely, so a double fire cannot cancel
+  itself out behind a black screen.
+- **The world holds still behind the fade.** While the fade is active the sim
+  does not step. A transition is a beat: nothing may happen to the player that
+  they cannot see happening. It also means the fade can never be a place where a
+  player walks off a cliff in the dark.
+- **The fade is a beat with a length, and the length is a setting.**
+  `Realm transition (ms)` (0–2000, default 420) is a live slider and mirrored in
+  the URL (`?fadems=`) — feel numbers are the owner's, per the working
+  agreements. A `prefers-reduced-motion: reduce` session caps it at 120 ms: it is
+  the one piece of this UI that has to respect that preference (M8 lists the
+  option; honouring it costs three lines).
+- **A realm can still be set without walking, but only off the player's path.**
+  `?realm=cognitive` starts a session in the lens and `__worldhopper.realm(id)`
+  sets it for the harness. Both exist for screenshots and tests; neither is
+  reachable by playing, which is the point of removing the binding.
+- **Named actions, ready for kits.** The shift is not a key check inside game
+  logic: the gate is a core function, the input layer owns keys, and hotkeys live
+  in one table. When kits bring their own binding tables (owner's PS, M6), the
+  Perpendicularity is unaffected — it is geometry, not a binding.

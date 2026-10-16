@@ -10,10 +10,10 @@
  */
 
 import './style.css';
-import { APP, SIM, PLAYER } from './core/config.js';
+import { APP, REALMS, SIM, PLAYER } from './core/config.js';
 import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
-import { createWorldState, countEntities, entityHash, stepWorld, toggleRealm } from './core/world-state.js';
+import { createWorldState, countEntities, entityHash, setRealm, stepWorld, toggleRealm } from './core/world-state.js';
 import { buildSnapshot } from './core/snapshot.js';
 import { createCameraState, resolveCamera } from './core/camera.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from './core/maps/index.js';
@@ -31,6 +31,7 @@ import { createView } from './render/renderer.js';
 import { createWorldView } from './render/world-view.js';
 import { createInput } from './platform/input.js';
 import { createDebugOverlay } from './ui/debug-overlay.js';
+import { createFade } from './ui/fade.js';
 import { createTuningPanel } from './ui/tuning-panel.js';
 import { createCredits } from './ui/credits.js';
 import { createDock } from './ui/dock.js';
@@ -49,11 +50,16 @@ function bootstrap() {
     debug: parseFlag(params, 'debug'),
     dev: parseFlag(params, 'dev'),
     touch: parseFlag(params, 'touch'),
+    /** start in the lens: `?realm=cognitive` (a start state, not a control) */
+    cognitive: params.get('realm')?.toLowerCase() === 'cognitive',
   };
 
   const map = getMap(DEFAULT_MAP_ID);
   let variant = getVariant(map.id, settings.palette);
   let state = createWorldState({ map, seed: settings.seed });
+  // The realm is a lens over the world, and `?realm=cognitive` is how a
+  // screenshot or an automated run starts inside it without walking there.
+  if (flags.cognitive) setRealm(state, REALMS.cognitive);
 
   const view = createView({
     canvas,
@@ -79,6 +85,19 @@ function bootstrap() {
   // phone because the element did not exist yet when input looked for it.
   const coarse = detectTouch(flags.touch);
   const hud = createHud({ mount: uiMount, coarsePointer: coarse, onJump: () => {} });
+  // The realm transition. Reduced motion gets a short beat instead of a long
+  // one — the black frame is the one piece of the UI a photosensitivity setting
+  // has to respect (M8 lists the option; it costs three lines to honour now).
+  const reduceMotion =
+    typeof globalThis.matchMedia === 'function' && globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The transition is a feel number (a slider), except that a reduced-motion
+  // session caps it: the black frame is the one piece of this UI that has to
+  // respect that preference.
+  const fadeDuration = () => {
+    const wanted = Number.isFinite(settings.realmFade) ? Math.max(0, settings.realmFade) : 420;
+    return reduceMotion ? Math.min(wanted, 120) : wanted;
+  };
+  const fade = createFade({ mount: uiMount, fadeMs: fadeDuration() });
   const input = createInput({
     canvas,
     onHotkey,
@@ -90,7 +109,6 @@ function bootstrap() {
       knob: hud.knob,
       jump: hud.jump,
       sprint: hud.sprint,
-      realm: hud.realm,
     },
   });
 
@@ -119,6 +137,16 @@ function bootstrap() {
     version: APP.version,
     milestone: APP.milestone,
     debug: () => snapshot(),
+    /**
+     * The realm, for the harness and for the owner's troubleshooting. Not a
+     * player control: in the game the only way to shift is to walk into the
+     * Perpendicularity, which is why this is on `__worldhopper` and not on an
+     * input binding.
+     */
+    realm: (id) => {
+      if (id === undefined) return state.realm;
+      return setRealm(state, id);
+    },
     settings: () => ({ ...settings }),
     describe: () => describeSettingsSafe(settings),
     setSetting: (key, raw) => applySetting(key, raw),
@@ -203,8 +231,24 @@ function bootstrap() {
     last = now;
     frameStats.sample(dtSeconds);
 
-    // Paused (debug only): time stands still, so the sim can be stepped by hand.
-    const steps = pausedSim ? 0 : clock.advance(dtSeconds);
+    // The Perpendicularity (M2): walking into the pool shifts the realm, with a
+    // fade to black over the moment it happens. `gateStep` is edge-triggered, so
+    // standing in the pool does not flap between realms and arriving in the pool
+    // (which is where a shift leaves you) does not fire straight back.
+    const gate = gateStatus(state.player.position, map.perpendicularity);
+    const gateDecision = gateStep(gateArmed, gate.inside, fade.active);
+    gateArmed = gateDecision.armed;
+    if (gateDecision.fire) {
+      fade.play(() => {
+        hud.setRealm(toggleRealm(state));
+      });
+    }
+    // The beat the fade is covering: the world holds still while the screen is
+    // black, so nothing can happen to the player that they cannot see.
+    const transitioning = fade.active;
+    // Paused (debug only), or mid-transition: time stands still, so the sim can
+    // be stepped by hand — and so nothing happens to the player behind the fade.
+    const steps = pausedSim || transitioning ? 0 : clock.advance(dtSeconds);
     if (steps > 0) {
       const look = input.look();
       const move = input.move();
@@ -238,10 +282,6 @@ function bootstrap() {
 
     view.setFov(settings.fov);
     view.resize();
-    // The core verb: one key (or one button) shifts the lens. It changes what
-    // the world is drawn as, never what it is — the world state is untouched,
-    // so a shift costs a render and nothing else.
-    if (input.consumeRealm()) hud.setRealm(toggleRealm(state));
     // The camera is derived from the player; the sim never reads it back.
     resolveCamera(
       { player: state.player, settings, map, seed: state.seed, obstacles: state.obstacles, realm: state.realm },
@@ -298,6 +338,7 @@ function bootstrap() {
         variant = getVariant(map.id, value);
       }
       world.applySettings(settings, variant);
+      if (key === 'realmFade') fade.setDuration(fadeDuration());
       refreshContext();
     }
     if (persist) {
@@ -316,6 +357,7 @@ function bootstrap() {
     state = createWorldState({ map, seed: settings.seed });
     rebuildWorld();
     world.applySettings(settings, variant);
+    fade.setDuration(fadeDuration());
     refreshContext();
     panel.sync(settings);
     syncUrl();
@@ -397,6 +439,8 @@ function bootstrap() {
         panel: panel.visible,
         credits: credits.visible,
         touch: !hud.jump.hidden,
+        fade: fade.active,
+        fades: fade.count,
       },
       paused: pausedSim,
       input: {

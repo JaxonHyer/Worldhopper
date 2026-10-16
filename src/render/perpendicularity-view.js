@@ -1,0 +1,151 @@
+/**
+ * The Perpendicularity, drawn.
+ *
+ * The pool lies *on* the terrain rather than floating over it: its mesh is a
+ * radial grid whose vertices sample `terrainHeight`, so it follows a slope the
+ * way a pool of liquid would and never z-fights the ground it is part of (the
+ * faces sit 3 cm proud of the surface — the M0 fence's "no coplanar surfaces").
+ *
+ * Three cheap pieces, no textures, no shaders of our own:
+ *   - a dark shore slightly wider than the pool, so its edge reads on any ground;
+ *   - the pool itself, an unlit surface with a slow pulse (it is the one thing
+ *     on the map that is lit from inside);
+ *   - a faint column of light, `AdditiveBlending`, so the gate can be found
+ *     through fog — the pool is a place, and a place you cannot find is not a
+ *     place.
+ */
+
+import * as THREE from 'three';
+import { terrainHeight } from '../core/world-state.js';
+
+/** Metres the geometry sits above the sampled terrain. */
+const LIFT = 0.03;
+const SHORE_WIDTH = 0.7;
+const SEGMENTS = 40;
+const RINGS = 5;
+/** how far the light column reaches (m) and how faint it is */
+const COLUMN_HEIGHT = 26;
+const COLUMN_OPACITY = 0.07;
+/** the pool's pulse, in cycles per second */
+const PULSE_HZ = 0.16;
+
+/**
+ * A disc that conforms to the terrain: rings of vertices, all sampled from the
+ * height field, triangulated as a fan-free ring mesh.
+ */
+function conformingDisc({ map, seed, radius, innerRadius = 0, lift = LIFT, center }) {
+  const positions = [];
+  const indices = [];
+  const ringCount = RINGS + 1;
+  for (let ring = 0; ring < ringCount; ring++) {
+    const t = ring / (ringCount - 1);
+    const r = innerRadius + (radius - innerRadius) * t;
+    for (let segment = 0; segment < SEGMENTS; segment++) {
+      const angle = (segment / SEGMENTS) * Math.PI * 2;
+      const x = center.x + Math.cos(angle) * r;
+      const z = center.z + Math.sin(angle) * r;
+      positions.push(x, terrainHeight(map, seed, x, z) + lift, z);
+    }
+  }
+  for (let ring = 0; ring < ringCount - 1; ring++) {
+    for (let segment = 0; segment < SEGMENTS; segment++) {
+      const next = (segment + 1) % SEGMENTS;
+      const a = ring * SEGMENTS + segment;
+      const b = ring * SEGMENTS + next;
+      const c = (ring + 1) * SEGMENTS + segment;
+      const d = (ring + 1) * SEGMENTS + next;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+export function createPerpendicularityView({ map, seed, variant }) {
+  const gate = map.perpendicularity;
+  const group = new THREE.Group();
+  group.name = 'perpendicularity';
+  if (!gate) {
+    return {
+      group,
+      sync() {},
+      setVariant() {},
+      stats: () => ({ meshes: 0, radius: 0, visible: false }),
+      dispose() {},
+    };
+  }
+  const center = { x: gate.position.x, z: gate.position.z };
+  const radius = Math.max(0.6, gate.radius);
+  const colors = variant.perpendicularity ?? { pool: '#9fded6', glow: '#e6fbf7' };
+
+  const shoreGeometry = conformingDisc({ map, seed, radius: radius + SHORE_WIDTH, center, lift: LIFT * 0.5 });
+  const shore = new THREE.Mesh(
+    shoreGeometry,
+    new THREE.MeshLambertMaterial({ color: new THREE.Color(colors.pool).multiplyScalar(0.34), flatShading: true }),
+  );
+
+  const poolGeometry = conformingDisc({ map, seed, radius, center });
+  const poolMaterial = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(colors.pool),
+    transparent: true,
+    opacity: 0.9,
+    // Unlit on purpose: the pool is the one surface that does not need the sun.
+  });
+  const pool = new THREE.Mesh(poolGeometry, poolMaterial);
+
+  const columnGeometry = new THREE.CylinderGeometry(radius * 0.62, radius * 0.94, COLUMN_HEIGHT, SEGMENTS, 1, true);
+  const columnMaterial = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(colors.glow),
+    transparent: true,
+    opacity: COLUMN_OPACITY,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const column = new THREE.Mesh(columnGeometry, columnMaterial);
+  column.position.set(
+    center.x,
+    terrainHeight(map, seed, center.x, center.z) + COLUMN_HEIGHT / 2 + LIFT,
+    center.z,
+  );
+
+  group.add(shore, pool, column);
+
+  const materials = [shore.material, poolMaterial, columnMaterial];
+  const geometries = [shoreGeometry, poolGeometry, columnGeometry];
+  let pulseTime = 0;
+
+  return {
+    group,
+    /**
+     * `time` is the *sim* clock, not wall clock: the pool's pulse is part of the
+     * world's deterministic furniture, so a recorded run looks the same twice.
+     */
+    sync(time = 0) {
+      pulseTime = Number.isFinite(time) ? time : pulseTime;
+      const wave = Math.sin(pulseTime * Math.PI * 2 * PULSE_HZ);
+      poolMaterial.opacity = 0.82 + wave * 0.08;
+      columnMaterial.opacity = COLUMN_OPACITY + wave * 0.02;
+      // The column turns slowly, so a still frame of it is never the same two
+      // frames running — and it costs one number per frame.
+      column.rotation.y = pulseTime * 0.03;
+    },
+    setVariant(next) {
+      const nextColors = next.perpendicularity ?? colors;
+      shore.material.color.set(nextColors.pool).multiplyScalar(0.34);
+      poolMaterial.color.set(nextColors.pool);
+      columnMaterial.color.set(nextColors.glow);
+    },
+    stats() {
+      return { meshes: group.children.length, radius, visible: group.visible, gateId: gate.id };
+    },
+    dispose() {
+      for (const geometry of geometries) geometry.dispose();
+      for (const material of materials) material.dispose();
+      group.clear();
+    },
+  };
+}

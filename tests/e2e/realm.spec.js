@@ -2,127 +2,169 @@ import { test, expect } from '@playwright/test';
 import { attachWatch, readDebug, saveShot, startFrozen, stepSim, gotoGame } from './helpers.js';
 
 /**
- * M2: the realm switch — the game's core verb.
+ * M2: the realm shift, as a place rather than a key press.
  *
- * Two things must hold every time, on both devices:
- *   1. the world does not change when the lens does (same state, same tick,
- *      same entity hash — §2: never two versions of the world), and
- *   2. the switch is instant, so the tests read it the way a player feels it:
- *      press, and it is already the other realm.
+ * The owner's instruction (2026-10-15): "make a Perpendicularity by spawn with
+ * a fade to black transition. Remove the realm swap button and key binding."
+ * So these tests drive the *player* to the pool and check what a player would
+ * see: a fade, then another realm, with the world unchanged underneath it.
+ *
+ * The pool is 14 m ahead of the spawn, and the walk happens through `stepSim()`
+ * (input by key, time by hand), so nothing here depends on the renderer's speed.
  */
 
-const physical = { realm: 'physical', projection: 'perspective' };
-const cognitive = { realm: 'cognitive', projection: 'orthographic' };
+const POOL_Z = -14;
+const WALK_SPEED = 7.9;
 
-test('F shifts the realm, and the world does not change with it', async ({ page, isMobile }) => {
-  test.skip(isMobile, 'keyboard path; the phone button is covered below');
+/**
+ * Walk into the pool by holding W until a transition has run.
+ *
+ * Detected by the *count* of fades rather than by catching `ui.fade` mid-flight:
+ * a 1 s transition can start and finish between two polls, and a test that
+ * races the thing it is measuring is a test that will flake on CI.
+ */
+async function walkIntoPool(page, { steps = 10 } = {}) {
+  const before = await readDebug(page);
+  await page.keyboard.down('KeyW');
+  let fades = before.ui.fades;
+  for (let i = 0; i < steps && fades === before.ui.fades; i++) {
+    const snap = await stepSim(page, 0.4);
+    fades = snap.ui.fades;
+  }
+  await page.keyboard.up('KeyW');
+  return fades > before.ui.fades;
+}
+
+test('walking into the pool shifts the realm, behind a fade', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard path; the phone is covered below');
   const watch = attachWatch(page);
   const before = await startFrozen(page);
-  expect(before.realm).toBe(physical.realm);
-  expect(before.camera.projection).toBe(physical.projection);
+  expect(before.realm).toBe('physical');
+  expect(before.camera.projection).toBe('perspective');
+  expect(before.ui.fade).toBe(false);
 
-  await page.keyboard.press('f');
+  // Stand next to it first: the gate must not fire just because you are near.
+  await page.keyboard.down('KeyW');
+  await stepSim(page, 1.2); // ~9.5 m of the 14 m
+  const approach = await readDebug(page);
+  expect(approach.realm).toBe('physical');
+  expect(approach.ui.fade).toBe(false);
+  expect(Math.hypot(approach.player.x, approach.player.z - POOL_Z)).toBeGreaterThan(3.4);
+
+  // Now step in.
+  const ran = await walkIntoPool(page);
+  expect(ran, 'the transition must run: a fade, not a cut').toBe(true);
+
   await expect
-    .poll(async () => (await readDebug(page)).realm, { timeout: 5_000 })
-    .toBe(cognitive.realm);
+    .poll(async () => (await readDebug(page)).realm, { timeout: 10_000 })
+    .toBe('cognitive');
   const shifted = await readDebug(page);
 
-  expect(shifted.camera.projection).toBe(cognitive.projection);
-  expect(shifted.camera.span).toBe(shifted.settings.realmZoom);
-  // Same world: a lens is not a teleport.
-  expect(shifted.tick).toBe(before.tick);
+  // Same world: the lens is not a teleport, and the fade is not a simulation.
   expect(shifted.entityHash).toBe(before.entityHash);
-  expect(shifted.entityCount).toBe(before.entityCount);
-  expect(shifted.player.x).toBe(before.player.x);
-  expect(shifted.player.z).toBe(before.player.z);
-  expect(shifted.mapId).toBe(before.mapId);
-  // The lens is above the player, looking down.
-  expect(shifted.camera.y).toBeGreaterThan(shifted.player.y + 10);
-  // And the HUD says which realm you are in — *visibly*: the badge and the
-  // control hint both live at the bottom centre, and the first version of this
-  // badge was painted over by the hint while still passing toBeVisible().
-  const badge = page.locator('.hud__realm');
-  await expect(badge).toBeVisible();
-  const badgeBox = await badge.boundingBox();
-  const hintBox = await page.locator('.hud__hint').boundingBox();
-  if (hintBox) {
-    const overlaps = badgeBox.y < hintBox.y + hintBox.height && badgeBox.y + badgeBox.height > hintBox.y;
-    expect(overlaps, 'the realm badge is hidden behind the hint line').toBe(false);
-  }
-  await expect(page.locator('.hud')).toHaveClass(/is-cognitive/);
-
-  // Pressing it again is the way back, and it leaves the lens fields behind.
-  await page.keyboard.press('f');
+  expect(shifted.camera.projection).toBe('orthographic');
+  // The world held still during the beat (the sim does not step while black).
+  const inside = await readDebug(page);
+  expect(inside.tick).toBeGreaterThan(before.tick);
+  // The HUD says where you are, and the fade has finished.
+  await expect(page.locator('.hud__realm')).toBeVisible();
   await expect
-    .poll(async () => (await readDebug(page)).realm, { timeout: 5_000 })
-    .toBe(physical.realm);
-  const back = await readDebug(page);
-  expect(back.camera.projection).toBe(physical.projection);
-  expect(back.camera.span).toBe(0);
+    .poll(async () => (await readDebug(page)).ui.fade, { timeout: 10_000 })
+    .toBe(false);
+
+  // Walk out and back in: the gate re-arms, and it brings you home.
+  await page.keyboard.down('KeyW');
+  await stepSim(page, 2.5);
+  await page.keyboard.up('KeyW');
+  const cameHome = await walkIntoPool(page, { steps: 10 });
+  expect(cameHome, 'walking back into the pool must shift again').toBe(true);
+  await expect
+    .poll(async () => (await readDebug(page)).realm, { timeout: 10_000 })
+    .toBe('physical');
   await expect(page.locator('.hud__realm')).toBeHidden();
   watch.assertClean();
 });
 
-test('the simulation is the same simulation in the lens', async ({ page, isMobile }) => {
-  test.skip(isMobile, 'keyboard path');
+test('the realm swap key and button are gone', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the desktop half; the phone half is below');
   const watch = attachWatch(page);
-  const start = await startFrozen(page);
-  await page.keyboard.press('f');
-  await expect.poll(async () => (await readDebug(page)).realm, { timeout: 5_000 }).toBe('cognitive');
-  const beforeWalk = await readDebug(page);
+  const before = await startFrozen(page);
 
-  // Walking in the Cognitive realm moves the player exactly as it does in the
-  // physical one: the realm is a rendering, not a different set of physics.
-  await page.keyboard.down('KeyW');
-  const walked = await stepSim(page, 1.5);
-  await page.keyboard.up('KeyW');
-  expect(Math.abs(walked.player.z - beforeWalk.player.z)).toBeGreaterThan(5);
-  expect(walked.player.distanceWalked).toBeGreaterThan(beforeWalk.player.distanceWalked + 5);
-  expect(walked.camera.projection).toBe('orthographic');
-  // The camera follows: it is centred on the player, not left behind.
-  expect(Math.abs(walked.camera.z - walked.player.z)).toBeLessThan(40);
+  // The old binding: F did this, and it must not any more.
+  await page.keyboard.press('f');
+  await page.keyboard.press('F');
+  await stepSim(page, 0.5);
+  const after = await readDebug(page);
+  expect(after.realm).toBe('physical');
+  expect(after.ui.fade).toBe(false);
+  expect(after.tick).toBeGreaterThan(before.tick); // the sim ran; nothing shifted
+  await expect(page.locator('.touch-realm')).toHaveCount(0);
   watch.assertClean();
 });
 
-test('the phone realm button shifts too, in one tap', async ({ page, isMobile }) => {
+test('the phone realm button is gone too, and the pool works by thumb', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch path');
   const watch = attachWatch(page);
   const before = await startFrozen(page);
-  expect(before.realm).toBe('physical');
+  expect(before.ui.touch).toBe(true);
+  await expect(page.locator('.touch-realm')).toHaveCount(0);
 
-  const button = page.locator('.touch-realm');
-  await expect(button).toBeVisible();
-  const box = await button.boundingBox();
-  expect(box.width).toBeGreaterThanOrEqual(44);
-  expect(box.height).toBeGreaterThanOrEqual(44);
-
-  await button.tap();
-  await expect.poll(async () => (await readDebug(page)).realm, { timeout: 5_000 }).toBe('cognitive');
-  await expect(page.locator('.hud__realm')).toBeVisible();
-  await button.tap();
-  await expect.poll(async () => (await readDebug(page)).realm, { timeout: 5_000 }).toBe('physical');
+  // The pool cannot be reached by keyboard here, but the walk is the walk:
+  // pushing the stick forward is exactly the same intent as holding W.
+  const box = await page.locator('#game').boundingBox();
+  const client = await page.context().newCDPSession(page);
+  const startX = Math.round(box.x + box.width * 0.25);
+  const startY = Math.round(box.y + box.height * 0.72);
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: startX, y: startY, id: 1 }] });
+  for (let i = 1; i <= 6; i++) {
+    await client.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: startX, y: Math.round(startY - (130 * i) / 6), id: 1 }],
+    });
+    await page.waitForTimeout(16);
+  }
+  let sawFade = false;
+  for (let i = 0; i < 10 && !sawFade; i++) sawFade = (await stepSim(page, 0.4)).ui.fade;
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await client.detach();
+  expect(sawFade, 'the thumb-stick path must reach the pool too').toBe(true);
+  await expect.poll(async () => (await readDebug(page)).realm, { timeout: 10_000 }).toBe('cognitive');
   watch.assertClean();
 });
 
-test('captures both realms for the owner to compare', async ({ page, isMobile }, testInfo) => {
+test('captures the pool, the fade, and both sides of it', async ({ page, isMobile }, testInfo) => {
   test.skip(isMobile, 'the desktop camera is the one being judged here');
   const watch = attachWatch(page);
-  await gotoGame(page, '?debug=0');
-  await saveShot(page, 'realm-physical', testInfo);
-  await page.keyboard.press('f');
-  await expect.poll(async () => (await readDebug(page)).realm, { timeout: 5_000 }).toBe('cognitive');
-  await page.waitForTimeout(300);
-  await saveShot(page, 'realm-cognitive', testInfo);
+  test.setTimeout(120_000);
 
-  // How close the lens sits is a taste call, so it is a choice, not a number I
-  // pick quietly: three span options, plus the default, from the same spot the
-  // player is standing in when they press F.
-  for (const span of [20, 30, 46, 90]) {
-    await gotoGame(page, `?realmzoom=${span}&debug=0`);
-    await page.keyboard.press('f');
-    await expect.poll(async () => (await readDebug(page)).realm, { timeout: 5_000 }).toBe('cognitive');
-    await page.waitForTimeout(200);
-    await saveShot(page, `realm-lens-${span}m`, testInfo);
+  // The pool from the spawn: the first thing the owner sees.
+  await gotoGame(page, '?debug=0');
+  await page.keyboard.down('KeyW');
+  await stepSim(page, 1.1);
+  await page.keyboard.up('KeyW');
+  await page.waitForTimeout(200);
+  await saveShot(page, 'pool-approach', testInfo);
+
+  // Mid-fade: the transition itself. `?fadems=2000` makes the beat long enough
+  // to photograph — and that param is the very slider the owner tunes the
+  // transition with, not a test-only hook.
+  await gotoGame(page, '?fadems=2000&debug=0');
+  await page.keyboard.down('KeyW');
+  for (let i = 0; i < 10; i++) {
+    const snap = await stepSim(page, 0.4);
+    if (snap.ui.fade) break;
   }
+  await page.keyboard.up('KeyW');
+  await saveShot(page, 'pool-fade', testInfo);
+
+  // ...and where you come out.
+  await expect.poll(async () => (await readDebug(page)).realm, { timeout: 10_000 }).toBe('cognitive');
+  await page.waitForTimeout(600);
+  await saveShot(page, 'pool-arrival-cognitive', testInfo);
+
+  // The pool seen from the lens: same place, same coordinates, other realm.
+  await gotoGame(page, '?realm=cognitive&debug=0');
+  await page.waitForTimeout(300);
+  await saveShot(page, 'pool-in-lens', testInfo);
   watch.assertClean();
 });

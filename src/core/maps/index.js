@@ -59,6 +59,24 @@ const blankBasin = {
     },
   ],
 
+  /**
+   * The Perpendicularity (M2): a pool where the two realms meet, a short walk
+   * from where the player lands. Canon has these as gates between realms and
+   * between worlds, so the realm shift is something you *walk into* rather than
+   * a key press — the owner's instruction of 2026-10-15.
+   *
+   * `open` is the flag M4 turns into a puzzle ("find it, then open it"); M2
+   * always opens it, but the gate already checks the flag so nothing has to be
+   * rewritten to close it later.
+   */
+  perpendicularity: {
+    id: 'perpendicularity-01',
+    label: 'Perpendicularity',
+    position: { x: 0, z: -14 },
+    radius: 3.4,
+    open: true,
+  },
+
   /** Seeded low-poly scatter — the only entities this map has in M0. */
   propPolicy: {
     kind: 'rock',
@@ -69,6 +87,8 @@ const blankBasin = {
     maxScale: 3.6,
     /** keep the landmark's base clear so its silhouette stays readable */
     landmarkClearance: 120,
+    /** ...and keep the pool's shore clear, all the way to its approach */
+    perpendicularityClearance: 11,
   },
 
   /**
@@ -99,6 +119,8 @@ const blankBasin = {
       fog: { color: '#a7aeb0', density: 0.0028 },
       ground: { low: '#626d6a', high: '#7d8480', accent: '#4d5754' },
       props: { rock: '#4b5452', landmark: '#39434f' },
+      // A luminous pool: the one *warm* light in this palette's grey world.
+      perpendicularity: { pool: '#9fded6', glow: '#e6fbf7' },
       sun: { color: '#fff0d2', direction: { x: 0.72, y: 0.52, z: 0.46 }, discSize: 0.9996 },
     },
     {
@@ -109,6 +131,7 @@ const blankBasin = {
       fog: { color: '#8fa3b3', density: 0.0040 },
       ground: { low: '#525c61', high: '#6b787f', accent: '#445055' },
       props: { rock: '#3f4a54', landmark: '#2c3a4b' },
+      perpendicularity: { pool: '#8ad9e8', glow: '#d9f4fb' },
       sun: { color: '#e8f0ff', direction: { x: 0.64, y: 0.58, z: 0.50 }, discSize: 0.9996 },
     },
     {
@@ -119,6 +142,7 @@ const blankBasin = {
       fog: { color: '#c3cfd6', density: 0.0016 },
       ground: { low: '#656f75', high: '#8b97a3', accent: '#525c63' },
       props: { rock: '#4e5b66', landmark: '#243040' },
+      perpendicularity: { pool: '#a4e4ea', glow: '#eefcfd' },
       sun: { color: '#ffffff', direction: { x: 0.80, y: 0.44, z: 0.41 }, discSize: 0.9996 },
     },
   ],

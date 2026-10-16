@@ -28,6 +28,8 @@ test('palettes are well-formed and complete', () => {
         ['ground.accent', variant.ground.accent],
         ['props.rock', variant.props.rock],
         ['props.landmark', variant.props.landmark],
+        ['perpendicularity.pool', variant.perpendicularity?.pool],
+        ['perpendicularity.glow', variant.perpendicularity?.glow],
         ['sun.color', variant.sun.color],
       ]) {
         assert.match(value, hex, `${map.id}/${variant.id}: ${name} must be #rrggbb`);
@@ -61,6 +63,25 @@ test('cognitiveSkin is per-map data and only Roshar may ask for beads', () => {
     if (skin.objectForm === 'glass-beads') {
       assert.equal(map.system, BEAD_SYSTEM, `${map.id} asked for beads but is not in the Rosharan system`);
     }
+  }
+});
+
+test('every map declares its Perpendicularity (M2)', () => {
+  for (const map of Object.values(MAPS)) {
+    const gate = map.perpendicularity;
+    assert.ok(gate, `${map.id} needs a Perpendicularity: it is how realms are shifted now`);
+    assert.ok(gate.id && gate.label, 'the gate needs an id and a label');
+    assert.ok(Number.isFinite(gate.position?.x) && Number.isFinite(gate.position?.z), 'the gate needs a position');
+    assert.ok(gate.radius >= 1 && gate.radius <= 12, `${map.id}: a ${gate.radius} m pool is a lake or a puddle`);
+    assert.equal(typeof gate.open, 'boolean', 'openness is a flag M4 turns into a puzzle');
+    // The pool must be walkable-to from the spawn, and inside the map's ground.
+    const half = map.ground.size / 2;
+    assert.ok(Math.abs(gate.position.x) < half && Math.abs(gate.position.z) < half);
+    assert.ok(
+      Math.hypot(gate.position.x, gate.position.z) < 60,
+      `${map.id}: the gate is ${gate.position.z} m from the spawn — M2 asks for one by spawn`,
+    );
+    assert.ok(map.propPolicy.perpendicularityClearance >= gate.radius, 'the shore must be kept clear');
   }
 });
 
