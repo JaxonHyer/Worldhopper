@@ -12,7 +12,7 @@ import { buildSnapshot, SNAPSHOT_KEYS } from '../../src/core/snapshot.js';
 import { APP } from '../../src/core/config.js';
 import { createFixedClock } from '../../src/core/clock.js';
 import { createFrameStats } from '../../src/core/frame-stats.js';
-import { createWorldState, stepWorld } from '../../src/core/world-state.js';
+import { createWorldState, setRealm, stepWorld } from '../../src/core/world-state.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
 
@@ -165,4 +165,43 @@ test('the overlay flags the scale-fence canary when the world drifts', async () 
   } finally {
     restore();
   }
+});
+
+test('the snapshot reports the lens the world is actually using', () => {
+  // Regression, caught by CI on the first M2 run: the snapshot rebuilt its
+  // camera without the realm, so the debug surface (and the e2e tests that read
+  // it) said "perspective" while the screen was already showing the Cognitive
+  // lens. Derived fields have to be derived from the state, never from memory.
+  const map = getMap(DEFAULT_MAP_ID);
+  const settings = { ...defaultSettings(), realmZoom: 60 };
+  const state = createWorldState({ map, seed: settings.seed });
+  const clock = createFixedClock({ stepHz: 60 });
+  const frameStats = createFrameStats();
+  const build = () =>
+    buildSnapshot({
+      app: APP,
+      state,
+      map,
+      variant: getVariant(map.id, settings.palette),
+      settings,
+      clock,
+      frameStats,
+      render: { drawCalls: 1, triangles: 2, gl: { version: 'stub', gpu: 'stub' } },
+      ui: { overlay: false, panel: false, credits: false },
+      ready: true,
+    });
+
+  const physical = build();
+  assert.equal(physical.realm, 'physical');
+  assert.equal(physical.camera.projection, 'perspective');
+  assert.equal(physical.camera.span, 0);
+
+  setRealm(state, 'cognitive');
+  const lens = build();
+  assert.equal(lens.realm, 'cognitive');
+  assert.equal(lens.camera.projection, 'orthographic');
+  assert.equal(lens.camera.span, 60, 'the lens reports the height it is showing');
+  assert.equal(lens.tick, physical.tick, 'a shift is not a step');
+  assert.equal(lens.camera.y, lens.camera.y);
+  assert.ok(lens.camera.y > physical.camera.y, 'the lens sits above the boom camera');
 });

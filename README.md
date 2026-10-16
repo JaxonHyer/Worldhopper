@@ -13,7 +13,7 @@ dangers, attune to different magic systems, and open each world's
 - Anti-reference: *No Man's Sky* — infinite scale, crafting and grind are
   explicitly out of scope.
 
-**Status: M1 — the player.** You can walk a world: a capsule against the terrain
+**Status: M2 — the Cognitive Realm (in progress).** You can walk a world: a capsule against the terrain
 heightfield, solid rocks and landmark, jump with coyote time and a jump buffer,
 and a phone-first control scheme (thumb-stick, look-drag, jump button, sprint
 toggle). The
@@ -72,6 +72,18 @@ it multiplies the walk speed by `Sprint speed` (`?sprint=`, default 2.2×) while
 you are actually moving, and it is the *speed* that changes: the stride rate
 stays capped, so a sprint widens the swing rather than blurring it.
 
+**The realm shift (M2).** Press <kbd>F</kbd> (or tap **realm** on a phone) and the
+same world is drawn again through the **Cognitive lens**: an orthographic,
+high-angle view of the same coordinates, with a badge at the bottom of the screen
+saying which realm you are in. It is instant and it costs nothing but a render —
+the world state is untouched, which is asserted two ways (a unit test walks the
+same seed in both realms to the same entity hash, and the browser test checks the
+tick and player position across a shift). Walking, jumping and looking all still
+work in the lens; `?realmzoom=` sets how much of the world it shows. The *look* of
+the Cognitive realm — its palette and fog, and what objects and living things
+become — is per-world data (`cognitiveSkin` in the map), and arrives with the
+first authored world.
+
 **Camera:** third person by default — you are looking at your character from
 behind, and the camera slides closer when a hill or a rock is in the way. Look
 up is limited (the boom would end up in the floor); **Camera** in the tuning
@@ -82,7 +94,8 @@ thumb lands), drag on the right to look, the round **jump** button is
 bottom-right, and the **sprint** toggle is bottom-left. It also works with a
 mouse if you just want to test the layout.
 
-Dev keys: <kbd>`</kbd> debug overlay · <kbd>p</kbd> tuning panel ·
+Dev keys: <kbd>F</kbd> shift realm · <kbd>`</kbd> debug overlay · <kbd>p</kbd>
+tuning panel ·
 <kbd>v</kbd> cycle palette · <kbd>c</kbd> credits and the fan-work notice ·
 <kbd>r</kbd> reset the view. On a phone the ⓘ button (always) and the ⚙/▤/◐
 buttons (add `?dev=1` to the URL) give the same tools.
@@ -97,6 +110,7 @@ buttons (add `?dev=1` to the URL) give the same tools.
 | `striderate` | `?striderate=1.4` | how fast arms and legs may swing (cycles/second) |
 | `sprint` | `?sprint=1.5` | sprint speed multiplier (1–3, default 2.2) |
 | `girl` | `?girl=1` | the girl player character (default `0`, the boy) |
+| `realmzoom` | `?realmzoom=80` | how much world the Cognitive lens shows, in metres (16–140) |
 | `fog`, `sun`, `ambient`, `fov` | `?fog=0.0042` | atmosphere |
 | `view` | `?view=first` | `third` (default, over the shoulder) or `first` (through the eyes) |
 | `camdist` | `?camdist=6` | third-person boom length in metres (1.2–8) |

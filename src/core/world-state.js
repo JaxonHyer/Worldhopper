@@ -119,6 +119,24 @@ export function createWorldState({ map, seed, environment = { seed: 0, time: 0 }
 }
 
 /**
+ * Shift realms (M2). This is the game's core verb and it is deliberately
+ * *not* a simulation step: the realm changes what the world is drawn as, never
+ * what it is (AGENT_PROMPT.md §2 — "if you ever find yourself maintaining two
+ * versions of the world, stop"). The sim never reads `state.realm`, so a
+ * switch cannot alter positions, tick or the entity list, and a replay stays
+ * reproducible whatever the player does with the lens.
+ */
+export function setRealm(state, realm) {
+  state.realm = realm === REALMS.cognitive ? REALMS.cognitive : REALMS.physical;
+  return state.realm;
+}
+
+/** The one-key form of the same thing: physical <-> cognitive. */
+export function toggleRealm(state) {
+  return setRealm(state, state.realm === REALMS.cognitive ? REALMS.physical : REALMS.cognitive);
+}
+
+/**
  * Advance the simulation one *fixed* step. Same input => same state, which is
  * what makes seeded runs reproducible.
  */

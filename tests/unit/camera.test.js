@@ -9,7 +9,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CAMERA } from '../../src/core/config.js';
+import { CAMERA, FENCE, LENS } from '../../src/core/config.js';
 import { PLAYER, eyePosition } from '../../src/core/player.js';
 import { createCameraState, normalizeView, resolveCamera, VIEW } from '../../src/core/camera.js';
 import { getMap, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
@@ -50,6 +50,7 @@ const resolve = (overrides = {}) =>
     map: 'map' in overrides ? overrides.map : flatMap,
     seed: SEED,
     obstacles: overrides.obstacles ?? [],
+    realm: overrides.realm,
   });
 
 test('third person puts the camera behind the player, looking at them', () => {
@@ -216,4 +217,73 @@ test('eye height is still what the first-person camera uses (the sim’s numbers
   const player = makePlayer({ bob: 0 });
   const camera = resolve({ player, settings: { view: 'first' } });
   assert.equal(camera.y, PLAYER.eyeHeight);
+});
+
+// --- the Cognitive lens (M2) ------------------------------------------------
+//
+// The same world, a second rendering: orthographic, high-angle, and centred on
+// the same player in the same coordinates. What is asserted here is what makes
+// it a *lens* rather than a second camera doing whatever it likes.
+
+const COGNITIVE = 'cognitive';
+
+test('the Cognitive lens is orthographic, and looks down at a fixed angle', () => {
+  const player = makePlayer({ yaw: 0.4, pitch: -1.2, position: { x: 12, y: 4, z: -8 } });
+  const camera = resolve({ player, realm: COGNITIVE });
+  assert.equal(camera.projection, 'orthographic');
+  assert.equal(camera.pitch, LENS.pitch, 'the diagram pitch is fixed');
+  assert.notEqual(camera.pitch, player.pitch, 'the look pitch must not tilt the lens');
+  assert.equal(camera.yaw, player.yaw, 'the lens turns with the player, so the map reads the same way');
+  assert.ok(camera.span >= LENS.minSpan && camera.span <= LENS.maxSpan);
+  assert.equal(camera.avatarVisible, true, 'you can see your own character in the lens');
+  // Above the player, and behind them along the view axis.
+  assert.ok(camera.y > player.position.y + LENS.height * 0.5, `lens height ${camera.y}`);
+});
+
+test('the physical realm is perspective, and the lens is a mode of the same camera state', () => {
+  const player = makePlayer();
+  assert.equal(resolve({ player }).projection, 'perspective');
+  assert.equal(resolve({ player }).span, 0);
+  const out = createCameraState();
+  const both = { player, settings: { view: 'third' }, map: flatMap, seed: SEED, obstacles: [] };
+  resolveCamera({ ...both, realm: COGNITIVE }, out);
+  assert.equal(out.projection, 'orthographic');
+  // ...and switching back in the same object does not leave the lens fields on.
+  resolveCamera({ ...both, realm: 'physical' }, out);
+  assert.equal(out.projection, 'perspective');
+  assert.equal(out.span, 0);
+});
+
+test('the lens zoom is the setting, clamped to the fence', () => {
+  const player = makePlayer();
+  assert.equal(resolve({ player, settings: { realmZoom: 80 }, realm: COGNITIVE }).span, 80);
+  assert.equal(resolve({ player, settings: { realmZoom: 2 }, realm: COGNITIVE }).span, LENS.minSpan);
+  assert.equal(resolve({ player, settings: { realmZoom: 9000 }, realm: COGNITIVE }).span, LENS.maxSpan);
+  // Junk falls back to the default rather than producing a NaN frustum.
+  for (const junk of [undefined, null, Number.NaN, 'wide']) {
+    const span = resolve({ player, settings: { realmZoom: junk }, realm: COGNITIVE }).span;
+    assert.equal(span, LENS.defaultSpan, `realmZoom=${String(junk)}`);
+  }
+});
+
+test('the lens never sinks into the terrain, and is reproducible', () => {
+  const player = makePlayer({ position: { x: 0, y: 0, z: 0 } });
+  const camera = resolve({ player, realm: COGNITIVE, map });
+  const floor = terrainHeight(map, SEED, camera.x, camera.z) + LENS.clearance;
+  assert.ok(camera.y >= floor, `lens at y=${camera.y}, floor=${floor}`);
+
+  const again = resolve({ player, realm: COGNITIVE, map });
+  assert.deepEqual(again, camera, 'the same player must resolve to the same lens');
+  for (const key of ['x', 'y', 'z', 'yaw', 'pitch', 'span', 'distance', 'targetHeight']) {
+    assert.ok(Number.isFinite(camera[key]), `camera.${key} is ${camera[key]}`);
+  }
+});
+
+test('the lens sits inside the scale fence like anything else', () => {
+  const player = makePlayer({ position: { x: 30, y: 0, z: -30 } });
+  const camera = resolve({ player, realm: COGNITIVE });
+  // The camera is metres away, not kilometres: the fence (§5) is about the
+  // whole system, and the lens must not need a floating origin either.
+  assert.ok(camera.distance < 200, `lens distance ${camera.distance}`);
+  assert.ok(Math.hypot(camera.x, camera.y, camera.z) < FENCE.systemSpanMax);
 });

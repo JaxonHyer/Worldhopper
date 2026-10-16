@@ -13,7 +13,7 @@ import './style.css';
 import { APP, SIM, PLAYER } from './core/config.js';
 import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
-import { createWorldState, countEntities, entityHash, stepWorld } from './core/world-state.js';
+import { createWorldState, countEntities, entityHash, stepWorld, toggleRealm } from './core/world-state.js';
 import { buildSnapshot } from './core/snapshot.js';
 import { createCameraState, resolveCamera } from './core/camera.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from './core/maps/index.js';
@@ -85,7 +85,13 @@ function bootstrap() {
     onCaptureChange: (captured) => hud.setCaptured(captured),
     sensitivity: () => ({ drag: settings.look, mouse: settings.lookMouse }),
     captureEnabled: () => settings.captureMouse !== 'off',
-    elements: { stick: hud.stick, knob: hud.knob, jump: hud.jump, sprint: hud.sprint },
+    elements: {
+      stick: hud.stick,
+      knob: hud.knob,
+      jump: hud.jump,
+      sprint: hud.sprint,
+      realm: hud.realm,
+    },
   });
 
   const debugOverlay = createDebugOverlay({ mount: uiMount });
@@ -232,10 +238,18 @@ function bootstrap() {
 
     view.setFov(settings.fov);
     view.resize();
+    // The core verb: one key (or one button) shifts the lens. It changes what
+    // the world is drawn as, never what it is — the world state is untouched,
+    // so a shift costs a render and nothing else.
+    if (input.consumeRealm()) hud.setRealm(toggleRealm(state));
     // The camera is derived from the player; the sim never reads it back.
-    resolveCamera({ player: state.player, settings, map, seed: state.seed, obstacles: state.obstacles }, camera);
-    view.camera.position.set(camera.x, camera.y, camera.z);
-    view.camera.rotation.set(camera.pitch, camera.yaw, 0);
+    resolveCamera(
+      { player: state.player, settings, map, seed: state.seed, obstacles: state.obstacles, realm: state.realm },
+      camera,
+    );
+    const activeCamera = view.setProjection(camera.projection, camera.span);
+    activeCamera.position.set(camera.x, camera.y, camera.z);
+    activeCamera.rotation.set(camera.pitch, camera.yaw, 0);
     world.sync(state, camera, dtSeconds);
     view.render(world.scene);
 
@@ -250,6 +264,7 @@ function bootstrap() {
   }
 
   hud.setTouchControls(coarse);
+  hud.setRealm(state.realm);
   // A button nobody can see must not still be sprinting: the phone toggle only
   // counts while its button exists.
   if (!coarse) input.setSprint(false);
