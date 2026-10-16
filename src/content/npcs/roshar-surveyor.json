@@ -1,0 +1,51 @@
+{
+  "id": "roshar-surveyor",
+  "entityId": "npc-roshar-surveyor",
+  "mapId": "roshar",
+  "name": "Surveyor",
+  "spawn": {
+    "x": 9,
+    "z": -4,
+    "rotationY": 1.99
+  },
+  "interactionRadius": 3.5,
+  "startNode": "arrival",
+  "nodes": [
+    {
+      "id": "arrival",
+      "text": "I'm mapping this stretch of stone. The pool ahead is a Perpendicularity: a gate between realms.",
+      "choices": [
+        { "id": "crossing", "label": "How do I cross?", "next": "crossing" },
+        { "id": "shadesmar", "label": "What will I see in the other realm?", "next": "shadesmar" },
+        { "id": "leave", "label": "I'll keep exploring.", "next": null }
+      ]
+    },
+    {
+      "id": "crossing",
+      "text": "Step into the pool to shift realms. To shift back, walk clear of its edge and enter again.",
+      "choices": [
+        { "id": "shadesmar", "label": "What does Roshar look like there?", "next": "shadesmar" },
+        { "id": "same-place", "label": "Is it a different world?", "next": "same-place" },
+        { "id": "leave", "label": "Goodbye for now.", "next": null }
+      ]
+    },
+    {
+      "id": "shadesmar",
+      "text": "On Roshar, Shadesmar's land is a sea of glass beads. Non-living objects appear as dark beads, living things as flames, and water as solid obsidian. The sky is black with one frail, fixed white sun.",
+      "choices": [
+        { "id": "same-place", "label": "Is it a different world?", "next": "same-place" },
+        { "id": "crossing", "label": "How do I return?", "next": "crossing" },
+        { "id": "leave", "label": "Goodbye for now.", "next": null }
+      ]
+    },
+    {
+      "id": "same-place",
+      "text": "It is another reading of this same place. The view changes; your position and the world beneath it do not.",
+      "choices": [
+        { "id": "shadesmar", "label": "Tell me about Shadesmar.", "next": "shadesmar" },
+        { "id": "crossing", "label": "How do I shift realms?", "next": "crossing" },
+        { "id": "leave", "label": "Goodbye for now.", "next": null }
+      ]
+    }
+  ]
+}
