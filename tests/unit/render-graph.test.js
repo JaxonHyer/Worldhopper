@@ -17,7 +17,11 @@ import { wrapAngle } from '../../src/core/math.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
 
-const map = getMap(DEFAULT_MAP_ID);
+// The first half of this file is about the *test range*: its pool, its palette
+// variants, and the fact that it draws nothing in the cognitive realm because
+// it has no canon to draw. Named explicitly rather than "the default map",
+// which is Roshar now (the second half below covers that one).
+const map = getMap('blank-basin');
 const variant = getVariant(map.id, 'ashen-basin');
 
 function buildWorld(overrides = {}) {

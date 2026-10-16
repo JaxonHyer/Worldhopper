@@ -4,6 +4,10 @@ import { BEAD_SYSTEM, MAPS, SKIN_FORMS, getMap, getVariant, listVariants, DEFAUL
 
 const hex = /^#([0-9a-f]{6})$/i;
 
+/** The construction site: named, because a test that says "the default map"
+ * now means Roshar, and most of the rules below are about this one. */
+const TEST_RANGE = 'blank-basin';
+
 test('every map declares the data the renderer and the fog pipeline need', () => {
   for (const map of Object.values(MAPS)) {
     assert.ok(map.id && map.label, 'map needs an id and label');
@@ -86,16 +90,33 @@ test('every map declares its Perpendicularity (M2)', () => {
 });
 
 test('the M0 map is explicitly non-canon and dims nothing', () => {
-  const map = getMap(DEFAULT_MAP_ID);
+  const map = getMap('blank-basin');
   assert.equal(map.status, 'placeholder');
   assert.equal(map.system, 'unassigned');
   assert.equal(map.cognitiveSkin.objectForm, 'unassigned');
 });
 
+test('the world the game opens on is a world with a realm to look at', () => {
+  // M2, at the owner's request: the default used to be the test range, which
+  // has no cognitive skin by design — so a player who just opened the game and
+  // walked into the pool saw no change at all. The default world must be one
+  // that has something to show.
+  const map = getMap(DEFAULT_MAP_ID);
+  assert.notEqual(map.status, 'placeholder', 'the opening world must not be the construction site');
+  assert.ok(map.cognitiveSkin, 'the opening world needs a cognitiveSkin');
+  assert.equal(map.cognitiveSkin.objectForm, 'glass-beads');
+  // ...and its own declared palette must exist on it.
+  assert.ok(map.variants.length >= 2, 'the opening world needs taste options');
+  assert.ok(
+    map.variants.some((variant) => variant.id === map.defaultPalette),
+    'the opening world declares a default palette it does not have',
+  );
+});
+
 test('variants can be looked up and fall back safely', () => {
-  const ids = listVariants(DEFAULT_MAP_ID);
+  const ids = listVariants(TEST_RANGE);
   assert.deepEqual(ids, ['ashen-basin', 'mist-sea', 'cold-ridge']);
-  assert.equal(getVariant(DEFAULT_MAP_ID, 'mist-sea').id, 'mist-sea');
-  assert.equal(getVariant(DEFAULT_MAP_ID, 'does-not-exist').id, ids[0]);
+  assert.equal(getVariant(TEST_RANGE, 'mist-sea').id, 'mist-sea');
+  assert.equal(getVariant(TEST_RANGE, 'does-not-exist').id, ids[0]);
   assert.throws(() => getMap('not-a-map'));
 });

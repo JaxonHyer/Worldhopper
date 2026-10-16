@@ -10,7 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BEAD_SYSTEM, SKIN_FORMS, UNAUTHORED_SKIN, beadVariation, describeSkin, resolveCognitiveSkin } from '../../src/core/skin.js';
-import { MAPS, DEFAULT_MAP_ID, getMap } from '../../src/core/maps/index.js';
+import { MAPS, getMap } from '../../src/core/maps/index.js';
 
 /** A map-shaped object with just enough to be resolved. */
 const mapWith = (system, cognitiveSkin) => ({ id: `synthetic-${system}`, system, cognitiveSkin });
@@ -101,7 +101,7 @@ test('the shipped maps resolve: the test range unassigned, Roshar authored', () 
   for (const map of Object.values(MAPS)) {
     const skin = resolveCognitiveSkin(map);
     assert.deepEqual(skin.violations, [], `${map.id} has a skin violation`);
-    if (map.id === DEFAULT_MAP_ID) {
+    if (map.id === 'blank-basin') {
       assert.equal(skin.authored, false, 'the test range has no canon, so it has no skin');
     }
   }

@@ -411,8 +411,10 @@ movement feel; landmark readability.)* — **signed off** (PRs #2–#6).
 - [~] Orthographic camera + abstraction pass — the lens is **in** (fixed diagram
       pitch, zoom as a setting, never under the terrain); the abstraction pass is
       **in for beads and flames** and has no connection lines yet. Roshar's
-      terrain kit is still the M0 basin (M5 work), and the patch is not the
-      default map until the owner says so
+      terrain kit is still the M0 basin (M5 work). Roshar **is** the world the
+      game opens on since 2026-10-16 (the owner: *"Nothing changed from last
+      time"* — the test range has no realm to see, so landing on it showed
+      nothing); the test range is `?map=blank-basin`
 - [ ] One interaction only solvable there (reveal a route across the bead sea)
 - [ ] Shifting back shows the world changed (state, not illusion)
 - [~] **Contracts frozen** — `OWNERSHIP.md` is in (Phase B starts with two

@@ -570,3 +570,39 @@ legible and beautiful? Does the inversion read?").
 `OWNERSHIP.md` now maps every directory to a lane, and the second agent's brief
 (`AGENT-2-START.md`) points at it. `CONTRACTS.md` waits for WP-3.1/3.2, which
 define the last shared schema.
+
+## M2 — the game opens on Roshar (agent, 2026-10-16)
+
+The owner's whole message was *"Nothing changed from last time."* They were right,
+and the reason was a decision I had made in the skins PR and left open as a
+question: **the default world was still the M0 test range.** The skins shipped,
+the tests were green, and a player who opened the game — or a phone playtester who
+would never type a URL parameter — landed on the one map that has *no* cognitive
+realm to look at, because it has no canon to draw one from. Everything worked and
+nothing was visible. That is a delivery failure, not a build failure.
+
+**Decision: `DEFAULT_MAP_ID` is `roshar`.** The test range is `?map=blank-basin`.
+
+- **The owner's tuned feel is untouched.** Every number they pasted back (seed,
+  fog, sun, ambient, fov, look, capture, walk, jump, gravity, accel, bob) is
+  map-agnostic and unchanged, and the pin test still asserts all of them.
+- **The palette default became per-world data.** `cold-ridge` is a *test-range*
+  palette; the name means nothing on Roshar. So a map now declares
+  `defaultPalette`, `setPaletteOptions(mapId)` points the setting at the loaded
+  map's list **and** its default at boot, and the pin test got *stricter* rather
+  than looser: it asserts every world opens on the palette it declares, that the
+  declaration exists on that map, and that `cold-ridge` is still the test range's
+  default — the owner's pick, where they picked it.
+- **Roshar opens on `storm-shore`** (the warm one). `highstorm-light` is the
+  colder alternative and is a playtest question, not a settled taste call.
+- **What this cost in tests is the interesting part:** seven unit tests and two
+  e2e assertions failed, and every one of them was a test that said "the default
+  map" when it meant "the test range". They now name their world (`TEST_RANGE`),
+  which is what they should have done all along — a test that depends on the
+  shape of a specific map should say which map it is.
+- **A test was added for the class of mistake, not just the instance:** *"the
+  world the game opens on is a world with a realm to look at"* — the opening map
+  must not be a placeholder, must have a `cognitiveSkin`, and must declare a
+  default palette that exists on it. The next person to change `DEFAULT_MAP_ID`
+  gets told what they are signing up for.
+- **Reverting is one line** (`DEFAULT_MAP_ID`), plus the PR note.

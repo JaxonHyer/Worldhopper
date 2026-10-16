@@ -7,10 +7,12 @@ import {
   hexToLinearRgb,
   srgbToLinear,
 } from '../../src/core/terrain-color.js';
-import { getMap, getVariant, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
+import { getMap, getVariant } from '../../src/core/maps/index.js';
 import { fbm2 } from '../../src/core/noise.js';
 
-const map = getMap(DEFAULT_MAP_ID);
+// The test range's palettes: this file is about the colour field, and the three
+// variants it names live on that map.
+const map = getMap('blank-basin');
 
 function variant(id) {
   return getVariant(map.id, id);

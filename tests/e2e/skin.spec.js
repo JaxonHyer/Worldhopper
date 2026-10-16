@@ -101,7 +101,16 @@ test('captures Roshar in both realms', async ({ page, isMobile }, testInfo) => {
   const watch = attachWatch(page);
   test.setTimeout(120_000);
 
-  // The physical world, from the spawn.
+  // **No parameters at all.** This is what a player sees when they open the
+  // game, and the reason this test exists: the opening world used to be the M0
+  // test range, so the owner — who plays on a phone and does not type URLs —
+  // saw nothing new when the skins shipped ("Nothing changed from last time").
+  await gotoGame(page, '?debug=0');
+  await page.waitForTimeout(600);
+  await saveShot(page, 'default-load', testInfo);
+  expect((await readDebug(page)).mapId, 'the game must open on the world with a realm to see').toBe('roshar');
+
+  // The same world with the parameter it no longer needs.
   await gotoGame(page, '?map=roshar&debug=0');
   await page.waitForTimeout(600);
   await saveShot(page, 'roshar-physical', testInfo);
@@ -159,8 +168,13 @@ test('the phone gets the manifestation too', async ({ page, isMobile }) => {
 
   expect(shifted, 'the thumb-stick path must reach the pool on Roshar').toBe(true);
   await expect.poll(async () => (await readDebug(page)).realm, { timeout: 10_000 }).toBe('cognitive');
+  // The beat is wall clock (`src/ui/fade.js`): the realm swaps in the middle of
+  // it and the overlay clears ~380 ms after that, so the read lands mid-beat on
+  // a slow emulated phone and a bare assert here is a race (seen as CI flake in
+  // run 38927390256). Poll for the beat to end — a fade that never clears still
+  // fails, on the timeout.
+  await expect.poll(async () => (await readDebug(page)).ui.fade, { timeout: 10_000 }).toBe(false);
   const arrived = await readDebug(page);
   expect(arrived.skin.beads).toBeGreaterThan(1000);
-  expect(arrived.ui.fade).toBe(false);
   watch.assertClean();
 });
