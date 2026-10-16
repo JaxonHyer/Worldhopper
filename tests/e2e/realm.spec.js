@@ -24,21 +24,25 @@ const POOL_Z = -14;
 const QUICK_FADE = '?fadems=120';
 
 /**
- * Walk into the pool by holding W until a transition has run.
+ * Walk until a transition has run, holding `key` (W forward, S back).
  *
  * Detected by the *count* of fades rather than by catching `ui.fade` mid-flight:
  * a 1 s transition can start and finish between two polls, and a test that
  * races the thing it is measuring is a test that will flake on CI.
+ *
+ * The direction matters: a shift leaves you standing *in* the pool, so the way
+ * to reach it again is back the way you came, not further on. Walking forward
+ * from inside the pool only ever walks away from it.
  */
-async function walkIntoPool(page, { steps = 10 } = {}) {
+async function walkUntilFade(page, key = 'KeyW', { steps = 10 } = {}) {
   const before = await readDebug(page);
-  await page.keyboard.down('KeyW');
+  await page.keyboard.down(key);
   let fades = before.ui.fades;
   for (let i = 0; i < steps && fades === before.ui.fades; i++) {
     const snap = await stepSim(page, 0.4);
     fades = snap.ui.fades;
   }
-  await page.keyboard.up('KeyW');
+  await page.keyboard.up(key);
   return fades > before.ui.fades;
 }
 
@@ -59,7 +63,7 @@ test('walking into the pool shifts the realm, behind a fade', async ({ page, isM
   expect(Math.hypot(approach.player.x, approach.player.z - POOL_Z)).toBeGreaterThan(3.4);
 
   // Now step in.
-  const ran = await walkIntoPool(page);
+  const ran = await walkUntilFade(page);
   expect(ran, 'the transition must run: a fade, not a cut').toBe(true);
 
   await expect
@@ -79,11 +83,17 @@ test('walking into the pool shifts the realm, behind a fade', async ({ page, isM
     .poll(async () => (await readDebug(page)).ui.fade, { timeout: 10_000 })
     .toBe(false);
 
-  // Walk out and back in: the gate re-arms, and it brings you home.
+  // Walk on out of it, then turn round and come back: the gate re-arms when you
+  // leave, and the second visit brings you home again.
   await page.keyboard.down('KeyW');
-  await stepSim(page, 2.5);
+  await stepSim(page, 1.5);
   await page.keyboard.up('KeyW');
-  const cameHome = await walkIntoPool(page, { steps: 10 });
+  const left = await readDebug(page);
+  expect(
+    Math.hypot(left.player.x, left.player.z - POOL_Z),
+    'the walk out must actually leave the pool, or the return proves nothing',
+  ).toBeGreaterThan(3.4);
+  const cameHome = await walkUntilFade(page, 'KeyS');
   expect(cameHome, 'walking back into the pool must shift again').toBe(true);
   await expect
     .poll(async () => (await readDebug(page)).realm, { timeout: 10_000 })
