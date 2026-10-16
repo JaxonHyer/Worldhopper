@@ -185,10 +185,14 @@ export function beadVariation(cellX, cellZ, seed, { min = 0.45, max = 0.85 } = {
   const size = hash2(cellX, cellZ, seed);
   const spin = hash2(cellZ, cellX, seed ^ 0x9e3779b9);
   const sway = hash2(cellX + 17, cellZ - 23, seed ^ 0x85ebca6b);
+  // The sea's edge is dithered: a bead far from the player keeps only if its
+  // own hash clears the ramp. From the bead, not the frame, so it never crawls.
+  const exit = hash2(cellX - 41, cellZ + 11, seed ^ 0x27d4eb2f);
   const span = Math.max(0, max - min);
   return {
     radius: min + size * span,
     spin: spin * Math.PI * 2,
+    exit,
     // A bead's seat is not perfectly centred: a bead sea is poured, not stacked.
     offsetX: (sway - 0.5) * 0.6,
     offsetZ: (size - 0.5) * 0.6,

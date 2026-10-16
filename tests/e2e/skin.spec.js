@@ -18,6 +18,9 @@ import { attachWatch, gotoGame, readDebug, saveShot, startFrozen, stepSim } from
  * about the rule, so they run it short, and the screenshots keep the default.
  */
 const QUICK_FADE = 'fadems=120';
+
+/** The pool is 14 m ahead of the spawn on both maps (same arrangement). */
+const POOL_Z = -14;
 const withQuickFade = (query) => `${query}${query.includes('?') ? '&' : '?'}${QUICK_FADE}`;
 
 test('Roshar manifests its skin in the cognitive realm, and only there', async ({ page, isMobile }) => {
@@ -69,13 +72,26 @@ test('the gate opens on the new world too, and takes you back', async ({ page, i
   expect(arrived.skin.beads).toBeGreaterThan(1000);
   expect(arrived.entityHash).toBe(before.entityHash);
 
-  // And back out: walk on, turn round, come home.
+  // And home again — in two moves, because a shift leaves you standing *inside*
+  // the pool: hold W to walk out the far side, then S to walk back in. Holding S
+  // from inside only ever walks away from it (this is the mistake the first run
+  // of this test made, and CI caught it).
+  await page.keyboard.down('KeyW');
+  await stepSim(page, 1.5);
+  await page.keyboard.up('KeyW');
+  const left = await readDebug(page);
+  expect(
+    Math.hypot(left.player.x, left.player.z - POOL_Z),
+    'the walk out must actually leave the pool, or the return proves nothing',
+  ).toBeGreaterThan(3.4);
+
   await page.keyboard.down('KeyS');
-  let back = arrived.ui.fades;
-  for (let i = 0; i < 10 && back === arrived.ui.fades; i++) {
+  let back = left.ui.fades;
+  for (let i = 0; i < 10 && back === left.ui.fades; i++) {
     back = (await stepSim(page, 0.4)).ui.fades;
   }
   await page.keyboard.up('KeyS');
+  expect(back, 'walking back into the pool must bring you home').toBeGreaterThan(left.ui.fades);
   await expect.poll(async () => (await readDebug(page)).realm, { timeout: 10_000 }).toBe('physical');
   watch.assertClean();
 });

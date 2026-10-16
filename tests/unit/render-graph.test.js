@@ -488,9 +488,14 @@ test('a bead is where it was, whatever the camera does', () => {
   const a = buildRosharan();
   const b = buildRosharan();
   const c = buildRosharan({ seed: 99 });
-  const matrixOf = (world, i) => {
+  // A *drawn* bead: a dropped slot is scale-0 by design, and identical in every
+  // sea, so comparing one of those would prove nothing about determinism.
+  const firstDrawn = (world) => {
     const array = world.scene.getObjectByName('bead-sea').instanceMatrix.array;
-    return Array.from(array.slice(i * 16, i * 16 + 16));
+    for (let i = 0; i < array.length; i += 16) {
+      if (array[i] !== 0) return Array.from(array.slice(i, i + 16));
+    }
+    return null;
   };
   const state = a.state;
   setRealm(state, REALMS.cognitive);
@@ -499,6 +504,42 @@ test('a bead is where it was, whatever the camera does', () => {
   b.world.sync(b.state);
   setRealm(c.state, REALMS.cognitive);
   c.world.sync(c.state);
-  assert.deepEqual(matrixOf(a.world, 7), matrixOf(b.world, 7), 'same seed, same bead');
-  assert.notDeepEqual(matrixOf(a.world, 7), matrixOf(c.world, 7), 'a different seed is a different sea');
+  const beadA = firstDrawn(a.world);
+  assert.ok(beadA, 'the sea must actually have beads in it');
+  assert.deepEqual(beadA, firstDrawn(b.world), 'same seed, same bead');
+  assert.notDeepEqual(beadA, firstDrawn(c.world), 'a different seed is a different sea');
+});
+
+test('the bead sea leaves the gate a pool, and fades at its own edge', () => {
+  // Two things the first screenshot showed and the eye cannot un-see: beads
+  // scattered across the Perpendicularity (so the gate stopped being a gate),
+  // and a hard square edge where the window ran out (which read as a bug).
+  const { state, world } = buildRosharan();
+  setRealm(state, REALMS.cognitive);
+  world.sync(state);
+
+  const gate = roshar.perpendicularity;
+  const sea = world.scene.getObjectByName('bead-sea');
+  const array = sea.instanceMatrix.array;
+  const stats = world.stats().skin;
+
+  let drawn = 0;
+  let outsideWindow = 0;
+  for (let i = 0; i < array.length; i += 16) {
+    if (array[i] === 0) continue; // a dropped slot
+    drawn++;
+    const x = array[i + 12];
+    const z = array[i + 14];
+    assert.ok(
+      Math.hypot(x - gate.position.x, z - gate.position.z) >= gate.radius,
+      `a bead sits inside the pool at ${x.toFixed(1)}, ${z.toFixed(1)}`,
+    );
+    if (Math.hypot(x - state.player.position.x, z - state.player.position.z) > 46) outsideWindow++;
+  }
+
+  assert.equal(drawn, stats.beads, 'the reported bead count must be the drawn beads');
+  assert.ok(stats.beads > 1000, `expected a sea, got ${stats.beads} beads`);
+  assert.equal(outsideWindow, 0, 'no bead may be laid outside the window it is carried in');
+  assert.ok(stats.seaDropped > 0, 'the pool and the faded edge must actually drop beads');
+  assert.ok(stats.seaDropped < stats.seaSlots / 2, 'the window must be mostly beads, not mostly hole');
 });
