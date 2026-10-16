@@ -143,7 +143,7 @@ test('every sun direction is a normalised vector', () => {
 });
 
 test('the player is a blocky, pixelated figure in ten boxes', () => {
-  const { state, world } = buildWorld();
+  const { world } = buildWorld();
   const avatar = world.scene.getObjectByName('player-avatar');
   assert.ok(avatar, 'the scene has no player-avatar group');
   assert.equal(avatar.visible, true, 'third person draws the body');

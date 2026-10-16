@@ -10,10 +10,13 @@
  */
 
 import './style.css';
-import { APP, REALMS, SIM, PLAYER } from './core/config.js';
+import { APP, REALMS, SIM } from './core/config.js';
 import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
-import { createWorldState, countEntities, entityHash, setRealm, stepWorld, toggleRealm } from './core/world-state.js';
+import { createWorldState, setRealm, stepWorld, toggleRealm } from './core/world-state.js';
+// The Perpendicularity's rule lives in the core, where it can be tested without
+// a browser: this file only decides *when* to ask it (M2).
+import { gateStatus, gateStep } from './core/gate.js';
 import { buildSnapshot } from './core/snapshot.js';
 import { createCameraState, resolveCamera } from './core/camera.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from './core/maps/index.js';
@@ -43,12 +46,7 @@ const uiMount = document.getElementById('ui');
 try {
   bootstrap();
 } catch (error) {
-  // The window error handler below already tells the *player* something broke.
-  // This is the machine-readable half: without it a boot failure leaves the
-  // headless harness waiting on a `ready` flag that can never be set, which is
-  // how one bad line in the fade cost a whole CI run and arrived looking like
-  // nothing but slowness (2026-10-16).
-  window.__worldhopper = { ready: false, bootError: `${error?.message ?? error}` };
+  reportStartFailure(error);
   throw error;
 }
 
@@ -213,7 +211,6 @@ function bootstrap() {
       configUrl: () => panel.configValue,
     },
   };
-  // eslint-disable-next-line no-underscore-dangle
   window.__debug = debugApi.debug;
   window.__worldhopper = debugApi;
 
@@ -235,8 +232,20 @@ function bootstrap() {
   let frames = 0;
   let touchSeen = coarse;
   let pausedSim = false;
+  /**
+   * Has the Perpendicularity got its "you may fire" flag?
+   *
+   * This one declaration is load-bearing: without it, `gateArmed = ...` inside
+   * the frame loop is an assignment to an undeclared name, which is a
+   * ReferenceError in a module — thrown on the *first frame*, so the loop never
+   * reschedules, `ready` is never set, and every test in the suite times out
+   * waiting for a game that stopped before it drew anything. It cost three CI
+   * runs to find (2026-10-16), which is why the loop below now reports a crash
+   * instead of going quiet.
+   */
+  let gateArmed = true;
 
-  function frame(now) {
+  function runFrame(now) {
     const dtSeconds = Math.min((now - last) / 1000, SIM.maxFrameDelta);
     last = now;
     frameStats.sample(dtSeconds);
@@ -309,6 +318,24 @@ function bootstrap() {
       debugApi.ready = true;
       document.documentElement.dataset.ready = 'true';
       document.title = `${APP.title} — ${map.label}`;
+    }
+  }
+
+  /**
+   * The frame loop, with a crash reporter around it.
+   *
+   * Anything thrown in here used to kill the loop silently: no `ready`, no
+   * error the harness could read, just eighty tests timing out one at a time.
+   * A failure in the first frames *is* the game failing to start, so it is
+   * recorded in the same channel as a bootstrap failure — and the loop stops
+   * rather than throwing once per frame.
+   */
+  function frame(now) {
+    try {
+      runFrame(now);
+    } catch (error) {
+      reportStartFailure(error);
+      throw error;
     }
     requestAnimationFrame(frame);
   }
@@ -502,6 +529,19 @@ function safeStorage() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Record a failure that stopped the game from starting, in the one place a
+ * headless harness can read it, and tell the player too.
+ *
+ * A blank page with a stack trace in a console nobody opens is not a failure
+ * mode; it is a mystery. This makes it a sentence.
+ */
+function reportStartFailure(error) {
+  const message = `${error?.message ?? error}`;
+  window.__worldhopper = { ready: false, bootError: message };
+  showBanner(`Something broke: ${message}`);
 }
 
 function showBanner(message) {

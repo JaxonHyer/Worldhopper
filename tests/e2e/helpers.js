@@ -70,7 +70,7 @@ export async function waitForReady(page) {
       null,
       { timeout: 30_000 },
     );
-  } catch (error) {
+  } catch {
     const reason = await bootError();
     const console_ = consoleErrors.slice(0, 3).join(' | ');
     throw new Error(

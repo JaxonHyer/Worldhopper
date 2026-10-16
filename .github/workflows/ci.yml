@@ -38,6 +38,13 @@ jobs:
       - name: Install (exact, from lockfile)
         run: npm ci
 
+      - name: Lint (a name that does not exist, code that is dead)
+        # First, because it is the cheapest way to catch the failures that
+        # otherwise hide behind a browser: an undefined reference in the frame
+        # loop, or a variable read before it is initialised, both kill the game
+        # during startup — where the only symptom is a headless test timing out.
+        run: npm run lint
+
       - name: Logic tests (headless, no browser)
         run: npm run test:unit
 

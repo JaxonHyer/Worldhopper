@@ -14,7 +14,6 @@ import { attachWatch, readDebug, saveShot, startFrozen, stepSim, gotoGame } from
  */
 
 const POOL_Z = -14;
-const WALK_SPEED = 7.9;
 
 /**
  * The transition length is a *feel* number (`?fadems=`, default 420 ms), and a

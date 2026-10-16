@@ -24,12 +24,6 @@ export function readReport(file = DEFAULT_REPORT) {
   }
 }
 
-function collectSpecs(suite, out = []) {
-  for (const spec of suite.specs ?? []) out.push(spec);
-  for (const child of suite.suites ?? []) collectSpecs(child, out);
-  return out;
-}
-
 function flatten(report) {
   const results = [];
   const visit = (suite, trail) => {
