@@ -126,7 +126,8 @@
 
 @media (max-width: 520px) {
   .npc-dialog__prompt {
-    bottom: calc(118px + var(--safe-bottom));
+    top: calc(64px + var(--safe-top));
+    bottom: auto;
     width: min(20rem, calc(100vw - 32px));
     min-height: 56px;
     font-size: 16px;
