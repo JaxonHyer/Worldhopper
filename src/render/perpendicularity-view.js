@@ -88,6 +88,8 @@ export function createPerpendicularityView({ map, seed, variant, skin = null }) 
   // The physical colours are kept, so leaving the realm restores the pool
   // exactly — the shift is a lens, not a one-way change.
   const physicalPool = new THREE.Color(colors.pool);
+  /** The shore's physical colour, so a variant swap and a realm swap agree. */
+  const shoreColor = () => shore.material.color.copy(physicalPool).multiplyScalar(0.34);
 
   const shoreGeometry = conformingDisc({ map, seed, radius: radius + SHORE_WIDTH, center, lift: LIFT * 0.5 });
   const shore = new THREE.Mesh(
@@ -115,9 +117,14 @@ export function createPerpendicularityView({ map, seed, variant, skin = null }) 
    */
   const obsidianMaterial = new THREE.MeshPhongMaterial({
     color: new THREE.Color(palette.obsidian),
-    specular: new THREE.Color(palette.obsidianHighlight),
-    shininess: 58,
-    flatShading: false,
+    // Obsidian is glass, but this is a *diagram*: a broad specular turns the
+    // whole disc into a milky smear under the frails sun's near-vertical light
+    // (seen in the first screenshots). A dim, tight highlight on flat facets
+    // reads as polished black stone instead — facets you can count, which is
+    // also the visual language the rest of the world is in.
+    specular: new THREE.Color(palette.obsidianHighlight).multiplyScalar(0.35),
+    shininess: 22,
+    flatShading: true,
   });
 
   const columnGeometry = new THREE.CylinderGeometry(radius * 0.62, radius * 0.94, COLUMN_HEIGHT, SEGMENTS, 1, true);
@@ -171,7 +178,7 @@ export function createPerpendicularityView({ map, seed, variant, skin = null }) 
       const nextColors = next.perpendicularity ?? colors;
       physicalPool.set(nextColors.pool);
       physicalGlow.set(nextColors.glow);
-      shore.material.color.set(nextColors.pool).multiplyScalar(0.34);
+      if (!inverted) shore.material.color.set(nextColors.pool).multiplyScalar(0.34);
       if (!inverted) poolMaterial.color.copy(physicalPool);
       columnMaterial.color.copy(inverted ? new THREE.Color(palette.obsidianHighlight) : physicalGlow);
     },
@@ -189,11 +196,15 @@ export function createPerpendicularityView({ map, seed, variant, skin = null }) 
         pool.material = obsidianMaterial;
         pulseMaterial = obsidianMaterial;
         columnMaterial.color.set(palette.obsidianHighlight);
+        // The shore is the water's rim: leaving it pale would ring the obsidian
+        // in the physical palette's colour.
+        shore.material.color.set(palette.obsidian).multiplyScalar(2.2);
       } else {
         pool.material = poolMaterial;
         pulseMaterial = poolMaterial;
         poolMaterial.color.copy(physicalPool);
         columnMaterial.color.copy(physicalGlow);
+        shoreColor();
       }
       return inverted;
     },

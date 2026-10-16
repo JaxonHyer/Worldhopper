@@ -543,3 +543,35 @@ test('the bead sea leaves the gate a pool, and fades at its own edge', () => {
   assert.ok(stats.seaDropped > 0, 'the pool and the faded edge must actually drop beads');
   assert.ok(stats.seaDropped < stats.seaSlots / 2, 'the window must be mostly beads, not mostly hole');
 });
+
+test('the inverted pool reads as dark stone in the physical palette\'s shadow', () => {
+  // The first screenshots showed the inverted pool as a milky smear: a broad
+  // specular under the frail sun's near-vertical light. Obsidian is glass, but
+  // this is a diagram — a dim tight highlight on flat facets is what reads as
+  // polished black stone.
+  const { state, world } = buildRosharan();
+  setRealm(state, REALMS.cognitive);
+  world.sync(state);
+
+  const pool = world.scene.getObjectByName('perpendicularity-pool');
+  const shore = world.scene.getObjectByName('perpendicularity-shore');
+  const material = pool.material;
+  assert.equal(material.flatShading, true, 'faceted: the rest of the world is faceted');
+  assert.ok(material.shininess <= 30, `shininess ${material.shininess} blurs into a smear`);
+  const luma = ({ r, g, b }) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  assert.ok(luma(material.specular) < 0.35, 'the highlight must be dim: a bright specular is the smear');
+  assert.ok(luma(material.color) < 0.06, 'the stone itself is nearly black');
+
+  // ...and the shore goes with the water, rather than ringing it in the physical
+  // palette's pale colour.
+  assert.ok(shore.material.color.getHex() < 0x303030, 'the shore must darken with the water it rims');
+
+  // Coming home restores both, from the variant that is loaded now.
+  setRealm(state, REALMS.physical);
+  world.sync(state);
+  assert.equal(world.stats().pool.water, 'liquid');
+  const home = world.scene.getObjectByName('perpendicularity-pool');
+  assert.equal(home.material.isMeshBasicMaterial, true, 'the pool is unlit water again, not polished stone');
+  assert.ok(luma(home.material.color) > 0.5, 'and it is the palette pale again');
+  assert.ok(luma(shore.material.color) > 0.05, 'the pale shore is restored');
+});
