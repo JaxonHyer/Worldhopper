@@ -32,8 +32,12 @@ const NPC = Object.freeze({
   armGap: 0.305,
   handHeight: 0.13,
   headSize: 0.4,
-  /** How tall the nameplate floats above the head, in metres. */
-  nameplateHeight: 0.55,
+  /** How tall the label floats above the head, in metres. */
+  nameplateLift: 0.3,
+  /** The label's height in metres — a label, not a billboard. */
+  nameplateHeight: 0.2,
+  /** Widest the label may get, however long the name (metres). */
+  nameplateMaxWidth: 1.3,
   /** Idle bob amplitude and rate (m, Hz). */
   bobAmplitude: 0.035,
   bobRate: 1.6,
@@ -56,6 +60,28 @@ function toTexture(art, cache) {
   texture.needsUpdate = true;
   cache.set(art.name, texture);
   return texture;
+}
+
+/**
+ * The label's size in world metres, from its canvas aspect (`width / height`).
+ *
+ * This is a pure rule so it can be tested without a browser: the first cut
+ * scaled the sprite to 1 m tall × its aspect wide — a 4 m label over a 1.8 m
+ * person, which filled the phone screen and read as a cut-off word
+ * ("nderer") floating in the sky. A nameplate is a label: 20 cm tall, no wider
+ * than about a body, and lifted just clear of the head.
+ *
+ * @param {number} aspect canvas width divided by height
+ * @returns {{height: number, width: number, lift: number}} metres
+ */
+export function nameplateMetrics(aspect = 4) {
+  const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 4;
+  const width = Math.min(NPC.nameplateHeight * safeAspect, NPC.nameplateMaxWidth);
+  return {
+    height: NPC.nameplateHeight,
+    width,
+    lift: NPC.nameplateLift,
+  };
 }
 
 /**
@@ -88,18 +114,33 @@ function makeTextTexture(text, color, font) {
   const measure = document.createElement('canvas').getContext('2d');
   measure.font = font;
   const metrics = measure.measureText(text);
-  const padding = 8;
+  const padding = 10;
   const width = Math.ceil(metrics.width) + padding * 2;
-  const height = 28;
+  const height = 34;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
+
+  // A dark pill behind the name. Without it the label was pale text on a pale
+  // sky — present in the DOM and invisible to a player. Contrast is a
+  // legibility requirement, not decoration: the owner reads this label to know
+  // what is a person and what is a rock.
+  const inset = 2;
+  ctx.fillStyle = 'rgba(8, 11, 14, 0.72)';
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(inset, inset, width - inset * 2, height - inset * 2, (height - inset * 2) / 2);
+    ctx.fill();
+  } else {
+    ctx.fillRect(inset, inset, width - inset * 2, height - inset * 2);
+  }
+
   ctx.font = font;
   ctx.fillStyle = color;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
-  ctx.fillText(text, width / 2, height / 2);
+  ctx.fillText(text, width / 2, height / 2 + 1);
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
@@ -222,10 +263,9 @@ export function createNpcView(entity) {
   // Nameplate floats above the head, billboards to the camera each frame.
   const nameplate = createNameplate(entity.name);
   if (nameplate) {
-    const worldHeight = 1.0;
-    const aspect = nameplate.userData.canvasAspect ?? 4;
-    nameplate.scale.set(worldHeight * aspect, worldHeight, 1);
-    nameplate.position.y = torsoTop + NPC.headSize + NPC.nameplateHeight;
+    const metrics = nameplateMetrics(nameplate.userData.canvasAspect);
+    nameplate.scale.set(metrics.width, metrics.height, 1);
+    nameplate.position.y = torsoTop + NPC.headSize + metrics.lift;
     nameplate.renderOrder = 999;
     group.add(nameplate);
   }
