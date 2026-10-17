@@ -12,6 +12,8 @@ import { clamp, distanceFromOrigin } from './math.js';
 import { terrainHeight } from './terrain.js';
 import { createPlayer, stepPlayer } from './player.js';
 import { loadNpc } from '../content/npcs.js';
+import { createAttack, createCombat, respawnPlayer, stepAttack, stepCombat } from './combat.js';
+import { activeCap, createSpawner, placeInitialEnemies, stepEnemies, stepSpawner } from './enemy.js';
 
 export { terrainHeight, clamp, distanceFromOrigin };
 export const EYE_HEIGHT = 1.7;
@@ -53,10 +55,16 @@ function placeNpcs(map, seed) {
   return npcs;
 }
 
+/** Where the beacons stand, so the scatter cannot bury a checkpoint in rock. */
+function beaconsOf(map) {
+  return Array.isArray(map.beacons) ? map.beacons : [];
+}
+
 function placeProps(map, seed) {
   const rng = createRng(seed ^ 0x5bf03635);
   const policy = map.propPolicy;
   const landmark = map.landmarks[0];
+  const beacons = beaconsOf(map);
   const props = [];
   for (let i = 0; i < policy.count; i++) {
     let placed = null;
@@ -74,6 +82,11 @@ function placeProps(map, seed) {
         Math.hypot(x - gate.position.x, z - gate.position.z) <
           (policy.perpendicularityClearance ?? gate.radius + 6);
       if (tooCloseToGate) continue;
+      // A beacon you cannot stand at because a rock is on it is not a beacon.
+      const tooCloseToBeacon = beacons.some(
+        (beacon) => Math.hypot(x - (beacon.position?.x ?? 0), z - (beacon.position?.z ?? 0)) < (beacon.clearance ?? 7),
+      );
+      if (tooCloseToBeacon) continue;
       const scale = policy.minScale + rng.next() * (policy.maxScale - policy.minScale);
       placed = {
         id: `${policy.kind}-${String(i + 1).padStart(2, '0')}`,
@@ -125,7 +138,7 @@ export function buildObstacles(entities) {
  * Build a map's state from its seed. Called on load and on every seed change;
  * never mutated by rendering.
  */
-export function createWorldState({ map, seed, environment = { seed: 0, time: 0 } }) {
+export function createWorldState({ map, seed, settings = null, environment = { seed: 0, time: 0 } }) {
   if (!map) throw new Error('createWorldState: map is required');
   const normalized = normalizeSeed(seed ?? map.defaultSeed);
   const entities = [];
@@ -149,8 +162,12 @@ export function createWorldState({ map, seed, environment = { seed: 0, time: 0 }
   entities.push(...placeNpcs(map, normalized));
 
   const obstacles = buildObstacles(entities);
+  // The opening pack is sized by the owner's *own* ceiling, so `?enemies=0` at
+  // boot really is an empty world. The settings object is passed in rather than
+  // read from a global because the sim never reaches for one.
+  const context = { map, seed: normalized, obstacles, settings: settings ?? { maxEnemies: 4 } };
 
-  return {
+  const state = {
     mapId: map.id,
     seed: normalized,
     realm: REALMS.physical,
@@ -160,7 +177,24 @@ export function createWorldState({ map, seed, environment = { seed: 0, time: 0 }
     entities,
     obstacles,
     player: createPlayer({ map, seed: normalized, look: { yaw: 0, pitch: -0.04 } }),
+    /**
+     * Living actors. Kept out of `entities` on purpose: that list is the map's
+     * authored furniture and its hash is the map's reproducibility fingerprint,
+     * while these come and go as you play. The player has never been an entity
+     * for exactly the same reason.
+     */
+    enemies: [],
+    /** Hearts, the beacon, and the combat event log (WP-3.1). */
+    combat: createCombat({ map, seed: normalized, hearts: map.hearts ?? 4 }),
+    /** The combat log: the fairness contract's evidence channel. */
+    events: [],
+    /** The roaming spawn director's own state (WP-3.2). */
+    spawner: createSpawner(normalized),
   };
+  // The world is inhabited from the first frame: the director tops the
+  // population up as you explore, but nobody lands in an empty world.
+  placeInitialEnemies(state, context);
+  return state;
 }
 
 /**
@@ -185,12 +219,56 @@ export function toggleRealm(state) {
  * Advance the simulation one *fixed* step. Same input => same state, which is
  * what makes seeded runs reproducible.
  */
+/**
+ * Advance the simulation one *fixed* step. Same input => same state, which is
+ * what makes seeded runs reproducible.
+ *
+ * Order inside a step is part of the contract: the player moves first, so an
+ * enemy's strike is resolved against where you actually are this tick; then
+ * your own swing; then the enemies; then the director, which only ever adds or
+ * removes at the end. `context` is optional because a unit test may want to
+ * advance the clock with nothing in the world to react to it.
+ */
 export function stepWorld(state, dt, intent = null, context = null) {
   state.tick += 1;
   state.simTime += dt;
-  if (intent && context) stepPlayer(state.player, intent, context, dt);
+  if (intent && context) {
+    // A dead player is a body, not an input reader: the frame loop owns the
+    // respawn beat (see respawnPlayer), and nothing may walk around meanwhile.
+    if (!state.combat?.dead) stepPlayer(state.player, intent, context, dt);
+    stepAttack(
+      state.player,
+      dt,
+      Boolean(intent.attack) && !state.combat?.dead,
+      state.enemies,
+      state,
+      context.settings,
+    );
+    stepCombat(state, context, dt);
+    stepEnemies(state, context, dt);
+    stepSpawner(state, context, dt);
+  }
   return state;
 }
+
+/**
+ * The death beat, for the frame loop to call while the screen is black.
+ *
+ * Deliberately *not* inside `stepWorld`: a respawn is covered by a fade, and a
+ * fade holds the sim still, so a sim-driven timer would never reach zero. The
+ * gate's realm shift works the same way, for the same reason.
+ */
+export function respawn(state, context) {
+  return respawnPlayer(state, context);
+}
+
+/** How many enemies the world will hold at once, for the HUD and the reports. */
+export function enemyCap(state, context) {
+  return activeCap(state, context);
+}
+
+/** Exposed so a test can build an attack without importing combat.js directly. */
+export { createAttack };
 
 /** The scale-fence canary (AGENT_PROMPT.md §8). */
 export function scaleFenceStatus(state) {
@@ -199,7 +277,13 @@ export function scaleFenceStatus(state) {
     (acc, e) => Math.max(acc, Math.hypot(e.position.x, e.position.z)),
     0,
   );
-  const worst = Math.max(distance, maxEntityDistance);
+  // Roaming enemies are world contents too: an actor that wandered out past the
+  // fence is exactly the drift the canary exists to catch.
+  const maxEnemyDistance = (state.enemies ?? []).reduce(
+    (acc, e) => Math.max(acc, Math.hypot(e.position.x, e.position.z)),
+    0,
+  );
+  const worst = Math.max(distance, maxEntityDistance, maxEnemyDistance);
   return {
     distance,
     maxEntityDistance,
@@ -233,6 +317,16 @@ export function countEntities(state, kind) {
   return state.entities.reduce((acc, e) => acc + (e.kind === kind ? 1 : 0), 0);
 }
 
+/** Live actors. Reported separately from `entityCount` because they are not furniture. */
+export function countEnemies(state) {
+  return state.enemies?.length ?? 0;
+}
+
 export function findEntity(state, id) {
   return state.entities.find((e) => e.id === id) ?? null;
+}
+
+/** Any live actor by id, for the tests and the overlay. */
+export function findEnemy(state, id) {
+  return state.enemies?.find((e) => e.id === id) ?? null;
 }

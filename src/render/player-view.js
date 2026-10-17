@@ -244,8 +244,21 @@ export function createPlayerAvatar({ variant = 'boy', skin = null } = {}) {
 
       const step = Math.min(dt, 0.25);
       group.position.set(player.position.x, player.position.y, player.position.z);
+      const attack = player.attack ?? null;
+      const swinging = Boolean(attack) && attack.phase !== 'idle';
       // The body faces the way it walks; the camera is free to point elsewhere.
-      facing = nextFacing(facing, player.velocity, step);
+      // A swing is the one exception: you turn to punch, so the body snaps round
+      // to where you are aiming. Without this the avatar swings at the last
+      // direction it walked while the hit resolves against the camera's yaw —
+      // a fist that misses what it clearly connected with.
+      facing = swinging
+        ? nextFacing(
+            facing,
+            { x: -Math.sin(player.yaw ?? 0), z: -Math.cos(player.yaw ?? 0) },
+            step,
+            { minSpeed: 0, rate: 18 },
+          )
+        : nextFacing(facing, player.velocity, step);
       group.rotation.y = facing;
 
       const speed = Math.hypot(player.velocity.x, player.velocity.z);
@@ -263,8 +276,20 @@ export function createPlayerAvatar({ variant = 'boy', skin = null } = {}) {
 
       leftLeg.rotation.x = swing;
       rightLeg.rotation.x = -swing;
-      leftArm.rotation.x = armSwing;
-      rightArm.rotation.x = -armSwing;
+
+      // --- the punch (WP-3.1) ------------------------------------------------
+      // Positive rotation.x tips a hanging box toward -Z, which is forward here.
+      // So the wind-up is a small *negative* angle (the arm pulls back), the
+      // active frame is a big positive one (the arm is out), and the recovery
+      // eases it home. The sim owns which of those it is; this only draws it.
+      const punchPhase = attack?.phase ?? 'idle';
+      const punchSwing = attack?.swing ?? 0;
+      let punchArm = 0;
+      if (punchPhase === 'windup') punchArm = -punchSwing * 0.85;
+      else if (punchPhase === 'active') punchArm = 2.35;
+      else if (punchPhase === 'recover') punchArm = punchSwing * 1.5;
+      leftArm.rotation.x = armSwing - punchArm * 0.1;
+      rightArm.rotation.x = -armSwing * (1 - Math.min(1, Math.abs(punchArm))) + punchArm;
     },
     /** What the figure is made of (the scene tests read this). */
     /** The direction the body is facing (rad) — the camera yaw is separate. */

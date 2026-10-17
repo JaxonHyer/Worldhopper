@@ -13,7 +13,8 @@ import './style.css';
 import { APP, REALMS, SIM } from './core/config.js';
 import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
-import { createWorldState, setRealm, stepWorld, toggleRealm } from './core/world-state.js';
+import { createWorldState, respawn, setRealm, stepWorld, toggleRealm } from './core/world-state.js';
+import { COMBAT, setHearts } from './core/combat.js';
 // The Perpendicularity's rule lives in the core, where it can be tested without
 // a browser: this file only decides *when* to ask it (M2).
 import { gateStatus, gateStep } from './core/gate.js';
@@ -40,6 +41,7 @@ import { createTuningPanel } from './ui/tuning-panel.js';
 import { createCredits } from './ui/credits.js';
 import { createDock } from './ui/dock.js';
 import { HINTS, createHud } from './ui/hud.js';
+import { createHealthHud } from './ui/health.js';
 import { createDialog } from './ui/dialog.js';
 import { createDialogueMachine, loadNpc } from './content/npcs.js';
 import { nearestInteractableNpc } from './render/npc-view.js';
@@ -78,7 +80,7 @@ function bootstrap() {
   // on, and `?map=roshar` must not quietly rewrite them.
   const map = getMap(mapId);
   let variant = getVariant(map.id, settings.palette);
-  let state = createWorldState({ map, seed: settings.seed });
+  let state = createWorldState({ map, seed: settings.seed, settings });
   // The realm is a lens over the world, and `?realm=cognitive` is how a
   // screenshot or an automated run starts inside it without walking there.
   if (flags.cognitive) setRealm(state, REALMS.cognitive);
@@ -107,6 +109,10 @@ function bootstrap() {
   // phone because the element did not exist yet when input looked for it.
   const coarse = detectTouch(flags.touch);
   const hud = createHud({ mount: uiMount, coarsePointer: coarse, onJump: () => {} });
+  // Hearts, the red vignette and the death card (WP-3.1). Built before `input`
+  // for the same reason the HUD is: the punch button has to exist before input
+  // looks for it, or it is a button nothing is wired to.
+  const health = createHealthHud({ mount: uiMount });
   // The realm transition. Reduced motion gets a short beat instead of a long
   // one — the black frame is the one piece of the UI a photosensitivity setting
   // has to respect (M8 lists the option; it costs three lines to honour now).
@@ -147,6 +153,7 @@ function bootstrap() {
       knob: hud.knob,
       jump: hud.jump,
       sprint: hud.sprint,
+      attack: hud.attack,
     },
   });
 
@@ -217,6 +224,7 @@ function bootstrap() {
       const move = input.move();
       const jump = input.consumeJump();
       const sprint = input.sprinting();
+      const attack = input.consumeAttack();
       for (let i = 0; i < steps; i++) {
         stepWorld(
           state,
@@ -227,6 +235,7 @@ function bootstrap() {
             lookRate: look.rate,
             jump: i === 0 ? jump : false,
             sprint,
+            attack: i === 0 ? attack : false,
           },
           context,
         );
@@ -274,6 +283,13 @@ function bootstrap() {
    * instead of going quiet.
    */
   let gateArmed = true;
+  /**
+   * When the player died, on the frame loop's clock — null while they are alive.
+   * Declared, not assigned, for the same reason as `gateArmed` above: a name
+   * first written inside the loop is a ReferenceError in a module, and that
+   * kills the game before it draws a frame.
+   */
+  let deathAt = null;
 
   function runFrame(now) {
     const dtSeconds = Math.min((now - last) / 1000, SIM.maxFrameDelta);
@@ -305,6 +321,9 @@ function bootstrap() {
       const move = input.move();
       const jump = input.consumeJump();
       const sprint = input.sprinting();
+      // One edge per frame, whatever the substep count: holding the button down
+      // is one swing, and the sim's cooldown decides when the next may start.
+      const attack = input.consumeAttack();
 
       for (let i = 0; i < steps; i++) {
         stepWorld(
@@ -318,10 +337,32 @@ function bootstrap() {
             lookRate: look.rate,
             jump: i === 0 ? jump : false,
             sprint,
+            attack: i === 0 ? attack : false,
           },
           context,
         );
       }
+    }
+
+    // --- health, and the death beat (WP-3.1) -------------------------------
+    // The sim owns the health; this only draws it. The vignette is driven by
+    // `combat.hurt`, which the sim decays, so it cannot strobe and it cannot
+    // outlive the invulnerability window it belongs to.
+    health.setHealth(state.combat.health, state.combat.maxHealth);
+    health.setHurt(state.combat.hurt);
+    health.setDead(state.combat.dead);
+
+    // Dying is a *beat*, not a teleport: the card holds long enough to read,
+    // then the fade covers the walk back to the beacon. Like the realm shift,
+    // the frame loop owns the timing, because a fade holds the sim still and a
+    // sim-driven respawn timer would never reach zero inside its own fade.
+    if (state.combat.dead && deathAt === null) deathAt = now;
+    else if (!state.combat.dead) deathAt = null;
+    if (deathAt !== null && !fade.active && now - deathAt >= COMBAT.respawnHold * 1000) {
+      deathAt = null;
+      fade.play(() => {
+        respawn(state, context);
+      });
     }
 
     // NPC interaction: find the nearest NPC within range, show the prompt, and
@@ -422,8 +463,13 @@ function bootstrap() {
     settings[key] = value;
 
     if (changed) {
+      if (key === 'hearts') setHearts(state, value);
       if (key === 'seed') {
-        state = createWorldState({ map, seed: value });
+        state = createWorldState({ map, seed: value, settings });
+        // A new world is built from the map's own defaults, so the hearts the
+        // owner chose have to be re-applied or a seed change silently resets
+        // the health bar.
+        setHearts(state, settings.hearts);
         rebuildWorld();
       } else if (key === 'palette') {
         variant = getVariant(map.id, value);
@@ -445,7 +491,8 @@ function bootstrap() {
     clearStoredSettings(storage);
     Object.assign(settings, defaults);
     variant = getVariant(map.id, settings.palette);
-    state = createWorldState({ map, seed: settings.seed });
+    state = createWorldState({ map, seed: settings.seed, settings });
+    setHearts(state, settings.hearts);
     rebuildWorld();
     world.applySettings(settings, variant);
     fade.setDuration(fadeDuration());

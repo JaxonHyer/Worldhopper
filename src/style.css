@@ -591,6 +591,157 @@ body:has(.hud.is-touch) .dock {
   justify-self: start;
 }
 
+/* --- the punch button (touch) -------------------------------------------- */
+
+/*
+ * Bottom-right, to the left of jump and a little lower, so the right thumb has
+ * two targets that do not touch each other. Jump occupies 18–106 px from the
+ * right edge and 84–172 px from the bottom; this sits at 116–196 px across and
+ * 22–102 px up, which clears it in both axes on a 360 px phone as well as a
+ * 412 px one. It is a warm colour rather than the sprint button's cool one
+ * because it is the one control that changes the world rather than you.
+ */
+.touch-attack {
+  position: absolute;
+  right: calc(116px + var(--safe-right));
+  bottom: calc(22px + var(--safe-bottom));
+  pointer-events: auto;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 176, 58, 0.42);
+  background: rgba(48, 30, 14, 0.55);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.touch-attack.is-pressed {
+  background: rgba(255, 176, 58, 0.4);
+  border-color: rgba(255, 176, 58, 0.85);
+}
+
+/* --- hearts, the vignette, and the death card (WP-3.1) ------------------- */
+
+/*
+ * Hearts, not numbers. The roadmap is explicit that health is a consequence
+ * layer and never a progression system, and a damage number floating off an
+ * enemy is the first step toward making it one — so this is five blocky pips
+ * and nothing else.
+ *
+ * The heart is a clip-path polygon on a 5×5 grid rather than an image: the
+ * project ships no art files, and a blocky silhouette is the point.
+ */
+.health {
+  position: absolute;
+  top: calc(14px + var(--safe-top));
+  left: calc(14px + var(--safe-left));
+  z-index: 18;
+}
+
+.health__hearts {
+  display: flex;
+  gap: 5px;
+}
+
+.health__heart {
+  width: 22px;
+  height: 22px;
+  background: #e2564f;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+  clip-path: polygon(
+    0% 20%, 0% 60%, 20% 60%, 20% 80%, 40% 80%, 40% 100%, 60% 100%, 60% 80%,
+    80% 80%, 80% 60%, 100% 60%, 100% 20%, 80% 20%, 80% 0%, 60% 0%, 60% 20%,
+    40% 20%, 40% 0%, 20% 0%, 20% 20%
+  );
+}
+
+.health__heart.is-empty {
+  background: rgba(120, 132, 140, 0.32);
+  box-shadow: none;
+}
+
+/* One heart left: the last warning the game gives before a death, and the only
+   animation in the HUD. Reduced motion gets the colour without the pulse. */
+.health.is-low .health__heart:not(.is-empty) {
+  animation: heart-beat 1s ease-in-out infinite;
+}
+
+@keyframes heart-beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .health.is-low .health__heart:not(.is-empty) {
+    animation: none;
+    background: #ff7a70;
+  }
+}
+
+/*
+ * The red edge after a hit.
+ *
+ * A sibling of the HUD rather than a child of it, and below the touch controls
+ * in z-order: a red border that swallows a thumb tap is a bug you only find on
+ * a phone. Its opacity is written straight from the sim's own `combat.hurt`,
+ * which decays — so it cannot strobe, and it cannot outlive the invulnerability
+ * window it belongs to.
+ */
+.vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(180, 20, 20, 0) 42%,
+    rgba(180, 20, 20, 0.28) 78%,
+    rgba(150, 12, 12, 0.62) 100%
+  );
+}
+
+/* One card, one line. Death is a readable event, not a punishment: nothing is
+   lost, and the sentence says so. */
+.death-card {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  pointer-events: none;
+  text-align: center;
+  background: rgba(6, 8, 11, 0.55);
+}
+
+.death-card__title {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  color: #ffd9d2;
+}
+
+.death-card__line {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--ui-dim);
+}
+
 /* --- the realm (M2) ------------------------------------------------------ */
 
 /* The Cognitive realm is a different *place*: tint the UI so a screenshot (or a

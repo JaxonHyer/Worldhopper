@@ -54,6 +54,7 @@ export function createDebugOverlay({ mount, onRefresh, now = () => performance.n
   setRow('seed', 'seed / palette');
   setRow('origin', 'distance from origin');
   setRow('entities', 'entities');
+  setRow('combat', 'hearts / enemies');
   setRow('render', 'draw calls / tris');
   setRow('gpu', 'gl / gpu');
   setRow('settings', 'config');
@@ -86,6 +87,21 @@ export function createDebugOverlay({ mount, onRefresh, now = () => performance.n
     set('origin', `${snapshot.scaleFence.worst.toFixed(1)} m (limit ${snapshot.scaleFence.limit})`);
     rows.get('origin').dd.classList.toggle('is-warn', snapshot.scaleFence.warn);
     set('entities', `${snapshot.entityCount} (hash ${snapshot.entityHash})`);
+    // The encounter layer in one line: what you have left, what is out there,
+    // and what it is doing. The state tally is the AI's own answer, so a machine
+    // that is stuck in one state is visible here before it is visible in play.
+    const combat = snapshot.combat;
+    set(
+      'combat',
+      combat
+        ? `${'♥'.repeat(Math.max(0, Math.ceil(combat.health)))}${'·'.repeat(Math.max(0, combat.maxHealth - Math.ceil(combat.health)))}` +
+            ` ${Math.ceil(combat.health)}/${combat.maxHealth} · ${combat.enemies} alive` +
+            `${combat.dead ? ' · DEAD' : ''} · ${Object.entries(combat.states ?? {})
+              .filter(([, n]) => n > 0)
+              .map(([k, n]) => `${k}:${n}`)
+              .join(' ') || 'idle'}`
+        : '—',
+    );
     set('render', `${snapshot.drawCalls} calls · ${snapshot.triangles} tris`);
     set(
       'gpu',

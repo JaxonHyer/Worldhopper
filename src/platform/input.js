@@ -37,6 +37,15 @@ const MOVE_KEYS = {
 
 /** Keys that act as "interact / talk" on desktop. */
 const INTERACT_KEYS = new Set(['KeyF', 'Enter']);
+/**
+ * Keys that swing.
+ *
+ * `KeyJ` because it sits under the right hand next to the movement keys, and
+ * because the letters the other verbs already own (F talk, Space jump, Shift
+ * sprint, Q/E look, P/C/V/R the panels) leave it free. The mouse's left button
+ * is the other way in, once it is captured — see `onPointerDown`.
+ */
+const ATTACK_KEYS = new Set(['KeyJ']);
 
 /**
  * Pointer-lock state machine, so the whole feature is one small table.
@@ -73,6 +82,7 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     stickDistance: 0,
     jumps: 0,
     interact: 0,
+    attacks: 0,
     touchPointers: 0,
     captureRequests: 0,
     captureFallbacks: 0,
@@ -115,6 +125,8 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
   let jumpQueued = false;
   // --- interact (talk to NPC, etc) ----------------------------------------
   let interactQueued = false;
+  // --- attack (the punch) --------------------------------------------------
+  let attackQueued = false;
 
   // --- sprint -------------------------------------------------------------
   // Two ways in, because the two devices want different things: a desktop holds
@@ -130,6 +142,7 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
   const knobEl = elements.knob ?? null;
   const jumpEl = elements.jump ?? null;
   const sprintEl = elements.sprint ?? null;
+  const attackEl = elements.attack ?? null;
 
   const isCaptured = () => typeof document !== 'undefined' && document.pointerLockElement === canvas;
 
@@ -289,6 +302,24 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       event.preventDefault();
       return;
     }
+    // A punch is an *edge*: holding the key down is one swing, and the sim's
+    // own cooldown decides when the next one may start.
+    if (ATTACK_KEYS.has(code) && !event.repeat) {
+      queueAttack();
+      event.preventDefault();
+      return;
+    }
+    // Held look keys (Q/E). `look()` reads `keys` for them — but until this
+    // branch existed, nothing ever put them in `keys`, so the whole held-key
+    // look path was dead code: a desktop player holding Q and watching nothing
+    // turn. Nobody had noticed because the mouse has always been the desktop
+    // way to look, and no desktop hint ever advertised Q/E. Registering them
+    // here wires a path the rest of the file already believed existed.
+    if (code === 'KeyQ' || code === 'KeyE') {
+      keys.add(code);
+      event.preventDefault();
+      return;
+    }
     if (code in MOVE_KEYS) {
       keys.add(code);
       event.preventDefault();
@@ -372,7 +403,13 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     // The drag fallback still starts, because the request may be refused (or
     // because capture is switched off in the tuning panel).
     if (!isCaptured() && captureWanted()) requestCapture();
-    if (!isCaptured()) beginLook(event);
+    if (isCaptured()) {
+      // Already captured, so this press belongs to the game: left button swings.
+      // (A drag would do nothing here anyway — the cursor is frozen.)
+      queueAttack();
+      return;
+    }
+    beginLook(event);
   }
 
   function onPointerMove(event) {
@@ -449,6 +486,30 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
     sprintEl?.classList.toggle('is-on', sprintToggled);
     sprintEl?.setAttribute('aria-pressed', sprintToggled ? 'true' : 'false');
     return sprintToggled;
+  }
+
+  /**
+   * One swing, queued.
+   *
+   * A real function rather than only a method on the returned object: the
+   * keyboard handler and the pointer handler both need it, and a bare
+   * `queueAttack()` that resolves to nothing is a ReferenceError on the first
+   * key press — the exact failure mode that has killed this game's boot twice.
+   */
+  function queueAttack() {
+    attackQueued = true;
+    counters.attacks = (counters.attacks ?? 0) + 1;
+  }
+
+  // The punch button (phone): a tap target, not a hint. It sits beside jump so
+  // the right thumb has two things to do and neither is a pixel hunt.
+  attackEl?.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    queueAttack();
+    attackEl.classList.add('is-pressed');
+  });
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
+    attackEl?.addEventListener(type, () => attackEl.classList.remove('is-pressed'));
   }
 
   // The jump button: pointer events, so it works for a thumb and for a test.
@@ -540,6 +601,16 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       counters.interact = (counters.interact ?? 0) + 1;
     },
 
+    /** Swing edge; consumes the press so one tap is one punch. */
+    consumeAttack() {
+      const queued = attackQueued;
+      attackQueued = false;
+      return queued;
+    },
+
+    /** Queue a swing from code (the phone button, the desktop click, the tests). */
+    queueAttack,
+
     /** Whether capture is possible in this browser *and* wanted by the player. */
     canCapture: () => supported && captureWanted(),
 
@@ -564,6 +635,7 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       sprinting: sprintToggled || keys.has('ShiftLeft') || keys.has('ShiftRight'),
       sprintToggled,
       interactQueued,
+      attackQueued,
     }),
 
     reset() {
@@ -572,6 +644,7 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       lookPitch = 0;
       jumpQueued = false;
       interactQueued = false;
+      attackQueued = false;
       endStick();
       lookPointerId = null;
     },

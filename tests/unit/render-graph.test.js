@@ -10,6 +10,10 @@ import * as THREE from 'three';
 import { createWorldView } from '../../src/render/world-view.js';
 import { createSky, sunDirection } from '../../src/render/sky.js';
 import { createWorldState, setRealm } from '../../src/core/world-state.js';
+import { buildSnapshot } from '../../src/core/snapshot.js';
+import { createFixedClock } from '../../src/core/clock.js';
+import { createFrameStats } from '../../src/core/frame-stats.js';
+import { APP } from '../../src/core/config.js';
 import { REALMS } from '../../src/core/config.js';
 import { createCameraState, resolveCamera } from '../../src/core/camera.js';
 import { AVATAR, createPlayerAvatar, nextFacing } from '../../src/render/player-view.js';
@@ -606,4 +610,149 @@ test('a nameplate is a label above a head, not a billboard across the screen', (
   assert.equal(nameplateMetrics(40).width, nameplateMetrics(20).width, 'past the cap, aspect stops mattering');
   // And a nonsense aspect still produces a usable label.
   assert.ok(nameplateMetrics(Number.NaN).width > 0);
+});
+
+// --- enemies (WP-3.2) ---------------------------------------------------------
+
+/**
+ * The tier is a hard rule, not a taste call: "box-part rigs, flat colours,
+ * procedural animation only — no skeletal rigs, no IK, no facial animation."
+ * These tests are what stops a future change from quietly upgrading an enemy
+ * into something the project has already decided it is not building.
+ */
+test('an enemy is drawn from world state, as boxes and nothing else', () => {
+  const { state, world } = buildWorld();
+  assert.ok(state.enemies.length > 0, 'the world opens inhabited');
+  world.sync(state);
+
+  assert.equal(world.stats().enemyCount, state.enemies.length, 'one view per live enemy');
+  for (const enemy of state.enemies) {
+    const group = world.scene.getObjectByName(enemy.id);
+    assert.ok(group, `${enemy.id} must be in the scene`);
+    assert.equal(group.userData.kind, 'enemy');
+
+    let boxes = 0;
+    group.traverse((node) => {
+      if (!node.isMesh) return;
+      // A SkinnedMesh would be a skeletal rig; a Points or Line would be
+      // something the art direction does not use. Boxes, or it is not this game.
+      assert.equal(node.isSkinnedMesh, undefined, `${node.name} is a skinned mesh`);
+      assert.ok(
+        node.geometry.type === 'BoxGeometry' ||
+          node.geometry.type === 'RingGeometry' ||
+          node.geometry.type === 'OctahedronGeometry',
+        `${node.name} is a ${node.geometry.type}`,
+      );
+      if (node.geometry.type === 'BoxGeometry') boxes++;
+      assert.ok(node.material.map === undefined || node.material.map === null, `${node.name} carries a texture`);
+    });
+    // Body, head, and at least one limb: the brief's 1–4 limbs.
+    assert.ok(boxes >= 3, `${enemy.id} is only ${boxes} boxes`);
+  }
+});
+
+test('the tell is invisible until the wind-up starts, and only then', () => {
+  const { state, world } = buildWorld();
+  world.sync(state);
+  const enemy = state.enemies[0];
+  const view = world.scene.getObjectByName(enemy.id);
+
+  world.sync(state);
+  assert.equal(enemy.tell, 0, 'nothing is wound up yet');
+
+  enemy.tell = 0.6;
+  enemy.state = 'attack';
+  world.sync(state);
+  // The ring is a child of the enemy group, so find it by walking the group.
+  let ring = null;
+  view.traverse((node) => {
+    if (node.isMesh && node.geometry.type === 'RingGeometry') ring = node;
+  });
+  assert.ok(ring, 'the tell has to be something you can see');
+  assert.equal(ring.visible, true, 'and it appears during the wind-up');
+  assert.ok(ring.material.opacity > 0.3, `the tell is too faint to read: ${ring.material.opacity}`);
+});
+
+test('an enemy that dies leaves the scene graph', () => {
+  const { state, world } = buildWorld();
+  world.sync(state);
+  const before = world.stats().enemyCount;
+  const id = state.enemies[0].id;
+  assert.ok(world.scene.getObjectByName(id));
+
+  state.enemies.shift();
+  world.sync(state);
+  assert.equal(world.stats().enemyCount, before - 1);
+  assert.equal(world.scene.getObjectByName(id), undefined, 'a removed enemy must not keep drawing');
+});
+
+test('enemies are living: their bodies hide in the realm and a flame stands in', () => {
+  const { state, world } = buildRosharan();
+  world.sync(state);
+  const enemy = state.enemies[0];
+  const body = world.scene.getObjectByName(enemy.id);
+  assert.equal(body.visible, true, 'physical: the body is drawn');
+
+  setRealm(state, REALMS.cognitive);
+  world.sync(state);
+  assert.equal(body.visible, false, 'cognitive: the body is not');
+  const flame = world.scene.getObjectByName('enemy-flame-0');
+  assert.ok(flame, 'and a flame takes its place');
+  assert.equal(flame.visible, true);
+  assert.equal(world.stats().skin.enemyFlames, state.enemies.length, 'one flame per living enemy');
+});
+
+/**
+ * The generic guard for the snapshot whitelist trap.
+ *
+ * `buildSnapshot` names every field it will carry, and a field a renderer starts
+ * reporting without a matching line there disappears in silence and reads back
+ * as `undefined`. It has now happened three times (`fade`, `npcFlames`,
+ * `enemyFlames`), so the rule is a test rather than a memory.
+ *
+ * The guard is over the *counts*, not over every key in `stats().skin`: the
+ * renderer legitimately reports internals the snapshot does not ship
+ * (`seaSlots`, `violations`, `flame`). What must survive is the set the browser
+ * tests actually assert on — and those are precisely the ones that keep going
+ * missing.
+ */
+const SKIN_COUNTS_THE_TESTS_READ = ['beads', 'souls', 'npcFlames', 'enemyFlames'];
+
+test('the skin counts the browser tests read survive the snapshot whitelist', () => {
+  const { state, world } = buildRosharan();
+  setRealm(state, REALMS.cognitive);
+  world.sync(state);
+  const reported = world.stats().skin;
+
+  const snapshot = buildSnapshot({
+    app: APP,
+    state,
+    map,
+    variant: getVariant(map.id, 'storm-shore'),
+    settings: defaultSettings(),
+    clock: createFixedClock({ stepHz: 60 }),
+    frameStats: createFrameStats(),
+    render: { drawCalls: 0, triangles: 0, gl: { version: 'x', gpu: 'y' }, avatarVariant: 'boy', skin: reported },
+    ui: { overlay: false, panel: false, credits: false, touch: false, fade: false, fades: 0 },
+    input: null,
+    paused: false,
+    ready: true,
+  });
+
+  for (const key of SKIN_COUNTS_THE_TESTS_READ) {
+    assert.ok(key in reported, `the renderer stopped reporting ${key}, so this list is stale`);
+    assert.ok(key in snapshot.skin, `the renderer reports skin.${key} and the snapshot drops it`);
+    assert.ok(Number.isFinite(snapshot.skin[key]), `skin.${key} came back ${String(snapshot.skin[key])}`);
+  }
+  assert.ok(snapshot.skin.enemyFlames > 0, 'the enemy flames are counted, not just drawn');
+  assert.ok(snapshot.skin.npcFlames > 0, 'and so are the NPCs\u2019');
+});
+
+test('the enemy flame pool is sized by the contract, so play allocates nothing', () => {
+  const { world } = buildRosharan();
+  let slots = 0;
+  world.scene.traverse((node) => {
+    if (node.name.startsWith('enemy-flame-')) slots++;
+  });
+  assert.equal(slots, 6, 'the fairness contract’s hard cap on live enemies');
 });

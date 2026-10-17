@@ -83,6 +83,34 @@ export const roshar = {
   },
 
   /**
+   * Beacons (WP-3.1). The first is the spawn, so a fresh run has somewhere to
+   * come back to; the second is out on the rock, a walk's worth of progress.
+   */
+  beacons: [
+    { id: 'beacon-waystone', label: 'the Waystone', position: { x: 0, z: 0 } },
+    { id: 'beacon-cairn', label: 'the Ridge Cairn', position: { x: 26, z: 14 } },
+  ],
+
+  /**
+   * The roaming spawn director's policy (WP-3.2). Enemies appear in a ring
+   * around the player and wander procedurally until they notice you.
+   *
+   * `storm-warden` is the anglerfish: it cannot be fought at all, and it is
+   * slower than a walking player, so the answer to it is always your feet.
+   */
+  enemyPolicy: {
+    types: ['crag-lurker', 'storm-warden'],
+    weights: [3, 1],
+    initial: 3,
+    maxActive: 4,
+    spawnInterval: 8,
+    spawnMin: 24,
+    spawnMax: 40,
+    despawnRadius: 95,
+    leashRange: 46,
+  },
+
+  /**
    * Dialog NPCs (WP-3.4). A Horneater guide stands beside the pool approach.
    * Project interpretation: "Kurin" is an invented name (ROADMAP canon guard).
    */
