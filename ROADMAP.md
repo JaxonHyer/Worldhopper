@@ -427,15 +427,39 @@ playtest: is the realm legible and beautiful? Does the inversion read?)*
 
 ### M3 — Encounters, health & NPCs
 **Crew: Agents 1–2** — the crew grows here.
-- [ ] WP-3.1 Health/damage/death/beacon respawn + combat sliders — **Agent 1**
-- [ ] WP-3.2 Enemy framework: blocky rigs, procedural animation, state machine (idle/alert/hunt/attack/disengage) — **Agent 1**
+- [x] WP-3.1 Health/damage/death/beacon respawn + combat sliders — **Agent 1**
+      *(landed 2026-10-17: 3–5 hearts, knockback + a 1 s invulnerability window,
+      a red vignette, two beacons per world, death → fade → respawn with nothing
+      lost, and eight combat sliders. The two that are the fairness contract's
+      own numbers — wind-up and the enemy cap — have floors the panel cannot
+      cross. Feel is still the owner's call: see the PR's playtest questions.)*
+- [x] WP-3.2 Enemy framework: blocky rigs, procedural animation, state machine (idle/alert/hunt/attack/disengage) — **Agent 1**
+      *(landed 2026-10-17: one state machine shared by every archetype, box-part
+      rigs with procedural animation only, a procedural roaming spawn director,
+      and the fairness contract asserted over a whole simulated run and again
+      inside a real browser. `CONTRACTS.md` freezes the shape.)*
 - [ ] WP-3.3 First archetypes (2, Roshar-flavored, owner design pass) — **Agent 2**
+      *(unblocked: `ENEMY_TYPES` in `src/core/enemy.js` is a row per archetype.
+      The two that ship now — `crag-lurker` and `storm-warden` — are
+      **placeholders with invented names**, flagged as project interpretation in
+      `DECISIONS.md`; replacing them with real Rosharan creatures, designed with
+      the owner, is exactly this work package.)*
 - [x] WP-3.4 Dialog NPC framework + 1–2 NPCs (JSON dialogue data) — **Agent 2** *(landed 2026-10-17: two NPCs, dialogue as JSON; the one implementation, #13/#15 superseded)*
 - [ ] WP-3.5 Fairness-contract tests (telegraph-before-damage assertions) — **Agent 2**
+      *(partially covered by Agent 1's WP-3.2: cue-before-damage over a whole
+      run, the 0.4 s floor, the leash, and the anglerfish rule are all asserted
+      in `tests/unit/enemy.test.js`, `tests/unit/combat.test.js` and
+      `tests/e2e/combat.spec.js`. What is **not** covered, and is WP-3.5's real
+      work: the approach-angle distribution (approaches landing outside the
+      player's view cone) and disengage-when-faced — both belong to the
+      FOV-aware rules that the framework does not implement yet.)*
 
 **Exit:** one encounter that is tense, readable, and escapable.
 *(Owner playtest: fair or annoying? Is the telegraph clear on a
-phone?)*
+phone?)* — **not yet reached.** The framework, the health layer and the
+fairness assertions are in; the archetypes are placeholders and the encounter
+has not been through the owner's hands. The exit is a feel call and no agent
+may claim it.
 
 ### M4 — Perpendicularity & the vertical slice
 **Crew: Agents 1–2.**

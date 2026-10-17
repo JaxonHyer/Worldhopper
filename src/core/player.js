@@ -17,6 +17,7 @@ import { applyLook } from './look.js';
 import { normalizeMove } from './stick.js';
 import { CAMERA, PLAYER } from './config.js';
 import { terrainHeight } from './terrain.js';
+import { createAttack } from './combat.js';
 
 export { PLAYER };
 
@@ -85,6 +86,12 @@ export function createPlayer({ map, seed, spawn = map.spawn ?? { x: 0, z: 0 }, l
     jumps: 0,
     landings: 0,
     distanceWalked: 0,
+    /**
+     * The punch (WP-3.1). It belongs to the player rather than to a combat
+     * object because the avatar animates off it: one source of truth, and the
+     * arm the player sees is the swing the sim resolved.
+     */
+    attack: createAttack(),
   };
 }
 

@@ -10,12 +10,13 @@ lane, **open an issue describing the interface you need** and keep moving.
 
 | Path | Lane | What it is |
 |---|---|---|
-| `src/core/` | **Agent 1** | World state, sim, maths, settings, maps, the skin contract, the gate. Shared schemas — changes here need a `contract`-labelled PR (see `CONTRACTS.md` note below). |
+| `src/core/` | **Agent 1** | World state, sim, maths, settings, maps, the skin contract, the gate, combat and enemies. Shared schemas — changes here need a `contract`-labelled PR, and the shapes themselves live in `CONTRACTS.md`. |
 | `src/render/` | **Agent 1** | Everything three.js: world view, cognitive manifestation, sky, avatar, pool. |
 | `src/platform/` | **Agent 1** | Input (keyboard, mouse, touch), capture, storage. |
 | `src/main.js`, `index.html`, `src/style.css` | **Agent 1** | The boot and the frame loop. One writer, always. |
 | `src/ui/hud.js`, `src/ui/fade.js`, `src/ui/debug-overlay.js`, `src/ui/tuning-panel.js`, `src/ui/dock.js`, `src/ui/credits.js` | **Agent 1** | Existing chrome. |
 | `src/content/` *(new)* | **Agent 2** | Content data and its systems: NPC dialog JSON, definitions, later journal entries. |
+| `ENEMY_TYPES` rows in `src/core/enemy.js` *(WP-3.3)* | **Agent 2, by exception** | Archetype *data* only — silhouette, speeds, ranges, timing, colours, `fightable`. The state machine around it is Agent 1's. Adding a row needs a one-line PR touching nothing else; adding a *state* needs a `contract` discussion first. |
 | `src/ui/dialog.js` *(new)*, `src/ui/npc-*.js` *(new)* | **Agent 2** | New UI surfaces for the content lane. |
 | `tests/unit/` | shared | Add your own files. **Do not edit another lane's test to make your change pass** — that is how a regression gets signed off. |
 | `tests/e2e/` | shared | Add your own spec files, e.g. `tests/e2e/npc.spec.js`. |
@@ -44,10 +45,23 @@ there, ask; do not add it.** The cost of not asking was a second dialogue
 implementation (PR #13) that had to be closed, and two red e2e tests caused by
 timed walks.
 
-## Not yet frozen
+## Frozen now
 
-`CONTRACTS.md` — the frozen shared schemas (world state, `PlanetConfig`,
-`cognitiveSkin`, the enemy state machine, journal entries) — lands with Agent 1's
-WP-3.1/WP-3.2, which is what defines the last of them. Until then the rule is the
-table above plus this: **if you need a field that is not there, ask; do not add
-it.**
+`CONTRACTS.md` landed with WP-3.1/WP-3.2 (2026-10-17): world state, the map's
+`beacons` and `enemyPolicy`, the enemy shape and its one state machine, the
+combat event log, and the spawn director's state. Read it before adding a field
+anywhere in `src/core/`. The journal entry schema is still open (M4, WP-4.2).
+
+The rule stands: **if you need a field that is not there, ask; do not add it.**
+
+## WP-3.1 / WP-3.2 (2026-10-17): the seam that mattered
+
+Enemies are **not** in `state.entities`. That list is the map's authored
+furniture and `entityHash()` is its reproducibility fingerprint — three existing
+tests assert that the hash does not move across a realm shift or a re-sim, and
+two more count entities against the cognitive realm's bead-and-flame tally.
+Actors that come and go are a different kind of thing, and the player has always
+been kept out of the entity list for exactly this reason. So `state.enemies`
+sits beside `state.player`, and both renderers read it. If you need to know
+"what is in the world", there are now two collections and `CONTRACTS.md` §1 says
+which is which.

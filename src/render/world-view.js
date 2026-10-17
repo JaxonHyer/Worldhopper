@@ -23,6 +23,7 @@ import { createPlayerAvatar } from './player-view.js';
 import { createPerpendicularityView } from './perpendicularity-view.js';
 import { createCognitiveView } from './cognitive-view.js';
 import { createNpcView } from './npc-view.js';
+import { createEnemyView } from './enemy-view.js';
 import { resolveCognitiveSkin } from '../core/skin.js';
 
 export function createWorldView({ map, state, variant, settings }) {
@@ -90,6 +91,17 @@ export function createWorldView({ map, state, variant, settings }) {
   const npcViews = new Map();
   const npcDisposables = [];
 
+  /**
+   * Enemy view objects.
+   *
+   * Unlike the furniture and the NPCs these come and go while you play, so the
+   * map is reconciled against world state every frame: a view is built the
+   * first time an id appears and disposed the moment it stops. That is the same
+   * one-source-of-truth rule as everything else here — the renderer never
+   * decides an enemy exists, it only draws the ones the sim says do.
+   */
+  const enemyViews = new Map();
+
   for (const entity of state.entities) {
     let object;
     let isNpc = false;
@@ -117,6 +129,33 @@ export function createWorldView({ map, state, variant, settings }) {
       entityObjects.set(entity.id, object);
       // A non-living object's cognitive aspect is its bead, not its geometry.
       physicalFurniture.push(object);
+    }
+  }
+
+  /**
+   * Reconcile the enemy views with the ones the sim says are alive.
+   *
+   * Building and disposing happens only on a spawn or a removal, so the steady
+   * state costs one map lookup per enemy per frame and allocates nothing.
+   */
+  function syncEnemyViews(currentState, physical) {
+    const enemies = currentState.enemies ?? [];
+    for (const enemy of enemies) {
+      let view = enemyViews.get(enemy.id);
+      if (!view) {
+        view = createEnemyView(enemy);
+        enemyViews.set(enemy.id, view);
+        group.add(view.group);
+      }
+      view.group.visible = physical;
+    }
+    if (enemyViews.size !== enemies.length) {
+      for (const [id, view] of enemyViews) {
+        if (enemies.some((enemy) => enemy.id === id)) continue;
+        group.remove(view.group);
+        view.dispose();
+        enemyViews.delete(id);
+      }
     }
   }
 
@@ -207,6 +246,9 @@ export function createWorldView({ map, state, variant, settings }) {
         npcView.group.visible = physical;
         npcView.setNameplateVisible(physical);
       }
+      // Enemies are living too: their bodies hide and a flame stands in for them
+      // (see cognitive-view's enemy flame pool).
+      syncEnemyViews(currentState, physical);
 
       for (const entity of currentState.entities) {
         const object = entityObjects.get(entity.id);
@@ -221,6 +263,10 @@ export function createWorldView({ map, state, variant, settings }) {
         for (const npcView of npcViews.values()) {
           const npcEntity = currentState.entities.find((e) => e.id === npcView.entityId);
           if (npcEntity) npcView.sync(npcEntity, camera, currentState.simTime, dt);
+        }
+        for (const enemy of currentState.enemies ?? []) {
+          const enemyView = enemyViews.get(enemy.id);
+          if (enemyView) enemyView.sync(enemy, dt);
         }
       }
       // The pool breathes on the sim clock, so a run looks the same on replay.
@@ -269,6 +315,7 @@ export function createWorldView({ map, state, variant, settings }) {
         meshes: group.children.length,
         entityCount: entityObjects.size,
         npcCount: npcViews.size,
+        enemyCount: enemyViews.size,
         avatar: avatar.stats().boxes,
         avatarTextures: avatar.stats().textures,
         avatarVariant,
@@ -280,6 +327,8 @@ export function createWorldView({ map, state, variant, settings }) {
     dispose() {
       for (const item of disposables) item.dispose?.();
       for (const item of npcDisposables) item.dispose?.();
+      for (const view of enemyViews.values()) view.dispose();
+      enemyViews.clear();
       pool.dispose();
       cognitive.dispose();
       avatar.dispose();

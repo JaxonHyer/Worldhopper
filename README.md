@@ -114,10 +114,39 @@ conversation pauses the world while the card is open; <kbd>Esc</kbd> closes it.
 There are two people so far: a wanderer on the test range and Kurin on Roshar.
 Their words are JSON files under `src/content/npcs/`, one per person.
 
+**The world is inhabited, and it fights back.** Enemies appear in a ring around
+you and wander their own patch until they notice you; the director keeps the
+world populated as you explore and empties it behind you, so a long walk neither
+runs out of company nor accumulates an army. Two archetypes so far, and they are
+placeholders with invented names pending the owner's design pass: the **crag
+lurker**, which you can punch, and the **storm warden**, which you cannot — a
+punch against it recoils and does nothing, and the only answer to it is your
+feet. Both are slower than you walk.
+
+**Fight back:** <kbd>J</kbd> at a keyboard, a left click once the mouse is
+captured, or the amber **punch** button on a phone. One tap is one swing; the
+cooldown decides how soon you may throw another.
+
+**Getting hurt is readable, never cheap.** Every attack is wound up for at least
+0.4 s before it lands — the enemy leans back and a ring opens on the ground at
+its feet — and it does not track you while it does, so stepping sideways is a
+real answer. A hit costs a heart, shoves you away, and gives you about a second
+of grace; there are no damage numbers and no hit-stun chains. Run out of hearts
+and you fall: one card, a fade, and you are back at the last beacon with
+everything you had. **Beacons** (the Waystone at Roshar's spawn, the Ridge Cairn
+out on the rock) are where you respawn and where you heal.
+
+Every one of those numbers is a slider in the tuning panel under **combat &
+encounters** — hearts, punch damage and cooldown, enemy damage, wind-up, speed,
+aggro range, and how many are alive at once. Two of them have floors the panel
+cannot go below (0.4 s wind-up, six enemies), because those are the fairness
+contract's numbers. Set `?enemies=0` to turn encounters off entirely.
+
 **Phone:** the left half of the screen is a thumb-stick (it appears where your
 thumb lands), drag on the right to look, the round **jump** button is
-bottom-right, and the **sprint** toggle is bottom-left. It also works with a
-mouse if you just want to test the layout.
+bottom-right with **punch** just left of it, and the **sprint** toggle is
+bottom-left. Hearts sit top-left. It also works with a mouse if you just want to
+test the layout.
 
 Dev keys: <kbd>`</kbd> debug overlay · <kbd>p</kbd>
 tuning panel ·
@@ -147,6 +176,11 @@ buttons (add `?dev=1` to the URL) give the same tools.
 | `debug` | `?debug=1` | open the debug overlay immediately |
 | `dev` | `?dev=1` | show the on-screen dev buttons (phone-friendly) |
 | `touch` | `?touch=1` | force the touch controls on (for testing on a desktop) |
+| `hearts` | `?hearts=5` | how much health you carry (3–5) |
+| `punchdmg`, `punchcd` | `?punchdmg=2&punchcd=0.3` | how hard a punch is, and how soon you may throw another |
+| `enemydmg`, `windup`, `enemyspeed` | `?windup=0.8` | what a strike costs (×), how long the telegraph is (s, floor 0.4), and how fast they move (×) |
+| `aggro` | `?aggro=24` | how close you have to get before an enemy notices you (m) |
+| `enemies` | `?enemies=0` | how many are alive at once (0–6; `0` turns encounters off) |
 
 The tuning panel mirrors every change into the URL and into `localStorage`, and
 has a **copy link** button — paste that link back to the agent to hand over a
@@ -205,6 +239,8 @@ src/core/                  logic only, no DOM, no three.js (all headless-tested)
   look.js / math.js        look maths, clamped and NaN-proof
   settings.js              tunables: schema, URL/localStorage, clamping
   gate.js                  the Perpendicularity: where it is, and when it fires
+  combat.js                hearts, the punch, death/respawn, the event log
+  enemy.js                 archetypes, the one state machine, the spawn director
   maps/index.js            map registry: which worlds exist, and how to pick one
   skin.js                  the cognitiveSkin contract + the canon guard
   worlds/roshar/           the first authored world: palette, landmark, its skin
@@ -215,8 +251,9 @@ src/content/               authored data: NPC dialogue, one JSON file per person
   npcs.js                  dialogue loader, validator and state machine (no DOM)
 src/render/                three.js only; reads state, never owns it
   renderer.js  sky.js  world-view.js  npc-view.js (blocky figures, nameplates)
+  enemy-view.js            box-part enemy rigs + procedural animation + the tell
 src/platform/input.js      keyboard/touch/pointer -> one intent stream (no sim access)
-src/ui/                    HUD (touch controls), dialog card, debug overlay, tuning panel, credits, dock
+src/ui/                    HUD (touch controls), hearts, dialog card, debug overlay, tuning panel, credits, dock
 tests/unit/                node --test, no browser
 tests/e2e/                 Playwright smoke, interaction, mobile and screenshot specs
 scripts/check-dist.mjs     static assertions on the built output
@@ -233,9 +270,14 @@ Design rules that are enforced by tests rather than by memory:
   `tests/unit/scale-fence.test.js` fails the build if any of that drifts.
 - **Per-world appearance is data.** `cognitiveSkin` lives in the map, and glass
   beads are only legal over the Rosharan system.
+- **The fairness contract is a test, not a promise.** Every damage event in the
+  combat log must be preceded by its source's telegraph, no enemy may wind up in
+  under 0.4 s, and every enemy has a leash it cannot cross. A unit test walks a
+  whole simulated run and asserts all three; the browser test reads the same log
+  back out of the shipped build.
 - **The debug surface is a contract.** `window.__debug()` returns realm, player
-  position, seed, entity count and the distance-from-origin canary; the smoke
-  test asserts against it. `window.__worldhopper.step(seconds)` advances the sim
+  position, seed, entity count, the combat block and the distance-from-origin
+  canary; the smoke test asserts against it. `window.__worldhopper.step(seconds)` advances the sim
   deterministically, which is how the headless tests avoid measuring CI's frame
   rate instead of the game.
 
@@ -246,6 +288,8 @@ Design rules that are enforced by tests rather than by memory:
 - [`AGENT_PROMPT.md`](AGENT_PROMPT.md) — the developer brief (rules, scope, verification duties)
 - [`ROADMAP.md`](ROADMAP.md) — milestones and status
 - [`DECISIONS.md`](DECISIONS.md) — one line per decision, with the reason
+- [`CONTRACTS.md`](CONTRACTS.md) — the frozen shared schemas: world state, the enemy shape and its state machine, the combat event log
+- [`OWNERSHIP.md`](OWNERSHIP.md) — which agent writes which file
 
 ## Licence
 

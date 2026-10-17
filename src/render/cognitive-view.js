@@ -22,6 +22,7 @@
 import * as THREE from 'three';
 import { beadVariation, resolveCognitiveSkin } from '../core/skin.js';
 import { terrainHeight } from '../core/world-state.js';
+import { FAIRNESS } from '../core/enemy.js';
 
 /** Metres between bead centres, tuned so neighbours touch without merging. */
 const SEA_SPACING = 1.35;
@@ -66,7 +67,17 @@ export function createCognitiveView({ map, state, variant, settings }) {
       /** No authored look: nothing to draw, nothing to hide. */
       sync: () => false,
       setVariant: () => {},
-      stats: () => ({ authored: false, skin: skin.id, objectForm: skin.objectForm, beads: 0, souls: 0, flame: false, violations: skin.violations.length }),
+      stats: () => ({
+        authored: false,
+        skin: skin.id,
+        objectForm: skin.objectForm,
+        beads: 0,
+        souls: 0,
+        flame: false,
+        npcFlames: 0,
+        enemyFlames: 0,
+        violations: skin.violations.length,
+      }),
       dispose: () => {},
     };
   }
@@ -237,6 +248,29 @@ export function createCognitiveView({ map, state, variant, settings }) {
     return { group: g, outer, core };
   });
 
+  /**
+   * Enemy flames, as a fixed pool.
+   *
+   * Enemies come and go while you play, and an InstancedMesh cannot be resized
+   * without rebuilding it, so this is a pool sized by the fairness contract's
+   * hard cap on live enemies: a slot is either an enemy or nothing. Nothing is
+   * allocated during play.
+   */
+  const enemyFlames = [];
+  for (let i = 0; i < FAIRNESS.maxActive; i++) {
+    const g = new THREE.Group();
+    g.name = `enemy-flame-${i}`;
+    g.visible = false;
+    const outer = new THREE.Mesh(flameOuter.geometry, flameOuter.material.clone());
+    outer.position.y = FLAME_HEIGHT * 0.5;
+    const core = new THREE.Mesh(flameCore.geometry, flameCore.material.clone());
+    core.position.y = FLAME_HEIGHT * 0.34;
+    g.add(outer, core);
+    group.add(g);
+    enemyFlames.push({ group: g, outer, core });
+  }
+  let enemyFlamesDrawn = 0;
+
   let active = false;
   const anySoulMoves = soulEntities.some((entity) => entity.dynamic);
   const materials = [beadMaterial, soulMaterial, flameOuter.material, flameCore.material];
@@ -290,6 +324,30 @@ export function createCognitiveView({ map, state, variant, settings }) {
         npcFlame.core.material.opacity = 0.7 + Math.sin(phase * 12.1) * 0.1;
       }
 
+      // Enemy flames: same flicker, offset per slot so a pack does not pulse in
+      // lockstep. A slot with no enemy behind it is hidden, not deleted.
+      const liveEnemies = currentState.enemies ?? [];
+      enemyFlamesDrawn = 0;
+      for (let i = 0; i < enemyFlames.length; i++) {
+        const slot = enemyFlames[i];
+        const enemy = liveEnemies[i];
+        if (!enemy) {
+          slot.group.visible = false;
+          continue;
+        }
+        slot.group.visible = true;
+        enemyFlamesDrawn++;
+        slot.group.position.set(enemy.position.x, enemy.position.y, enemy.position.z);
+        const phase = t + i * 1.7;
+        const ef = Math.sin(phase * 8.3) * 0.05 + Math.sin(phase * 20.1) * 0.03;
+        // A dying enemy's flame shrinks with it, so the realm agrees with the
+        // physical one about whether the thing is still there.
+        const scale = enemy.dying ? Math.max(0.05, enemy.deathTimer / 0.6) : 1;
+        slot.group.scale.set((1 + ef) * scale, (1 - ef * 1.3) * scale, (1 + ef) * scale);
+        slot.group.rotation.y = phase * 0.5;
+        slot.core.material.opacity = 0.68 + Math.sin(phase * 11.7) * 0.1;
+      }
+
       // Souls follow their objects. Every one is static on this map, so this
       // costs one boolean per frame — and it is the line that keeps a soul on
       // its object the day something in the entity list starts moving (M3).
@@ -328,6 +386,7 @@ export function createCognitiveView({ map, state, variant, settings }) {
         souls: soulEntities.length,
         flame: true,
         npcFlames: npcFlames.length,
+        enemyFlames: enemyFlamesDrawn,
         violations: skin.violations.length,
       };
     },
@@ -337,6 +396,10 @@ export function createCognitiveView({ map, state, variant, settings }) {
       for (const npcFlame of npcFlames) {
         npcFlame.outer.material.dispose();
         npcFlame.core.material.dispose();
+      }
+      for (const enemyFlame of enemyFlames) {
+        enemyFlame.outer.material.dispose();
+        enemyFlame.core.material.dispose();
       }
       group.clear();
     },

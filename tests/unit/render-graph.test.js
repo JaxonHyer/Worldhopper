@@ -607,3 +607,102 @@ test('a nameplate is a label above a head, not a billboard across the screen', (
   // And a nonsense aspect still produces a usable label.
   assert.ok(nameplateMetrics(Number.NaN).width > 0);
 });
+
+// --- enemies (WP-3.2) ---------------------------------------------------------
+
+/**
+ * The tier is a hard rule, not a taste call: "box-part rigs, flat colours,
+ * procedural animation only — no skeletal rigs, no IK, no facial animation."
+ * These tests are what stops a future change from quietly upgrading an enemy
+ * into something the project has already decided it is not building.
+ */
+test('an enemy is drawn from world state, as boxes and nothing else', () => {
+  const { state, world } = buildWorld();
+  assert.ok(state.enemies.length > 0, 'the world opens inhabited');
+  world.sync(state);
+
+  assert.equal(world.stats().enemyCount, state.enemies.length, 'one view per live enemy');
+  for (const enemy of state.enemies) {
+    const group = world.scene.getObjectByName(enemy.id);
+    assert.ok(group, `${enemy.id} must be in the scene`);
+    assert.equal(group.userData.kind, 'enemy');
+
+    let boxes = 0;
+    group.traverse((node) => {
+      if (!node.isMesh) return;
+      // A SkinnedMesh would be a skeletal rig; a Points or Line would be
+      // something the art direction does not use. Boxes, or it is not this game.
+      assert.equal(node.isSkinnedMesh, undefined, `${node.name} is a skinned mesh`);
+      assert.ok(
+        node.geometry.type === 'BoxGeometry' ||
+          node.geometry.type === 'RingGeometry' ||
+          node.geometry.type === 'OctahedronGeometry',
+        `${node.name} is a ${node.geometry.type}`,
+      );
+      if (node.geometry.type === 'BoxGeometry') boxes++;
+      assert.ok(node.material.map === undefined || node.material.map === null, `${node.name} carries a texture`);
+    });
+    // Body, head, and at least one limb: the brief's 1–4 limbs.
+    assert.ok(boxes >= 3, `${enemy.id} is only ${boxes} boxes`);
+  }
+});
+
+test('the tell is invisible until the wind-up starts, and only then', () => {
+  const { state, world } = buildWorld();
+  world.sync(state);
+  const enemy = state.enemies[0];
+  const view = world.scene.getObjectByName(enemy.id);
+
+  world.sync(state);
+  assert.equal(enemy.tell, 0, 'nothing is wound up yet');
+
+  enemy.tell = 0.6;
+  enemy.state = 'attack';
+  world.sync(state);
+  // The ring is a child of the enemy group, so find it by walking the group.
+  let ring = null;
+  view.traverse((node) => {
+    if (node.isMesh && node.geometry.type === 'RingGeometry') ring = node;
+  });
+  assert.ok(ring, 'the tell has to be something you can see');
+  assert.equal(ring.visible, true, 'and it appears during the wind-up');
+  assert.ok(ring.material.opacity > 0.3, `the tell is too faint to read: ${ring.material.opacity}`);
+});
+
+test('an enemy that dies leaves the scene graph', () => {
+  const { state, world } = buildWorld();
+  world.sync(state);
+  const before = world.stats().enemyCount;
+  const id = state.enemies[0].id;
+  assert.ok(world.scene.getObjectByName(id));
+
+  state.enemies.shift();
+  world.sync(state);
+  assert.equal(world.stats().enemyCount, before - 1);
+  assert.equal(world.scene.getObjectByName(id), undefined, 'a removed enemy must not keep drawing');
+});
+
+test('enemies are living: their bodies hide in the realm and a flame stands in', () => {
+  const { state, world } = buildRosharan();
+  world.sync(state);
+  const enemy = state.enemies[0];
+  const body = world.scene.getObjectByName(enemy.id);
+  assert.equal(body.visible, true, 'physical: the body is drawn');
+
+  setRealm(state, REALMS.cognitive);
+  world.sync(state);
+  assert.equal(body.visible, false, 'cognitive: the body is not');
+  const flame = world.scene.getObjectByName('enemy-flame-0');
+  assert.ok(flame, 'and a flame takes its place');
+  assert.equal(flame.visible, true);
+  assert.equal(world.stats().skin.enemyFlames, state.enemies.length, 'one flame per living enemy');
+});
+
+test('the enemy flame pool is sized by the contract, so play allocates nothing', () => {
+  const { world } = buildRosharan();
+  let slots = 0;
+  world.scene.traverse((node) => {
+    if (node.name.startsWith('enemy-flame-')) slots++;
+  });
+  assert.equal(slots, 6, 'the fairness contract’s hard cap on live enemies');
+});

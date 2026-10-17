@@ -24,10 +24,30 @@ dialogue data and its tests are on `main`. Do not rebuild it; read
 implementation` entry in `DECISIONS.md` for the frozen shape.
 
 Your next packages are **WP-3.3** (first two enemy archetypes) and **WP-3.5**
-(fairness-contract tests). Both wait on Agent 1's enemy framework (**WP-3.2**):
-they need its state machine. Do not start them before it lands. If you are
-starting while it is still in flight, ask for the state-machine shape in an
-issue instead of inventing one.
+(fairness-contract tests). **Both are unblocked** — Agent 1's enemy framework
+(WP-3.2) and health layer (WP-3.1) landed 2026-10-17.
+
+Read **`CONTRACTS.md`** before you touch anything: it is the frozen shape of
+world state, the enemy entity, the one state machine, the combat event log and
+the spawn director. It exists so you do not have to reverse-engineer any of it
+from the code.
+
+**WP-3.3** is a row of data, not a system. Archetypes live in `ENEMY_TYPES` in
+`src/core/enemy.js` — silhouette, speeds, ranges, timing, threat, `fightable`,
+colours — and the state machine around them is shared and already written. The
+two that ship now (`crag-lurker`, `storm-warden`) are **placeholders with
+invented names**, flagged as project interpretation; your job is to design real
+Rosharan creatures *with the owner* and replace them. Keep one archetype
+`fightable: false`: that is the anglerfish rule, and a test asserts it.
+
+**WP-3.5** is narrower than it looks. Agent 1 already asserts cue-before-damage
+over a whole simulated run, the 0.4 s wind-up floor, the leash, and the
+"cannot be fought" rule — see `tests/unit/enemy.test.js`,
+`tests/unit/combat.test.js` and `tests/e2e/combat.spec.js`. What is *missing* is
+the approach-angle distribution (approaches landing outside the player's view
+cone) and disengage-when-faced, because the framework does not implement
+FOV-aware approach yet. Do not re-prove what is proven; add what is not, and say
+in the PR which is which.
 
 What "done" means for WP-3.4, from the roadmap's own definition of an NPC:
 

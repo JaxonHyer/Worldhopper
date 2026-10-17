@@ -94,6 +94,45 @@ const blankBasin = {
   },
 
   /**
+   * Beacons (WP-3.1): where a death sends you, and where health comes back.
+   *
+   * The first in the list is where the player starts, so a fresh run always has
+   * somewhere to come back to. They are checkpoints, not progression — nothing
+   * here unlocks, and nothing is lost by dying except the walk.
+   */
+  beacons: [
+    { id: 'beacon-basin-post', label: 'the Range Post', position: { x: 0, z: 0 } },
+    { id: 'beacon-basin-marker', label: 'the Ridge Marker', position: { x: -26, z: 18 } },
+  ],
+
+  /**
+   * The roaming spawn director's policy (WP-3.2).
+   *
+   * Enemies appear in a ring around the player rather than from authored spawn
+   * points, so the world stays inhabited however far you walk; the numbers here
+   * are the pocket, and the fairness contract's leash is what lets you leave.
+   */
+  enemyPolicy: {
+    /** archetypes this world has. The warden cannot be fought, only avoided. */
+    types: ['crag-lurker', 'storm-warden'],
+    /** how often each appears: the unkillable one is the rarer of the two */
+    weights: [3, 1],
+    /** alive at load, so a player never lands in an empty world */
+    initial: 3,
+    /** the pocket's own ceiling; the owner's slider and a hard 6 sit above it */
+    maxActive: 4,
+    /** seconds between the director's attempts to top the population up */
+    spawnInterval: 8,
+    /** metres from the player: far enough that nothing appears on top of you */
+    spawnMin: 24,
+    spawnMax: 40,
+    /** metres: past this, an enemy you left behind stops existing */
+    despawnRadius: 95,
+    /** metres from its home: past this it gives up and walks back */
+    leashRange: 46,
+  },
+
+  /**
    * Dialog NPCs (WP-3.4). One wanderer near the spawn — proves the framework
    * works on both maps. The test range is non-canon (status: placeholder),
    * so this figure is also a placeholder, not a lore claim.

@@ -10,6 +10,10 @@
  */
 
 import { countEntities, entityHash, scaleFenceStatus } from './world-state.js';
+import { enemyStateCounts } from './enemy.js';
+
+/** How many combat events the snapshot carries out of the browser. */
+export const EVENT_LOG_TAIL = 24;
 import { describeSettings } from './settings.js';
 import { horizontalSpeed } from './player.js';
 import { createCameraState, resolveCamera } from './camera.js';
@@ -46,6 +50,7 @@ export const SNAPSHOT_KEYS = Object.freeze([
   'gl',
   'ui',
   'dialog',
+  'combat',
   'skin',
   'settings',
   'settingsHint',
@@ -192,6 +197,15 @@ export function buildSnapshot({
         }
       : { open: false, npcId: null, node: null },
     avatarVariant: render.avatarVariant === 'girl' ? 'girl' : 'boy',
+    /**
+     * Combat, as its own top-level key rather than a corner of `ui`.
+     *
+     * `ui` is a whitelist, and a field added there without a matching line here
+     * disappears without a sound — that trap has already cost two CI runs. A
+     * top-level key is also what the fairness tests want: they read the event
+     * log, and the log is the contract's evidence.
+     */
+    combat: combatOf(state),
     // The cognitive manifestation the renderer is actually drawing, if any. A
     // map with no authored skin reports `unassigned` and draws no layer.
     skin: {
@@ -208,6 +222,69 @@ export function buildSnapshot({
       // `undefined` in CI run 38931025849 instead of failing on the renderer.
       npcFlames: Number.isFinite(render.skin?.npcFlames) ? render.skin.npcFlames : 0,
     },
+  };
+}
+
+/**
+ * The combat block.
+ *
+ * The event log is included because it is the only place a headless test can
+ * read the fairness contract from inside a real browser: every damage event has
+ * to be preceded by its source's telegraph, and that is a statement about this
+ * array. Bounded by `EVENT_LOG_MAX`, so a long session cannot grow the payload.
+ */
+function combatOf(state) {
+  const combat = state.combat;
+  if (!combat) return null;
+  return {
+    health: round(combat.health, 2),
+    maxHealth: combat.maxHealth,
+    invuln: round(combat.invuln, 2),
+    hurt: round(combat.hurt, 3),
+    dead: Boolean(combat.dead),
+    deaths: combat.deaths,
+    hitsTaken: combat.hitsTaken,
+    hitsLanded: combat.hitsLanded,
+    swings: combat.swings,
+    beacon: combat.beacon?.id ?? null,
+    beaconsTouched: combat.beaconsTouched,
+    enemies: state.enemies?.length ?? 0,
+    states: enemyStateCounts(state),
+    /**
+     * Who is out there, and where.
+     *
+     * Not just for tests: this is the row that answers "is that a rock or is
+     * that a thing?" without reading the code, and it is what lets a headless
+     * test walk up to a specific enemy instead of hoping one wanders past.
+     * Bounded by the contract's cap, so the payload cannot grow.
+     */
+    roster: (state.enemies ?? []).slice(0, 6).map((enemy) => ({
+      id: enemy.id,
+      type: enemy.typeId,
+      state: enemy.state,
+      fightable: Boolean(enemy.fightable),
+      x: round(enemy.position.x, 2),
+      z: round(enemy.position.z, 2),
+      health: enemy.health,
+      tell: round(enemy.tell ?? 0, 2),
+    })),
+    spawned: state.spawner?.spawned ?? 0,
+    culled: state.spawner?.culled ?? 0,
+    attack: {
+      phase: state.player?.attack?.phase ?? 'idle',
+      cooldown: round(state.player?.attack?.cooldown ?? 0, 3),
+      swing: round(state.player?.attack?.swing ?? 0, 3),
+    },
+    // The tail, not the whole log: the state keeps 128 so a unit test can read
+    // a run, and the debug payload only needs the last handful.
+    events: (state.events ?? []).slice(-EVENT_LOG_TAIL).map((event) => ({
+      tick: event.tick,
+      kind: event.kind,
+      by: event.by ?? null,
+      to: event.to ?? null,
+      windup: Number.isFinite(event.windup) ? event.windup : null,
+      amount: Number.isFinite(event.amount) ? event.amount : null,
+    })),
   };
 }
 

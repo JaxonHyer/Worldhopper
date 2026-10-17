@@ -3,6 +3,89 @@
 One line per meaningful decision, with the reason. Newest first. The owner reads
 this to stay oriented; agents add to it in the same PR as the change.
 
+## M3 — WP-3.1 + WP-3.2: the world fights back, and the fairness contract is a test (Agent 1, 2026-10-17)
+
+The owner's ask was three sentences: *"enemies and a procedural roaming enemy
+spawner. Also the player should have a attack button that does a punch attack."*
+Enemies that cannot hurt you are scenery, so WP-3.1 (health) came with WP-3.2
+(the enemy framework) rather than after it — and both are Agent 1's lane.
+
+- **Enemies are actors, not furniture — `state.enemies`, not `state.entities`.**
+  This is the decision that shaped the whole package. `state.entities` is the
+  map's authored list, and `entityHash()` is its reproducibility fingerprint:
+  three existing tests assert that hash does not move across a realm shift, and
+  two more count entities against the cognitive realm's bead-and-flame tally
+  (`souls + npcFlames === entityCount`). A runtime actor that comes and goes
+  would break all five. The player has never been an entity, for the same
+  reason; enemies follow the player rather than the rocks. Recorded in
+  `CONTRACTS.md` §1 and `OWNERSHIP.md` so the next agent does not "fix" it.
+- **The spawner's RNG is one uint32 in world state, not a closure.**
+  `createRng()` returns a closure, and world state is asserted
+  `JSON.stringify`-equal across a realm shift — so a live RNG object in state is
+  either unserialisable or a `{}` that silently resets and re-rolls the same
+  pack forever. `rngStep(state)` is the pure form and `createRng` is now built on
+  it, so both produce the identical stream from one implementation.
+- **"Procedural roaming" means two things, both seeded:** *where* an enemy
+  appears (a ring 24–40 m around the player, never in the pool, never inside a
+  rock, never on an NPC) and *what it does until it notices you* (a procedural
+  wander around its own home). Plus a despawn ring at 95 m, so a long walk
+  neither empties the world nor accumulates every enemy it ever made. Same seed
+  plus same inputs gives the same encounter, asserted.
+- **One state machine, and an archetype is a row.** `idle → alert → hunt →
+  attack → disengage` exactly as the roadmap lists it, in `src/core/enemy.js`.
+  WP-3.3 adds archetypes by adding data to `ENEMY_TYPES`, not by writing a
+  second machine. That is what makes Agent 2's lane a one-line PR.
+- **The fairness contract is enforced twice: once in the code, once in a test.**
+  `resolveWindup()` applies the 0.4 s floor *after* the owner's slider and the
+  archetype's own scale, so no combination of the two can produce an unfair
+  game. And a unit test simulates 75 s of a player wandering a populated world
+  and asserts that **every damage event has that source's telegraph before it**.
+  A rule nobody checks is a comment.
+- **`alert` is an event, and that is the honest version of fairness rule 2.** The
+  roadmap's "no untelegraphed attack from outside the player's view" wants an
+  audio cue, and audio is M8. What ships instead: an enemy always emits `alert`
+  before it can wind up, an aggro mark draws over its head, and a test asserts
+  `alert.tick <= telegraph.tick`. The FOV-aware variant stays M7. Stated rather
+  than quietly upgraded.
+- **The punch is generous on purpose: 2.4 m and a ~98° arc.** On a phone the
+  player aims with a thumb and a stick, and a swing that needs pixel-accurate
+  facing reads as broken rather than as demanding. The avatar also turns to face
+  the camera's yaw while swinging — without that the body punches the last
+  direction it walked while the hit resolves against where you are looking.
+- **Beacons heal on arrival, not continuously.** The first version topped you up
+  while you stood there, which made the spawn point an invulnerability field and
+  made the death test unwinnable. A shrine you cannot be hurt next to is not a
+  checkpoint.
+- **Death is a frame-loop beat, not a sim timer.** A respawn is covered by a
+  fade, and a fade holds the sim still — so a sim-driven timer could never reach
+  zero inside its own fade. The Perpendicularity's realm shift already worked
+  this way; death now does too, and `respawnPlayer()` is exported so it is still
+  unit-testable.
+- **Combat numbers are sliders, and two of them have floors the panel cannot
+  cross.** `Enemy wind-up` cannot go below 0.4 s and `Enemies alive at once`
+  cannot go above 6, because those are the contract's numbers, not taste. A
+  slider that could break them would let the owner build an unfair game by
+  accident. `?enemies=0` turns encounters off.
+- **`combat` is a top-level snapshot key, not a corner of `ui`.** `ui` is a
+  whitelist and a field added there without a matching line in
+  `src/core/snapshot.js` disappears without a sound — that trap has already cost
+  two CI runs. `combat.roster` (who is where) exists so a test can walk up to a
+  *specific* enemy instead of hoping one wanders past.
+
+**Project interpretation, flagged as the roadmap requires:** `crag-lurker` and
+`storm-warden` are invented names and invented silhouettes. Roshar's real
+creatures are WP-3.3, which the owner designs; these two exist so the framework
+has something honest to run on and so the contract has a testable subject. The
+warden's `fightable: false` is the anglerfish rule the brief demands — at least
+one thing per world cannot be fought, only avoided — and it hunts at 2.6 m/s
+against a 7.9 m/s walk, so the answer to it is always your feet.
+
+**Not done, deliberately:** the FOV-aware approach rules and
+disengage-when-faced (M7's Inquisitor, and the real content of WP-3.5); audio
+tells (M8); damage numbers, loot and levels (refused permanently by the scope
+fence); and any claim that the encounter *feels* fair, which is the owner's
+playtest and not an agent's to make.
+
 ## M3 — WP-3.4 lands as one implementation (Agent 1, 2026-10-17)
 
 - **One NPC system, not two.** Two agents built WP-3.4 in parallel (PR #13, an
