@@ -40,6 +40,9 @@ import { createTuningPanel } from './ui/tuning-panel.js';
 import { createCredits } from './ui/credits.js';
 import { createDock } from './ui/dock.js';
 import { HINTS, createHud } from './ui/hud.js';
+import { createDialog } from './ui/dialog.js';
+import { createDialogueMachine, loadNpc } from './content/npcs.js';
+import { nearestInteractableNpc } from './render/npc-view.js';
 
 const canvas = document.getElementById('game');
 const uiMount = document.getElementById('ui');
@@ -117,6 +120,22 @@ function bootstrap() {
     return reduceMotion ? Math.min(wanted, 120) : wanted;
   };
   const fade = createFade({ mount: uiMount, fadeMs: fadeDuration() });
+
+  // NPC dialog UI + interaction prompt. The prompt is a DOM element that sits
+  // at the bottom of the screen when the player is close enough to talk; it is
+  // also a button on touch so the player can tap it (phone-first: one clear
+  // tap affordance, not a keyboard-only binding).
+  const dialog = createDialog({ mount: uiMount });
+  const interactPrompt = document.createElement('button');
+  interactPrompt.type = 'button';
+  interactPrompt.className = 'interact-prompt';
+  interactPrompt.hidden = true;
+  interactPrompt.innerHTML = '<span>Talk</span><span class="interact-prompt__hint"><kbd>F</kbd> on desktop · tap on phone</span>';
+  interactPrompt.addEventListener('click', () => {
+    input.queueInteract();
+  });
+  uiMount.appendChild(interactPrompt);
+
   const input = createInput({
     canvas,
     onHotkey,
@@ -276,9 +295,11 @@ function bootstrap() {
     // The beat the fade is covering: the world holds still while the screen is
     // black, so nothing can happen to the player that they cannot see.
     const transitioning = fade.active;
-    // Paused (debug only), or mid-transition: time stands still, so the sim can
-    // be stepped by hand — and so nothing happens to the player behind the fade.
-    const steps = pausedSim || transitioning ? 0 : clock.advance(dtSeconds);
+    // Paused (debug only), mid-transition, or in a dialog: time stands still,
+    // so the sim can be stepped by hand — and so nothing happens to the player
+    // behind the fade or while a text box is up.
+    const dialogOpen = dialog.visible;
+    const steps = pausedSim || transitioning || dialogOpen ? 0 : clock.advance(dtSeconds);
     if (steps > 0) {
       const look = input.look();
       const move = input.move();
@@ -302,6 +323,28 @@ function bootstrap() {
         );
       }
     }
+
+    // NPC interaction: find the nearest NPC within range, show the prompt, and
+    // consume an interact press to open the dialog. Dialog is only allowed in
+    // the physical realm (you talk to the body, not the flame) and when no
+    // other transition is happening.
+    const nearbyNpc = dialogOpen || transitioning || state.realm !== 'physical' ? null : nearestInteractableNpc(state);
+    if (nearbyNpc && !dialogOpen) {
+      interactPrompt.hidden = false;
+    } else {
+      interactPrompt.hidden = true;
+    }
+    if (input.consumeInteract() && nearbyNpc && !dialogOpen && !transitioning) {
+      const npcData = loadNpc(nearbyNpc.npcId);
+      const machine = createDialogueMachine(npcData);
+      // Release mouse capture so the player can click the buttons (a captured
+      // cursor hides the pointer and steals clicks from dialog choices).
+      input.releaseCapture();
+      dialog.open(machine);
+    }
+    // Consume any buffered interact while the dialog is open or nothing is in
+    // range, so a press held while the prompt hides does not fire next frame.
+    if (dialogOpen || !nearbyNpc) input.consumeInteract();
 
     // Touch controls appear the first time a finger does anything (or if the
     // device says it is coarse), and never on a plain desktop session.
@@ -495,6 +538,15 @@ function bootstrap() {
         touch: !hud.jump.hidden,
         fade: fade.active,
         fades: fade.count,
+      },
+      // Dialog state is reported as its own top-level key (see SNAPSHOT_KEYS)
+      // rather than nested under `ui`, because `ui` is a whitelist and any
+      // field added there silently disappears without a matching line in
+      // core/snapshot.js — a trap that already cost two CI runs.
+      dialog: {
+        open: dialog.visible,
+        npcId: dialog.activeNpcId,
+        node: dialog.activeNodeId,
       },
       paused: pausedSim,
       input: {

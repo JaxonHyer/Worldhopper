@@ -1,0 +1,70 @@
+{
+  "id": "basin-wanderer",
+  "name": "Wanderer",
+  "title": "a hooded traveller",
+  "palette": {
+    "shirt": "#7a6e5c",
+    "shirtShade": "#645a49",
+    "shirtDark": "#4f4738",
+    "trousers": "#3f4448",
+    "trouserShade": "#323639",
+    "belt": "#24272a",
+    "boots": "#382e24",
+    "bootsShade": "#2a2119",
+    "skin": "#b88a64",
+    "skinShade": "#9e724f",
+    "hair": "#2d231b",
+    "hairShade": "#1f1710",
+    "eye": "#201a15",
+    "eyeWhite": "#dfd8ce",
+    "mouth": "#7a543e"
+  },
+  "start": "greeting",
+  "nodes": {
+    "greeting": {
+      "speaker": "Wanderer",
+      "text": "A fellow traveller. I did not expect to find anyone else out here. The fog hides more than it shows.",
+      "choices": [
+        { "text": "Where am I?", "next": "place" },
+        { "text": "What is that pool ahead?", "next": "pool" },
+        { "text": "Safe travels.", "next": "farewell" }
+      ]
+    },
+    "place": {
+      "speaker": "Wanderer",
+      "text": "A basin of no name that I know of. I have walked much of it. The ground rolls, the rocks sit, and a single spire rises far off through the mist. A good place for thinking.",
+      "choices": [
+        { "text": "A spire? Where?", "next": "spire" },
+        { "text": "Good luck out here.", "next": "farewell" }
+      ]
+    },
+    "spire": {
+      "speaker": "Wanderer",
+      "text": "Straight ahead — if the fog thins you'll see it. It's the only thing in this basin taller than the mist. I would not try climbing it; the wind has teeth up there.",
+      "choices": [
+        { "text": "What about the pool?", "next": "pool" },
+        { "text": "I'll head that way.", "next": "farewell" }
+      ]
+    },
+    "pool": {
+      "speaker": "Wanderer",
+      "text": "Strange water. It does not ripple, and its colour does not match the sky. I would not drink from it. But I have watched folk walk into it... and return changed. Walk carefully.",
+      "choices": [
+        { "text": "Changed how?", "next": "changed" },
+        { "text": "I'll be careful.", "next": "farewell" }
+      ]
+    },
+    "changed": {
+      "speaker": "Wanderer",
+      "text": "As if they had seen something the rest of us have not. They do not speak of it. I have not stepped in myself — not yet. The world is wide enough on this side of the water.",
+      "choices": [
+        { "text": "I understand.", "next": "farewell" }
+      ]
+    },
+    "farewell": {
+      "speaker": "Wanderer",
+      "text": "May your boots stay dry and your path stay clear. The mist looks different every hour — do not lose your way.",
+      "choices": []
+    }
+  }
+}

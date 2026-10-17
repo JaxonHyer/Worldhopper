@@ -22,6 +22,7 @@ import { createSky } from './sky.js';
 import { createPlayerAvatar } from './player-view.js';
 import { createPerpendicularityView } from './perpendicularity-view.js';
 import { createCognitiveView } from './cognitive-view.js';
+import { createNpcView } from './npc-view.js';
 import { resolveCognitiveSkin } from '../core/skin.js';
 
 export function createWorldView({ map, state, variant, settings }) {
@@ -85,15 +86,38 @@ export function createWorldView({ map, state, variant, settings }) {
   const entityObjects = new Map();
   const disposables = [ground.geometry, ...rockMaterials, ...Object.values(landmarkMaterials)];
 
+  /** NPC view objects — carry their own sync (idle bob, nameplate billboard). */
+  const npcViews = new Map();
+  const npcDisposables = [];
+
   for (const entity of state.entities) {
-    const object = entity.kind === 'landmark' ? buildLandmark(entity, map, landmarkMaterials) : buildRock(entity, rockMaterials);
+    let object;
+    let isNpc = false;
+    if (entity.kind === 'landmark') {
+      object = buildLandmark(entity, map, landmarkMaterials);
+    } else if (entity.kind === 'npc') {
+      // NPCs manage their own scene node (nameplate, billboard) and are
+      // excluded from the generic entity-object map so they do not appear as
+      // rocks/beads/landmarks in either realm. They are *added to the scene*
+      // but not tracked in entityObjects, which is a map of static
+      // non-living furniture.
+      const npcView = createNpcView(entity);
+      npcViews.set(entity.id, npcView);
+      npcDisposables.push(npcView);
+      object = npcView.group;
+      isNpc = true;
+    } else {
+      object = buildRock(entity, rockMaterials);
+    }
     if (!object) continue;
     object.name = entity.id;
     object.userData.entityId = entity.id;
     group.add(object);
-    entityObjects.set(entity.id, object);
-    // A non-living object's cognitive aspect is its bead, not its geometry.
-    physicalFurniture.push(object);
+    if (!isNpc) {
+      entityObjects.set(entity.id, object);
+      // A non-living object's cognitive aspect is its bead, not its geometry.
+      physicalFurniture.push(object);
+    }
   }
 
   /** Which look is on screen, so the switch happens on the edge, not per frame. */
@@ -177,6 +201,12 @@ export function createWorldView({ map, state, variant, settings }) {
       const physical = !cognitiveOn;
       avatar.group.visible = physical;
       for (const object of physicalFurniture) object.visible = physical;
+      // NPCs are living, like the player: bodies hide in the cognitive realm
+      // (a flame stands in for them; see cognitive-view.sync).
+      for (const npcView of npcViews.values()) {
+        npcView.group.visible = physical;
+        npcView.setNameplateVisible(physical);
+      }
 
       for (const entity of currentState.entities) {
         const object = entityObjects.get(entity.id);
@@ -185,7 +215,14 @@ export function createWorldView({ map, state, variant, settings }) {
           object.position.set(entity.position.x, entity.position.y, entity.position.z);
         }
       }
-      if (physical) avatar.sync(currentState.player, camera, dt);
+      if (physical) {
+        avatar.sync(currentState.player, camera, dt);
+        // NPCs bob on the sim clock and their nameplates face the camera.
+        for (const npcView of npcViews.values()) {
+          const npcEntity = currentState.entities.find((e) => e.id === npcView.entityId);
+          if (npcEntity) npcView.sync(npcEntity, camera, currentState.simTime, dt);
+        }
+      }
       // The pool breathes on the sim clock, so a run looks the same on replay.
       pool.sync(currentState.simTime);
     },
@@ -231,6 +268,7 @@ export function createWorldView({ map, state, variant, settings }) {
       return {
         meshes: group.children.length,
         entityCount: entityObjects.size,
+        npcCount: npcViews.size,
         avatar: avatar.stats().boxes,
         avatarTextures: avatar.stats().textures,
         avatarVariant,
@@ -241,6 +279,7 @@ export function createWorldView({ map, state, variant, settings }) {
     },
     dispose() {
       for (const item of disposables) item.dispose?.();
+      for (const item of npcDisposables) item.dispose?.();
       pool.dispose();
       cognitive.dispose();
       avatar.dispose();

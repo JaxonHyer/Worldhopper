@@ -11,9 +11,47 @@ import { createRng, normalizeSeed } from './rng.js';
 import { clamp, distanceFromOrigin } from './math.js';
 import { terrainHeight } from './terrain.js';
 import { createPlayer, stepPlayer } from './player.js';
+import { loadNpc } from '../content/npcs.js';
 
 export { terrainHeight, clamp, distanceFromOrigin };
 export const EYE_HEIGHT = 1.7;
+
+/**
+ * Place NPCs from the map's npcs list. An NPC is an entity in world state —
+ * one source of truth, never a renderer-only object (ROADMAP M3, WP-3.4).
+ * Dialogue data is loaded by id; position/rotation/yaw come from the map so
+ * the author decides where each one stands.
+ */
+function placeNpcs(map, seed) {
+  const list = Array.isArray(map.npcs) ? map.npcs : [];
+  const npcs = [];
+  for (const placement of list) {
+    const data = loadNpc(placement.npcId);
+    npcs.push({
+      id: placement.id ?? `npc-${data.id}`,
+      kind: 'npc',
+      npcId: data.id,
+      name: data.name,
+      title: data.title ?? null,
+      palette: data.palette ?? null,
+      static: true,
+      // Standing position: feet on the ground. An NPC faces whatever yaw the map
+      // says (0 = facing -Z, i.e. the direction the player spawns looking).
+      position: {
+        x: placement.position?.x ?? 0,
+        y: terrainHeight(map, seed, placement.position?.x ?? 0, placement.position?.z ?? 0),
+        z: placement.position?.z ?? 0,
+      },
+      rotationY: placement.rotationY ?? 0,
+      // Scale and bounding radius for interaction: same tier as the player.
+      scale: { x: 1, y: 1, z: 1 },
+      // Interaction radius in metres: how close the player must be for the
+      // talk prompt to appear. Phone-tappable, not pixel-hunting.
+      interactRadius: placement.interactRadius ?? 3.0,
+    });
+  }
+  return npcs;
+}
 
 function placeProps(map, seed) {
   const rng = createRng(seed ^ 0x5bf03635);
@@ -108,6 +146,7 @@ export function createWorldState({ map, seed, environment = { seed: 0, time: 0 }
     });
   }
   entities.push(...placeProps(map, normalized));
+  entities.push(...placeNpcs(map, normalized));
 
   const obstacles = buildObstacles(entities);
 
