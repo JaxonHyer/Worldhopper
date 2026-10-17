@@ -61,23 +61,23 @@ export const ENEMY_STATES = Object.freeze({
 export const ENEMY_TYPES = Object.freeze({
   'crag-lurker': {
     id: 'crag-lurker',
-    name: 'Crag lurker',
-    /** a thing you can fight: two punches */
+    name: 'Whitespine',
+    /** Stable map-policy id; species, look, and gameplay are our interpretation. */
     fightable: true,
     health: 2,
     /** metres — body radius, used for reach, avoidance and spawning */
-    radius: 0.55,
+    radius: 0.58,
     /** metres — how tall the rig is; the nameplate and flames read this */
     height: 1.05,
-    /** box parts: four stubby legs, a hunched body, a low head */
+    /** one low four-legged silhouette, with the renderer's simple spine ridge */
     legs: 4,
     arms: 0,
     /** m/s */
     roamSpeed: 1.5,
     huntSpeed: 3.5,
     /** metres — close enough to swing */
-    attackRange: 2.3,
-    /** multiplier on the owner's wind-up slider (a slow, readable tell) */
+    attackRange: 2.25,
+    /** multiplier on the owner's wind-up slider (a readable tell) */
     windupScale: 1,
     /** seconds between swings once it is on you */
     attackCooldown: 1.7,
@@ -88,40 +88,41 @@ export const ENEMY_TYPES = Object.freeze({
     /** how hard its strike is, in hearts */
     damage: 1,
     colors: {
-      body: '#4f5f4a',
-      limb: '#39463a',
-      head: '#6f8263',
+      body: '#584840',
+      limb: '#403631',
+      head: '#e4ded3',
       eye: '#f4e7b0',
-      /** the tell: what the wind-up turns it into */
+      /** one tell: an amber wind-up ring */
       tell: '#ffb03a',
     },
   },
   'storm-warden': {
     id: 'storm-warden',
-    name: 'Storm warden',
-    /** cannot be fought at all — only avoided */
+    name: 'Chasmfiend',
+    /** Cannot be fought at all — only avoided; a game rule, not a canon claim. */
     fightable: false,
     health: 0,
-    radius: 0.5,
-    height: 2.1,
-    legs: 2,
-    arms: 2,
-    roamSpeed: 0.95,
+    /** A broad, towering shell-backed quadruped silhouette, built from simple boxes. */
+    radius: 1.2,
+    height: 2.3,
+    legs: 4,
+    arms: 0,
+    roamSpeed: 0.8,
     /** slower than the player's 7.9 m/s walk, so running away always works */
     huntSpeed: 2.6,
-    attackRange: 2.7,
-    /** a longer, unmistakable wind-up: you are meant to see this one coming */
-    windupScale: 1.6,
-    attackCooldown: 2.6,
-    alertTime: 0.8,
+    attackRange: 3.2,
+    /** one slow tell: a cyan wind-up ring and the shared lean */
+    windupScale: 1.7,
+    attackCooldown: 2.8,
+    alertTime: 0.9,
     roamRadius: 18,
     damage: 1,
     colors: {
-      body: '#8ba3b6',
-      limb: '#5b7183',
-      head: '#cfe3f2',
-      eye: '#ffffff',
-      tell: '#7fe3ff',
+      body: '#6d6a5c',
+      limb: '#484b42',
+      head: '#a39a7c',
+      eye: '#f5e8c4',
+      tell: '#78dce8',
     },
   },
 });
