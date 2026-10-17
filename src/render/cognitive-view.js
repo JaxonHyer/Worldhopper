@@ -152,8 +152,12 @@ export function createCognitiveView({ map, state, variant, settings }) {
     sea.instanceMatrix.needsUpdate = true;
   }
 
-  // --- souls: every non-living object is a bead ----------------------------
-  const soulEntities = state.entities.filter((entity) => entity.kind !== 'player');
+  // --- souls: every non-living object is a bead. NPCs are living (they have
+  //     dialogue and a body), so their souls are flames, not beads — same as
+  //     the player. Rocks and landmarks are non-living and become beads.
+  const soulEntities = state.entities.filter((entity) => entity.kind !== 'player' && entity.kind !== 'npc');
+  // NPCs get a flame each (≤2 per map, per ROADMAP, so this is cheap).
+  const npcEntities = state.entities.filter((entity) => entity.kind === 'npc');
   const soulGeometry = new THREE.IcosahedronGeometry(1, 1);
   const soulMaterial = new THREE.MeshPhongMaterial({
     color: new THREE.Color(palette.soul),
@@ -216,6 +220,23 @@ export function createCognitiveView({ map, state, variant, settings }) {
   flame.add(flameOuter, flameCore);
   group.add(flame);
 
+  // NPC flames: each gets its own pair of cones (same size and flicker as the
+  // player's — a living thing is a flame in Shadesmar, regardless of who it
+  // is). Kept as an array rather than an instanced mesh because the budget is
+  // ≤2 NPCs per map (ROADMAP), and the array is easier to flicker per-instance.
+  const npcFlames = npcEntities.map((npc, i) => {
+    const g = new THREE.Group();
+    g.name = `npc-flame-${npc.id}`;
+    const outer = new THREE.Mesh(flameOuter.geometry, flameOuter.material.clone());
+    outer.position.y = FLAME_HEIGHT * 0.5;
+    const core = new THREE.Mesh(flameCore.geometry, flameCore.material.clone());
+    core.position.y = FLAME_HEIGHT * 0.34;
+    g.add(outer, core);
+    g.userData.index = i;
+    group.add(g);
+    return { group: g, outer, core };
+  });
+
   let active = false;
   const anySoulMoves = soulEntities.some((entity) => entity.dynamic);
   const materials = [beadMaterial, soulMaterial, flameOuter.material, flameCore.material];
@@ -256,6 +277,19 @@ export function createCognitiveView({ map, state, variant, settings }) {
       flame.rotation.y = t * 0.6;
       flameCore.material.opacity = 0.72 + Math.sin(t * 13.3) * 0.12;
 
+      // NPC flames: same flicker, offset by their index so they don't pulse in
+      // lockstep with the player or each other.
+      for (const npcFlame of npcFlames) {
+        const npc = npcEntities[npcFlame.group.userData.index];
+        if (!npc) continue;
+        npcFlame.group.position.set(npc.position.x, npc.position.y, npc.position.z);
+        const phase = t + npcFlame.group.userData.index * 1.3;
+        const nf = Math.sin(phase * 8.7) * 0.05 + Math.sin(phase * 19.3) * 0.03;
+        npcFlame.group.scale.set(1 + nf, 1 - nf * 1.3, 1 + nf);
+        npcFlame.group.rotation.y = phase * 0.55;
+        npcFlame.core.material.opacity = 0.7 + Math.sin(phase * 12.1) * 0.1;
+      }
+
       // Souls follow their objects. Every one is static on this map, so this
       // costs one boolean per frame — and it is the line that keeps a soul on
       // its object the day something in the entity list starts moving (M3).
@@ -293,12 +327,17 @@ export function createCognitiveView({ map, state, variant, settings }) {
         seaSlots: beadCount,
         souls: soulEntities.length,
         flame: true,
+        npcFlames: npcFlames.length,
         violations: skin.violations.length,
       };
     },
     dispose() {
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();
+      for (const npcFlame of npcFlames) {
+        npcFlame.outer.material.dispose();
+        npcFlame.core.material.dispose();
+      }
       group.clear();
     },
   };

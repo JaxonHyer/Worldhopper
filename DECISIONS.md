@@ -3,6 +3,88 @@
 One line per meaningful decision, with the reason. Newest first. The owner reads
 this to stay oriented; agents add to it in the same PR as the change.
 
+## M3 — WP-3.4 lands as one implementation (Agent 1, 2026-10-17)
+
+- **One NPC system, not two.** Two agents built WP-3.4 in parallel (PR #13, an
+  unfinished content/UI slice, and PR #15, the complete framework). This PR
+  carries PR #15's implementation — its seams are the ones the contract asked
+  for — and both old PRs are closed as superseded. Two dialogue systems cannot
+  ship; the second one is deleted rather than merged behind a flag.
+- **The spawn field is `npcId`.** The #12 sketch said `dialogueId`; the shipped
+  entity calls the *dialogue file* `npcId` (`{ id, kind: 'npc', npcId, name,
+  title, palette, position, rotationY, interactRadius, static }`). Frozen here so
+  the next consumer does not guess.
+- **A dialog pauses the sim.** I had proposed "keep the clock running, zero the
+  movement input"; the shipped rule is a full pause (`steps = 0` while the card
+  is open). Accepted because WP-3.2 adds enemies: a conversation that lets the
+  world move can kill a player mid-sentence. The fixed-step clock is not
+  advanced or banked, so nothing drifts when the card closes.
+- **The Talk prompt moves up on a phone.** At the desktop position (centred,
+  80 px off the bottom) it overlapped the jump button's corner on a 412 px
+  screen — the owner's first playtest question, answered in CSS before asking:
+  below 640 px the prompt sits 196 px up and drops the "F on desktop" hint,
+  which a phone cannot use. Pinned by a bounding-box test in `npc.spec.js`.
+- **Process, so it does not repeat:** WP-3.4 edited `src/core/`, `src/render/`,
+  `src/main.js` and `src/ui/` — Agent 1's files — while #12 was still open. The
+  work was accepted and integrated rather than redone, but the next cross-lane
+  change should wait for the handoff or arrive as an agreed change. Parallel
+  edits to `main.js` are how an all-green gate becomes a coin flip.
+
+## M3 — WP-3.4 NPC dialog framework (Agent 2, 2026-10-16)
+
+
+- **NPCs are entities in world state, not renderer-only objects.** The roadmap
+  says "one source of truth" — an NPC has kind `npc`, a stable id, a position,
+  a rotation and an `interactRadius` placed from the map's `npcs` list by
+  `placeNpcs()` in core/world-state.js. Adding them to the entity list means
+  determinism (seeded runs), entity-hash integrity and the cognitive-realm
+  manifestation (they are living → they draw as flames on Roshar) all come
+  from the same code path that already handles rocks and landmarks.
+- **Dialogue lives in JSON, one file per NPC, statically imported.** Static
+  hosting forbids runtime fetches; Vite inlines `*.json?with { type: 'json' }`
+  imports at build time so no extra request is made. Files go in
+  `src/content/npcs/<id>.json`; `validateDialogue()` runs as a unit test so a
+  typo in the copy (a missing node, >4 choices, an unreachable branch) fails
+  the build instead of leaving a dead button in the UI.
+- **NPCs are not collision obstacles.** You walk *up to* an NPC to talk, not
+  around them. Adding them to `buildObstacles()` would make the talk radius
+  end before you could reach the figure, and the roadmap does not require
+  NPCs to block movement. The player capsule can step within ~0.35 m and the
+  default `interactRadius` is 3 m, so there is room to stand beside them.
+- **The interact affordance is a single DOM button at the bottom of the
+  screen, visible only when an NPC is within range.** Tapping it (phone) or
+  pressing <kbd>F</kbd> (desktop) opens the dialog. The same button serves
+  both devices — one tap target, no keyboard-only mechanic. While the dialog
+  is open the sim is paused (same as during a realm fade), so the player
+  cannot walk off a cliff while reading.
+- **Two NPCs ship with WP-3.4: "Kurin" (a Horneater guide) on Roshar at
+  (-5, -8), and a "Wanderer" on the blank-basin test range at (4.5, -8).**
+  Kurin's name is a project invention (no canon Horneater character is
+  claimed); both dialogues flag the test range as placeholder and Roshar as
+  the peaks above the pool, consistent with the design page. The budget is
+  ≤2 per map (ROADMAP), which is exactly what is shipped.
+- **NPC figures share the player's box-and-pixel rig** (same ten boxes, same
+  8×8 head, same `characterSkin()` art function) but with their own palette
+  from the JSON file. Reusing the art pipeline means the same unit tests
+  that police the player's pixels (opaque, in-palette, exactly two eyes)
+  apply unchanged, and no new geometry is invented. Short hair + custom
+  clothes is deliberate — we did not add a second body, only recolour the
+  existing one.
+- **Nameplates are CanvasTexture sprites** (a name over the head, billboarded
+  by three.js SpriteMaterial) rather than geometry. Cheap (one small canvas
+  per NPC — ≤2 per map), always-readable, and invisible behind the dialog
+  box. They are skipped when `document` is absent so the headless scene-graph
+  unit tests keep running under Node.
+- **ESLint's ecmaVersion is raised to 2025** to parse JSON import attributes
+  (`with { type: 'json' }`), which Node 22 and Vite 7 both support natively.
+  Without the attribute Node's ESM loader refuses the import; without
+  raising ecmaVersion ESLint refuses to parse it.
+- **`dialog` is its own top-level snapshot key**, not nested under `ui`. The
+  `ui` block is a whitelist (a trap that already cost two CI runs when
+  `fade`/`fades` were added to one side and not the other), so giving
+  dialog its own line in SNAPSHOT_KEYS makes the key-set test police it the
+  same way it polices every other field.
+
 ## M0 — foundation (2026-10-14)
 
 - **Vite 7.3.7 + three.js 0.186.1, both pinned exactly, in `package.json` and

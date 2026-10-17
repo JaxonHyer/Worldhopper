@@ -45,6 +45,7 @@ export const SNAPSHOT_KEYS = Object.freeze([
   'triangles',
   'gl',
   'ui',
+  'dialog',
   'skin',
   'settings',
   'settingsHint',
@@ -64,6 +65,7 @@ export function buildSnapshot({
   frameStats,
   render,
   ui,
+  dialog: dialogParam,
   input,
   paused,
   ready,
@@ -182,6 +184,13 @@ export function buildSnapshot({
     },
     settings: { ...settings },
     settingsHint: describeSettings(settings),
+    dialog: dialogParam
+      ? {
+          open: Boolean(dialogParam.open),
+          npcId: dialogParam.npcId ?? null,
+          node: dialogParam.node ?? null,
+        }
+      : { open: false, npcId: null, node: null },
     avatarVariant: render.avatarVariant === 'girl' ? 'girl' : 'boy',
     // The cognitive manifestation the renderer is actually drawing, if any. A
     // map with no authored skin reports `unassigned` and draws no layer.

@@ -42,7 +42,14 @@ test('Roshar manifests its skin in the cognitive realm, and only there', async (
   expect(cognitive.camera.projection).toBe('orthographic');
   expect(cognitive.skin.authored).toBe(true);
   expect(cognitive.skin.beads, 'a bead sea, not a token handful').toBeGreaterThan(1000);
-  expect(cognitive.skin.souls).toBe(physical.entityCount);
+  // Every entity manifests as exactly one soul: a bead if it is not alive, a
+  // flame if it is (WP-3.4 put a person on Roshar, and a person is a flame).
+  // So the beads alone are one fewer than the entity count, and the flames are
+  // the rest — a hard-coded bead count would have to be edited every time a
+  // world gains a person, which is not a rule, it is a snapshot of one day.
+  expect(cognitive.skin.souls + cognitive.skin.npcFlames, 'beads + flames = every entity in the world').toBe(
+    physical.entityCount,
+  );
   // Same world: the realm is a lens, not a teleport.
   const cognitiveStepped = await stepSim(page, 0.5);
   expect(cognitiveStepped.entityHash).toBe(physical.entityHash);

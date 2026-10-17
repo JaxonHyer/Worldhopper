@@ -618,3 +618,160 @@ body:has(.hud.is-touch) .dock {
   opacity: 1;
   pointer-events: auto;
 }
+
+/* --- NPC interaction prompt --------------------------------------------- */
+
+/* A small floating prompt above a nearby NPC's head / at the bottom of the
+   screen, telling the player they can tap to talk. Phone-first: big,
+   readable, and tappable without pixel-hunting. */
+.interact-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: calc(80px + var(--safe-bottom));
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  background: var(--ui-bg-strong);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+  min-height: 44px;
+  min-width: 160px;
+  display: grid;
+  place-items: center;
+  z-index: 20;
+}
+
+.interact-prompt__hint {
+  color: var(--ui-dim);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.interact-prompt kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: var(--ui-font);
+  font-size: 11px;
+  color: var(--ui-accent);
+  margin: 0 2px;
+}
+
+/*
+ * The Talk prompt on a phone is a thumb target, not a keyboard hint.
+ *
+ * At the desktop position (centred, 80 px off the bottom) the prompt overlapped
+ * the jump button on a 412 px screen: the jump circle starts 106 px in from the
+ * right edge, and a 216 px-wide centred prompt reaches to within 98 px of it —
+ * close enough to cover its corner, and worse on a 360 px phone. So on narrow
+ * or coarse screens the prompt sits clear above both thumbs, is a size a thumb
+ * can hit, and drops the "F on desktop" hint, because the phone has no F key.
+ */
+@media (max-width: 640px), (pointer: coarse) {
+  .interact-prompt {
+    bottom: calc(196px + var(--safe-bottom));
+    font-size: 15px;
+    padding: 14px 22px;
+  }
+
+  .interact-prompt__hint {
+    display: none;
+  }
+}
+
+/* --- dialog box (NPC conversations) ------------------------------------- */
+
+.dialog {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: end;
+  padding: 16px calc(12px + var(--safe-right)) calc(20px + var(--safe-bottom)) calc(12px + var(--safe-left));
+  background: rgba(6, 9, 12, 0.35);
+  pointer-events: auto;
+  z-index: 30;
+}
+
+.dialog[hidden] {
+  display: none !important;
+}
+
+.dialog__card {
+  width: min(36rem, 100%);
+  max-height: calc(70vh - var(--safe-bottom));
+  overflow: auto;
+  padding: 16px 18px;
+  background: var(--ui-bg-strong);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  font-family: var(--ui-font);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ui-text);
+}
+
+.dialog__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ui-accent);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dialog__title {
+  color: var(--ui-dim);
+  font-size: 11px;
+  margin: 2px 0 8px;
+  letter-spacing: 0.04em;
+}
+
+.dialog__text {
+  margin: 0 0 14px;
+  white-space: pre-wrap;
+}
+
+.dialog__choices {
+  display: grid;
+  gap: 6px;
+}
+
+.dialog__choice {
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--ui-border);
+  border-radius: 7px;
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: 13px;
+  cursor: pointer;
+  /* 44px min-height is already declared above; bump a bit for wrapped lines. */
+  min-height: 44px;
+}
+
+.dialog__choice:hover,
+.dialog__choice:focus {
+  outline: none;
+  border-color: var(--ui-accent);
+  background: rgba(159, 208, 232, 0.12);
+}
+
+@media (max-width: 520px) {
+  .dialog__card {
+    font-size: 13px;
+    padding: 14px 14px;
+  }
+  .interact-prompt {
+    bottom: calc(110px + var(--safe-bottom));
+    font-size: 12.5px;
+  }
+}

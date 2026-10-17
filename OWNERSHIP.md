@@ -33,6 +33,17 @@ These are the seams, stated once so neither side has to guess:
 - **UI is split by file, not by convention.** New dialog and NPC UI lives in new files under `src/ui/`; the HUD's existing files are Agent 1's.
 - **Tests are shared, evidence is not.** Whoever writes a feature writes its evidence, in their own spec file, with their own screenshots.
 
+## WP-3.4 (2026-10-17): what the rule cost, and what it froze
+
+WP-3.4 was built *inside* Agent 1's files while the handover issue was still
+open. Agent 1 integrated it rather than redoing it, and the seams it added are
+now the frozen contract: NPCs are `kind: 'npc'` entities placed from each map's
+`npcs` list (`{ id, npcId, position, rotationY, interactRadius }`), and a dialog
+pauses the sim. The lesson stands: **if you need a field or a hook that is not
+there, ask; do not add it.** The cost of not asking was a second dialogue
+implementation (PR #13) that had to be closed, and two red e2e tests caused by
+timed walks.
+
 ## Not yet frozen
 
 `CONTRACTS.md` — the frozen shared schemas (world state, `PlanetConfig`,

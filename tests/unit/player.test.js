@@ -422,7 +422,9 @@ test('the eye sits above the feet by the eye height, plus bob', () => {
 test('the obstacle list is derived from the entities, not authored twice', () => {
   const state = createWorldState({ map, seed: 99 });
   const obstacles = buildObstacles(state.entities);
-  assert.equal(obstacles.length, state.entities.length, 'every entity is solid');
+  // Rocks and landmarks are solid; NPCs are not — you walk up to them to talk.
+  const solidCount = state.entities.filter((e) => e.kind === 'rock' || e.kind === 'landmark').length;
+  assert.equal(obstacles.length, solidCount, 'every solid entity has a collision shape');
   const rock = state.entities.find((e) => e.kind === 'rock');
   const shape = obstacles.find((o) => o.id === rock.id);
   assert.ok(shape.radius > 0 && shape.topY > rock.position.y, 'a rock must have a radius and a top');

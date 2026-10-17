@@ -83,6 +83,20 @@ export const roshar = {
   },
 
   /**
+   * Dialog NPCs (WP-3.4). A Horneater guide stands beside the pool approach.
+   * Project interpretation: "Kurin" is an invented name (ROADMAP canon guard).
+   */
+  npcs: [
+    {
+      id: 'npc-kurin-01',
+      npcId: 'peaks-guide',
+      position: { x: -5, z: -8 },
+      rotationY: 0.2,
+      interactRadius: 3.0,
+    },
+  ],
+
+  /**
    * Roshar's Cognitive Realm — the canon table's first row.
    *
    * `objectForm: glass-beads` and `landForm: bead-sea` are the forms the canon

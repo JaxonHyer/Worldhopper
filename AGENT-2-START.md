@@ -17,9 +17,17 @@ You are **Agent 2** on **Worldhopper**, a static, offline, browser-only game bui
 
 ## Your work package
 
-**WP-3.4 — the dialog NPC framework + 1–2 NPCs**, with dialogue as JSON data.
+**WP-3.4 — the dialog NPC framework + 1–2 NPCs** — **has landed** (2026-10-17):
+the framework, two NPCs (the wanderer on the test range, Kurin on Roshar), JSON
+dialogue data and its tests are on `main`. Do not rebuild it; read
+`src/content/npcs.js`, `src/ui/dialog.js` and the `M3 — WP-3.4 lands as one
+implementation` entry in `DECISIONS.md` for the frozen shape.
 
-Later, once Agent 1's enemy framework (WP-3.2) is merged, you also own **WP-3.3** (first two enemy archetypes) and **WP-3.5** (fairness-contract tests). Do not start those before WP-3.2 lands: they need its state machine. WP-3.4 does *not* depend on it, which is why it is your starter.
+Your next packages are **WP-3.3** (first two enemy archetypes) and **WP-3.5**
+(fairness-contract tests). Both wait on Agent 1's enemy framework (**WP-3.2**):
+they need its state machine. Do not start them before it lands. If you are
+starting while it is still in flight, ask for the state-machine shape in an
+issue instead of inventing one.
 
 What "done" means for WP-3.4, from the roadmap's own definition of an NPC:
 
@@ -28,7 +36,7 @@ What "done" means for WP-3.4, from the roadmap's own definition of an NPC:
 - Walking up to it offers **one clear interaction on a phone**: a prompt you can tap, not a keyboard-only affordance. The owner plays on a phone first.
 - Dialog comes from a **JSON data file**, not from code. One file per NPC, loaded with the map, with the conversation as data.
 - Its presence and its lines are **deterministic**: same seed ⇒ same place, same words.
-- It must not break the two existing maps: the game runs on `blank-basin` (the M0 test range, the default) and `roshar` (the first authored world) via `?map=roshar`.
+- It must not break the two existing maps: the game opens on `roshar` (the first authored world); the M0 test range is `?map=blank-basin`.
 
 ## Hard constraints (non-negotiable, all pre-existing)
 

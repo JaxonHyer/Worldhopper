@@ -1,0 +1,71 @@
+{
+  "id": "peaks-guide",
+  "name": "Kurin",
+  "title": "a Horneater guide",
+  "palette": {
+    "shirt": "#8c5a3c",
+    "shirtShade": "#774a2f",
+    "shirtDark": "#5e3822",
+    "trousers": "#4a3f33",
+    "trouserShade": "#3b3228",
+    "belt": "#2c2218",
+    "boots": "#3d2e21",
+    "bootsShade": "#2e2218",
+    "skin": "#a06b44",
+    "skinShade": "#885835",
+    "hair": "#1a120b",
+    "hairShade": "#0e0905",
+    "eye": "#211a14",
+    "eyeWhite": "#ddd5c8",
+    "mouth": "#6b3f2c"
+  },
+  "start": "greeting",
+  "nodes": {
+    "greeting": {
+      "speaker": "Kurin",
+      "text": "You stand at the peaks, traveller. The pool here is old — older than the storms, older than the mountains. I guide folk through when they come. What would you know?",
+      "choices": [
+        { "text": "Tell me about this pool.", "next": "pool" },
+        { "text": "What lies across the beads?", "next": "beads" },
+        { "text": "Why are you here?", "next": "self" },
+        { "text": "I will go on.", "next": "farewell" }
+      ]
+    },
+    "pool": {
+      "speaker": "Kurin",
+      "text": "It is the way between. Step in, and you see the world as the spren do — beads and flames under a black sky. Walk back out, and you return. The gate is open, for now.",
+      "choices": [
+        { "text": "What about when it closes?", "next": "gate" },
+        { "text": "Thank you. I'll remember.", "next": "farewell" }
+      ]
+    },
+    "gate": {
+      "speaker": "Kurin",
+      "text": "It has not closed in my lifetime. But the peaks remember things I do not. If it ever does, the answer will not be written here — it will be written in the other place.",
+      "choices": [
+        { "text": "In Shadesmar?", "next": "beads" },
+        { "text": "I'll be careful.", "next": "farewell" }
+      ]
+    },
+    "beads": {
+      "speaker": "Kurin",
+      "text": "Every bead is a thing. Every flame a soul. The sea between them is deep and still, and what you learn there stays with you when you come back. Walk carefully; the beads are small and the dark is large.",
+      "choices": [
+        { "text": "I understand.", "next": "farewell" }
+      ]
+    },
+    "self": {
+      "speaker": "Kurin",
+      "text": "I was born on these slopes. The peaks are kind to those who know them, and cruel to those who do not. Someone has to meet the strangers who walk out of the mist. Today that someone is me.",
+      "choices": [
+        { "text": "Tell me about the pool instead.", "next": "pool" },
+        { "text": "Fair winds to you.", "next": "farewell" }
+      ]
+    },
+    "farewell": {
+      "speaker": "Kurin",
+      "text": "Go carefully, worldhopper. The storms are loud but the pool is quiet, and the quiet is where the truth lives.",
+      "choices": []
+    }
+  }
+}

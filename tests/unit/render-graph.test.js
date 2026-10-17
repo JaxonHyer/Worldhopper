@@ -13,6 +13,7 @@ import { createWorldState, setRealm } from '../../src/core/world-state.js';
 import { REALMS } from '../../src/core/config.js';
 import { createCameraState, resolveCamera } from '../../src/core/camera.js';
 import { AVATAR, createPlayerAvatar, nextFacing } from '../../src/render/player-view.js';
+import { nameplateMetrics } from '../../src/render/npc-view.js';
 import { wrapAngle } from '../../src/core/math.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
@@ -76,11 +77,18 @@ test('the pool is a surface you can see from the shore', () => {
 
 test('the world builds, with one object per state entity', () => {
   const { state, world } = buildWorld();
-  assert.equal(world.entityObjects.size, state.entities.length);
+  // NPCs manage their own scene nodes (nameplate, billboard) and are not in
+  // the generic entityObjects map; every other entity has one entry.
+  const nonNpcCount = state.entities.filter((e) => e.kind !== 'npc').length;
+  assert.equal(world.entityObjects.size, nonNpcCount);
   for (const entity of state.entities) {
+    if (entity.kind === 'npc') continue;
     assert.ok(world.entityObjects.has(entity.id), `no scene object for ${entity.id}`);
   }
-  // ground + sky + landmark + props
+  // NPCs are still in the scene as children of the group (their npcCount is
+  // exposed via stats).
+  assert.ok(world.stats().npcCount >= 0);
+  // ground + sky + landmark + props + npcs
   assert.ok(world.stats().meshes >= state.entities.length + 1);
 });
 
@@ -282,8 +290,10 @@ test('the girl can be switched on without rebuilding the world', () => {
   world.applySettings(settings, variant);
   assert.equal(world.stats().avatarVariant, 'boy');
   assert.equal(world.stats().avatar, boyBoxes);
-  // The applied settings are unchanged apart from the body.
-  assert.equal(state.entities.length, world.entityObjects.size);
+  // The applied settings are unchanged apart from the body. NPCs are in the
+  // scene but not in entityObjects (they manage their own rendering).
+  const nonNpcCount = state.entities.filter((e) => e.kind !== 'npc').length;
+  assert.equal(nonNpcCount, world.entityObjects.size);
 });
 
 test('the girl is slimmer, and the two bodies are the same shape otherwise', () => {
@@ -578,4 +588,22 @@ test('the inverted pool reads as dark stone in the physical palette\'s shadow', 
   assert.equal(home.material.isMeshBasicMaterial, true, 'the pool is unlit water again, not polished stone');
   assert.ok(luma(home.material.color) > 0.5, 'and it is the palette pale again');
   assert.ok(luma(shore.material.color) > 0.05, 'the pale shore is restored');
+});
+
+test('a nameplate is a label above a head, not a billboard across the screen', () => {
+  // The first cut scaled the sprite to 1 m tall × its canvas aspect wide. For a
+  // 3.6-aspect name that is a 3.6 m × 1 m label over a 1.8 m person: on a phone
+  // it filled the view and read as a cut-off word ("nderer") in the sky. The
+  // screenshot is what caught it; this is what stops it coming back.
+  for (const aspect of [1, 2.5, 3.6, 4, 8, 40, 0, -3, Number.NaN]) {
+    const metrics = nameplateMetrics(aspect);
+    assert.ok(metrics.height > 0.1 && metrics.height <= 0.25, `a label's height (${aspect} → ${metrics.height} m)`);
+    assert.ok(metrics.width > 0 && metrics.width <= 1.3, `no wider than a body (${aspect} → ${metrics.width} m)`);
+    assert.ok(metrics.lift >= 0.2 && metrics.lift <= 0.6, `lifted clear of the head, not into the sky (lift ${metrics.lift} m)`);
+  }
+  // A long name is capped, not stretched: once the cap is hit, more text does
+  // not make a wider label.
+  assert.equal(nameplateMetrics(40).width, nameplateMetrics(20).width, 'past the cap, aspect stops mattering');
+  // And a nonsense aspect still produces a usable label.
+  assert.ok(nameplateMetrics(Number.NaN).width > 0);
 });
