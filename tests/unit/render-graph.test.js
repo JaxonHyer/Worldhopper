@@ -10,6 +10,10 @@ import * as THREE from 'three';
 import { createWorldView } from '../../src/render/world-view.js';
 import { createSky, sunDirection } from '../../src/render/sky.js';
 import { createWorldState, setRealm } from '../../src/core/world-state.js';
+import { buildSnapshot } from '../../src/core/snapshot.js';
+import { createFixedClock } from '../../src/core/clock.js';
+import { createFrameStats } from '../../src/core/frame-stats.js';
+import { APP } from '../../src/core/config.js';
 import { REALMS } from '../../src/core/config.js';
 import { createCameraState, resolveCamera } from '../../src/core/camera.js';
 import { AVATAR, createPlayerAvatar, nextFacing } from '../../src/render/player-view.js';
@@ -696,6 +700,52 @@ test('enemies are living: their bodies hide in the realm and a flame stands in',
   assert.ok(flame, 'and a flame takes its place');
   assert.equal(flame.visible, true);
   assert.equal(world.stats().skin.enemyFlames, state.enemies.length, 'one flame per living enemy');
+});
+
+/**
+ * The generic guard for the snapshot whitelist trap.
+ *
+ * `buildSnapshot` names every field it will carry, and a field a renderer starts
+ * reporting without a matching line there disappears in silence and reads back
+ * as `undefined`. It has now happened three times (`fade`, `npcFlames`,
+ * `enemyFlames`), so the rule is a test rather than a memory.
+ *
+ * The guard is over the *counts*, not over every key in `stats().skin`: the
+ * renderer legitimately reports internals the snapshot does not ship
+ * (`seaSlots`, `violations`, `flame`). What must survive is the set the browser
+ * tests actually assert on — and those are precisely the ones that keep going
+ * missing.
+ */
+const SKIN_COUNTS_THE_TESTS_READ = ['beads', 'souls', 'npcFlames', 'enemyFlames'];
+
+test('the skin counts the browser tests read survive the snapshot whitelist', () => {
+  const { state, world } = buildRosharan();
+  setRealm(state, REALMS.cognitive);
+  world.sync(state);
+  const reported = world.stats().skin;
+
+  const snapshot = buildSnapshot({
+    app: APP,
+    state,
+    map,
+    variant: getVariant(map.id, 'storm-shore'),
+    settings: defaultSettings(),
+    clock: createFixedClock({ stepHz: 60 }),
+    frameStats: createFrameStats(),
+    render: { drawCalls: 0, triangles: 0, gl: { version: 'x', gpu: 'y' }, avatarVariant: 'boy', skin: reported },
+    ui: { overlay: false, panel: false, credits: false, touch: false, fade: false, fades: 0 },
+    input: null,
+    paused: false,
+    ready: true,
+  });
+
+  for (const key of SKIN_COUNTS_THE_TESTS_READ) {
+    assert.ok(key in reported, `the renderer stopped reporting ${key}, so this list is stale`);
+    assert.ok(key in snapshot.skin, `the renderer reports skin.${key} and the snapshot drops it`);
+    assert.ok(Number.isFinite(snapshot.skin[key]), `skin.${key} came back ${String(snapshot.skin[key])}`);
+  }
+  assert.ok(snapshot.skin.enemyFlames > 0, 'the enemy flames are counted, not just drawn');
+  assert.ok(snapshot.skin.npcFlames > 0, 'and so are the NPCs\u2019');
 });
 
 test('the enemy flame pool is sized by the contract, so play allocates nothing', () => {

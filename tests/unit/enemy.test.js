@@ -247,6 +247,38 @@ test('disengaging always works: run past the leash and it goes home', () => {
   assert.ok(closestHome < 3, `the closest it got to home was ${closestHome.toFixed(1)} m`);
 });
 
+test('the owner’s ceiling holds, including when they drag it down mid-session', () => {
+  // The bug this pins: `?enemies=1` opened a world with three in it, because the
+  // opening pack was sized by a hard-coded default instead of the setting, and
+  // nothing ever trimmed the surplus afterwards. A cap that only stops spawns is
+  // not a cap.
+  const small = world(4242);
+  const smallCtx = context(small, { maxEnemies: 1 });
+  assert.equal(small.enemies.length, getMap(TEST_RANGE).enemyPolicy.initial, 'a default world opens with its pack');
+  stepSpawner(small, smallCtx, 1 / 60);
+  assert.equal(small.enemies.length, 1, 'and a cap of one means one');
+
+  const off = world(4242);
+  stepSpawner(off, context(off, { maxEnemies: 0 }), 1 / 60);
+  assert.equal(off.enemies.length, 0, 'encounters off means none, from the first step');
+
+  // Farthest first, so the ones you can see are the ones that stay.
+  const trimmed = world(4242);
+  const kept = trimmed.enemies.reduce((best, e) =>
+    Math.hypot(e.position.x, e.position.z) < Math.hypot(best.position.x, best.position.z) ? e : best,
+  );
+  stepSpawner(trimmed, context(trimmed, { maxEnemies: 1 }), 1 / 60);
+  assert.deepEqual(trimmed.enemies.map((e) => e.id), [kept.id], 'the closest one is the one that stayed');
+});
+
+test('a world built with ?enemies=0 really is empty at boot', () => {
+  const theMap = getMap(TEST_RANGE);
+  const state = createWorldState({ map: theMap, seed: 4242, settings: { ...settings, maxEnemies: 0 } });
+  assert.equal(state.enemies.length, 0, 'no opening pack when the owner asked for none');
+  const normal = createWorldState({ map: theMap, seed: 4242, settings });
+  assert.equal(normal.enemies.length, theMap.enemyPolicy.initial, 'and a default world is still inhabited');
+});
+
 test('the places you leave behind stop being populated', () => {
   const state = world(4242);
   const policy = getMap(TEST_RANGE).enemyPolicy;

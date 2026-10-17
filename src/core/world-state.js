@@ -138,7 +138,7 @@ export function buildObstacles(entities) {
  * Build a map's state from its seed. Called on load and on every seed change;
  * never mutated by rendering.
  */
-export function createWorldState({ map, seed, environment = { seed: 0, time: 0 } }) {
+export function createWorldState({ map, seed, settings = null, environment = { seed: 0, time: 0 } }) {
   if (!map) throw new Error('createWorldState: map is required');
   const normalized = normalizeSeed(seed ?? map.defaultSeed);
   const entities = [];
@@ -162,7 +162,10 @@ export function createWorldState({ map, seed, environment = { seed: 0, time: 0 }
   entities.push(...placeNpcs(map, normalized));
 
   const obstacles = buildObstacles(entities);
-  const context = { map, seed: normalized, obstacles, settings: { maxEnemies: 4 } };
+  // The opening pack is sized by the owner's *own* ceiling, so `?enemies=0` at
+  // boot really is an empty world. The settings object is passed in rather than
+  // read from a global because the sim never reaches for one.
+  const context = { map, seed: normalized, obstacles, settings: settings ?? { maxEnemies: 4 } };
 
   const state = {
     mapId: map.id,

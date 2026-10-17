@@ -653,6 +653,31 @@ export function stepSpawner(state, context, dt) {
   }
 
   const cap = activeCap(state, context);
+
+  // Trim to the cap, farthest first.
+  //
+  // Spawning under the cap is not enough: the ceiling has to *hold*, and there
+  // are two ways to be over it that no spawn check can see. A map can declare a
+  // bigger `initial` than the owner's slider allows, and the owner can drag
+  // "Enemies alive at once" down mid-session — which has to mean something the
+  // next time they look up. Taking the farthest is the least visible choice: the
+  // ones you can see stay.
+  while (state.enemies.length > cap) {
+    let worst = -1;
+    let worstDistance = -1;
+    for (let i = 0; i < state.enemies.length; i++) {
+      const enemy = state.enemies[i];
+      const distance = Math.hypot(enemy.position.x - player.position.x, enemy.position.z - player.position.z);
+      if (distance > worstDistance) {
+        worstDistance = distance;
+        worst = i;
+      }
+    }
+    if (worst < 0) break;
+    state.enemies.splice(worst, 1);
+    state.spawner.culled += 1;
+  }
+
   const interval = Math.max(1, Number.isFinite(policy.spawnInterval) ? policy.spawnInterval : 8);
   state.spawner.timer += dt;
   // A `while`, not an `if`: a long frame (or a debug step of several seconds)

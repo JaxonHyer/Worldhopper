@@ -221,6 +221,13 @@ export function buildSnapshot({
       // the snapshot — which is exactly how the NPC flame assertion came back
       // `undefined` in CI run 38931025849 instead of failing on the renderer.
       npcFlames: Number.isFinite(render.skin?.npcFlames) ? render.skin.npcFlames : 0,
+      // How many enemy flames the cognitive layer drew. Named here for the same
+      // reason as every line above it: this object is a whitelist, and a field
+      // the renderer reports and this block does not reads back as `undefined`.
+      // That is exactly how the NPC flame count went missing in CI run
+      // 38931025849 — and how the enemy flame count went missing in 39063603462,
+      // which is the third time this exact line has been the bug.
+      enemyFlames: Number.isFinite(render.skin?.enemyFlames) ? render.skin.enemyFlames : 0,
     },
   };
 }

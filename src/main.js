@@ -80,7 +80,7 @@ function bootstrap() {
   // on, and `?map=roshar` must not quietly rewrite them.
   const map = getMap(mapId);
   let variant = getVariant(map.id, settings.palette);
-  let state = createWorldState({ map, seed: settings.seed });
+  let state = createWorldState({ map, seed: settings.seed, settings });
   // The realm is a lens over the world, and `?realm=cognitive` is how a
   // screenshot or an automated run starts inside it without walking there.
   if (flags.cognitive) setRealm(state, REALMS.cognitive);
@@ -465,7 +465,7 @@ function bootstrap() {
     if (changed) {
       if (key === 'hearts') setHearts(state, value);
       if (key === 'seed') {
-        state = createWorldState({ map, seed: value });
+        state = createWorldState({ map, seed: value, settings });
         // A new world is built from the map's own defaults, so the hearts the
         // owner chose have to be re-applied or a seed change silently resets
         // the health bar.
@@ -491,7 +491,7 @@ function bootstrap() {
     clearStoredSettings(storage);
     Object.assign(settings, defaults);
     variant = getVariant(map.id, settings.palette);
-    state = createWorldState({ map, seed: settings.seed });
+    state = createWorldState({ map, seed: settings.seed, settings });
     setHearts(state, settings.hearts);
     rebuildWorld();
     world.applySettings(settings, variant);

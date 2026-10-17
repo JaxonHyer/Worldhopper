@@ -91,7 +91,9 @@ async function approach(page, radius, { maxSteps = 500, step = 0.1 } = {}) {
 
 test('the world opens inhabited, and your hearts are on screen', async ({ page, isMobile }, testInfo) => {
   const watch = attachWatch(page);
-  const debug = await startFrozen(page, `?seed=4242&${ENCOUNTER}`);
+  // Default aggro here, on purpose: the world opens inhabited but not already
+  // fighting, which is the state a player actually lands in.
+  const debug = await startFrozen(page, '?seed=4242');
 
   expect(debug.combat, 'the snapshot carries the combat block').toBeTruthy();
   expect(debug.combat.enemies, 'nobody lands in an empty world').toBeGreaterThanOrEqual(1);
