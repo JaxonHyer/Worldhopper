@@ -309,6 +309,17 @@ export function createInput({ canvas, onHotkey, onCaptureChange, elements = {}, 
       event.preventDefault();
       return;
     }
+    // Held look keys (Q/E). `look()` reads `keys` for them — but until this
+    // branch existed, nothing ever put them in `keys`, so the whole held-key
+    // look path was dead code: a desktop player holding Q and watching nothing
+    // turn. Nobody had noticed because the mouse has always been the desktop
+    // way to look, and no desktop hint ever advertised Q/E. Registering them
+    // here wires a path the rest of the file already believed existed.
+    if (code === 'KeyQ' || code === 'KeyE') {
+      keys.add(code);
+      event.preventDefault();
+      return;
+    }
     if (code in MOVE_KEYS) {
       keys.add(code);
       event.preventDefault();

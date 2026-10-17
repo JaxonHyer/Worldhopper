@@ -173,8 +173,17 @@ test('a punch connects — desktop key and phone tap', async ({ page, isMobile }
   let debug = await startFrozen(page, `?seed=4242&${ENCOUNTER}&enemies=1&hearts=5`);
   expect(debug.combat.enemies).toBe(1);
 
+  // The aim loop depends on Q/E turning the player — and until this PR those
+  // keys were dead code, which is exactly the kind of thing this test should
+  // fail loudly about rather than as a mysterious death. Prove the door works
+  // before walking through it.
+  const yawBefore = (await stepSim(page, 0)).player.yaw;
+  await page.keyboard.down('KeyQ');
+  const yawAfter = (await stepSim(page, 0.25)).player.yaw;
+  await page.keyboard.up('KeyQ');
+  expect(Math.abs(yawAfter - yawBefore), 'holding Q must actually turn the player').toBeGreaterThan(0.4);
   debug = await closeAndAim(page);
-  expect(debug.combat.dead, 'you survived the walk').toBe(false);
+  expect(debug.combat.dead, 'you survived the walk (if this fails and the aim loop is sound, check that Q/E actually turn the player — see closeAndAim)').toBe(false);
   const target = nearest(debug);
   expect(target, 'an enemy is out there').toBeTruthy();
   expect(target.distance, 'it is inside the swing').toBeLessThanOrEqual(2.7);

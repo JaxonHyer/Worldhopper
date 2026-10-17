@@ -66,6 +66,13 @@ Enemies that cannot hurt you are scenery, so WP-3.1 (health) came with WP-3.2
   cannot go above 6, because those are the contract's numbers, not taste. A
   slider that could break them would let the owner build an unfair game by
   accident. `?enemies=0` turns encounters off.
+- **Q/E held-key look was dead code, and CI found it.** `input.look()` has read
+  `keys` for KeyQ/KeyE since early on, but `onKeyDown` never registered them, so
+  holding Q turned nothing and no one noticed — desktop look has always been the
+  mouse, and nothing advertised the keys. My punch e2e relied on them to aim and
+  the player died waiting for a turn that could never come. `onKeyDown` now
+  registers them, and the e2e test asserts the door works before walking through
+  it.
 - **`combat` is a top-level snapshot key, not a corner of `ui`.** `ui` is a
   whitelist and a field added there without a matching line in
   `src/core/snapshot.js` disappears without a sound — that trap has already cost
