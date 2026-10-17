@@ -108,12 +108,18 @@ behind, and the camera slides closer when a hill or a rock is in the way. Look
 up is limited (the boom would end up in the floor); **Camera** in the tuning
 panel switches to first person, where the full vertical range comes back.
 
+**Talk to people:** walk up to someone and a **Talk** prompt appears — tap it
+on a phone, or press <kbd>F</kbd> (or <kbd>Enter</kbd>) at a keyboard. The
+conversation pauses the world while the card is open; <kbd>Esc</kbd> closes it.
+There are two people so far: a wanderer on the test range and Kurin on Roshar.
+Their words are JSON files under `src/content/npcs/`, one per person.
+
 **Phone:** the left half of the screen is a thumb-stick (it appears where your
 thumb lands), drag on the right to look, the round **jump** button is
 bottom-right, and the **sprint** toggle is bottom-left. It also works with a
 mouse if you just want to test the layout.
 
-Dev keys: <kbd>F</kbd> shift realm · <kbd>`</kbd> debug overlay · <kbd>p</kbd>
+Dev keys: <kbd>`</kbd> debug overlay · <kbd>p</kbd>
 tuning panel ·
 <kbd>v</kbd> cycle palette · <kbd>c</kbd> credits and the fan-work notice ·
 <kbd>r</kbd> reset the view. On a phone the ⓘ button (always) and the ⚙/▤/◐
@@ -205,10 +211,12 @@ src/core/                  logic only, no DOM, no three.js (all headless-tested)
   terrain-color.js         per-facet ground colouring (world-space, tested)
   snapshot.js              the debug snapshot shape (window.__debug, overlay, reports)
   frame-stats.js           frame-spike counters for the overlay
+src/content/               authored data: NPC dialogue, one JSON file per person
+  npcs.js                  dialogue loader, validator and state machine (no DOM)
 src/render/                three.js only; reads state, never owns it
-  renderer.js  sky.js  world-view.js
+  renderer.js  sky.js  world-view.js  npc-view.js (blocky figures, nameplates)
 src/platform/input.js      keyboard/touch/pointer -> one intent stream (no sim access)
-src/ui/                    HUD (touch controls), debug overlay, tuning panel, credits, dock
+src/ui/                    HUD (touch controls), dialog card, debug overlay, tuning panel, credits, dock
 tests/unit/                node --test, no browser
 tests/e2e/                 Playwright smoke, interaction, mobile and screenshot specs
 scripts/check-dist.mjs     static assertions on the built output

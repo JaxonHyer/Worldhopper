@@ -665,6 +665,28 @@ body:has(.hud.is-touch) .dock {
   margin: 0 2px;
 }
 
+/*
+ * The Talk prompt on a phone is a thumb target, not a keyboard hint.
+ *
+ * At the desktop position (centred, 80 px off the bottom) the prompt overlapped
+ * the jump button on a 412 px screen: the jump circle starts 106 px in from the
+ * right edge, and a 216 px-wide centred prompt reaches to within 98 px of it —
+ * close enough to cover its corner, and worse on a 360 px phone. So on narrow
+ * or coarse screens the prompt sits clear above both thumbs, is a size a thumb
+ * can hit, and drops the "F on desktop" hint, because the phone has no F key.
+ */
+@media (max-width: 640px), (pointer: coarse) {
+  .interact-prompt {
+    bottom: calc(196px + var(--safe-bottom));
+    font-size: 15px;
+    padding: 14px 22px;
+  }
+
+  .interact-prompt__hint {
+    display: none;
+  }
+}
+
 /* --- dialog box (NPC conversations) ------------------------------------- */
 
 .dialog {

@@ -3,7 +3,35 @@
 One line per meaningful decision, with the reason. Newest first. The owner reads
 this to stay oriented; agents add to it in the same PR as the change.
 
+## M3 — WP-3.4 lands as one implementation (Agent 1, 2026-10-17)
+
+- **One NPC system, not two.** Two agents built WP-3.4 in parallel (PR #13, an
+  unfinished content/UI slice, and PR #15, the complete framework). This PR
+  carries PR #15's implementation — its seams are the ones the contract asked
+  for — and both old PRs are closed as superseded. Two dialogue systems cannot
+  ship; the second one is deleted rather than merged behind a flag.
+- **The spawn field is `npcId`.** The #12 sketch said `dialogueId`; the shipped
+  entity calls the *dialogue file* `npcId` (`{ id, kind: 'npc', npcId, name,
+  title, palette, position, rotationY, interactRadius, static }`). Frozen here so
+  the next consumer does not guess.
+- **A dialog pauses the sim.** I had proposed "keep the clock running, zero the
+  movement input"; the shipped rule is a full pause (`steps = 0` while the card
+  is open). Accepted because WP-3.2 adds enemies: a conversation that lets the
+  world move can kill a player mid-sentence. The fixed-step clock is not
+  advanced or banked, so nothing drifts when the card closes.
+- **The Talk prompt moves up on a phone.** At the desktop position (centred,
+  80 px off the bottom) it overlapped the jump button's corner on a 412 px
+  screen — the owner's first playtest question, answered in CSS before asking:
+  below 640 px the prompt sits 196 px up and drops the "F on desktop" hint,
+  which a phone cannot use. Pinned by a bounding-box test in `npc.spec.js`.
+- **Process, so it does not repeat:** WP-3.4 edited `src/core/`, `src/render/`,
+  `src/main.js` and `src/ui/` — Agent 1's files — while #12 was still open. The
+  work was accepted and integrated rather than redone, but the next cross-lane
+  change should wait for the handoff or arrive as an agreed change. Parallel
+  edits to `main.js` are how an all-green gate becomes a coin flip.
+
 ## M3 — WP-3.4 NPC dialog framework (Agent 2, 2026-10-16)
+
 
 - **NPCs are entities in world state, not renderer-only objects.** The roadmap
   says "one source of truth" — an NPC has kind `npc`, a stable id, a position,

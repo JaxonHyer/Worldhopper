@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BEAD_SYSTEM, MAPS, SKIN_FORMS, getMap, getVariant, listVariants, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
+import { loadNpc } from '../../src/content/npcs.js';
 
 const hex = /^#([0-9a-f]{6})$/i;
 
@@ -111,6 +112,34 @@ test('the world the game opens on is a world with a realm to look at', () => {
     map.variants.some((variant) => variant.id === map.defaultPalette),
     'the opening world declares a default palette it does not have',
   );
+});
+
+test('every NPC a map places has a person behind it, and a place a player can reach', () => {
+  // `placeNpcs()` throws on an id with no dialogue file, so a typo here is a
+  // *boot crash*, not a red test — the same class of failure as an unknown map
+  // id. The other rules keep an NPC interactable rather than decorative: a
+  // figure standing in the pool can never be reached (the gate fires first),
+  // and a talk radius a thumb cannot use is a figure you walk around.
+  for (const map of Object.values(MAPS)) {
+    const placed = new Set();
+    for (const spawn of map.npcs ?? []) {
+      assert.ok(spawn.id && !placed.has(spawn.id), `${map.id}: NPC placement ids are unique`);
+      placed.add(spawn.id);
+
+      assert.ok(Number.isFinite(spawn.position?.x) && Number.isFinite(spawn.position?.z), `${map.id}: ${spawn.id} has a place to stand`);
+      assert.ok(spawn.interactRadius >= 2 && spawn.interactRadius <= 6, `${map.id}: ${spawn.id} has a talk radius that is neither a pixel-hunt nor a shout`);
+
+      const pool = map.perpendicularity;
+      const away = Math.hypot(spawn.position.x - pool.position.x, spawn.position.z - pool.position.z);
+      assert.ok(away > pool.radius + 1, `${map.id}: ${spawn.id} must not stand in the pool`);
+
+      let dialogue;
+      assert.doesNotThrow(() => {
+        dialogue = loadNpc(spawn.npcId);
+      }, `${map.id}: ${spawn.id} names a dialogue file that does not exist`);
+      assert.ok(dialogue.nodes?.[dialogue.start], `${map.id}: ${spawn.npcId} starts at a node that exists`);
+    }
+  }
 });
 
 test('variants can be looked up and fall back safely', () => {

@@ -430,7 +430,7 @@ playtest: is the realm legible and beautiful? Does the inversion read?)*
 - [ ] WP-3.1 Health/damage/death/beacon respawn + combat sliders — **Agent 1**
 - [ ] WP-3.2 Enemy framework: blocky rigs, procedural animation, state machine (idle/alert/hunt/attack/disengage) — **Agent 1**
 - [ ] WP-3.3 First archetypes (2, Roshar-flavored, owner design pass) — **Agent 2**
-- [ ] WP-3.4 Dialog NPC framework + 1–2 NPCs (JSON dialogue data) — **Agent 2**
+- [x] WP-3.4 Dialog NPC framework + 1–2 NPCs (JSON dialogue data) — **Agent 2** *(landed 2026-10-17: two NPCs, dialogue as JSON; the one implementation, #13/#15 superseded)*
 - [ ] WP-3.5 Fairness-contract tests (telegraph-before-damage assertions) — **Agent 2**
 
 **Exit:** one encounter that is tense, readable, and escapable.
