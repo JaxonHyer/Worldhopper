@@ -47,44 +47,57 @@ function nearest(debug) {
   return best ? { enemy: best, distance: bestDistance } : null;
 }
 
-/**
- * Turn the player to face a point.
- *
- * Q and E are the held-key look path, and they go through the same
- * `look.rate` channel as the debug stepper, so a turn driven this way is as
- * deterministic as a walk. (KeyQ raises yaw; KeyE lowers it — `applyLookRate`
- * subtracts.)
- */
-async function facePoint(page, target, { tolerance = 0.4, maxFrames = 90 } = {}) {
-  let debug = await readDebug(page);
-  for (let i = 0; i < maxFrames; i++) {
-    const dx = target.x - debug.player.x;
-    const dz = target.z - debug.player.z;
-    if (Math.hypot(dx, dz) < 0.4) return debug;
-    const wanted = Math.atan2(-dx, -dz);
-    let delta = wanted - debug.player.yaw;
-    while (delta > Math.PI) delta -= Math.PI * 2;
-    while (delta < -Math.PI) delta += Math.PI * 2;
-    if (Math.abs(delta) <= tolerance) return debug;
-    // One fixed step per iteration rather than a computed duration: the key
-    // rate is scaled by the owner's look slider, so predicting how long a turn
-    // takes would mean reimplementing it here and drifting from it later.
-    const key = delta > 0 ? 'KeyQ' : 'KeyE';
-    await page.keyboard.down(key);
-    debug = await stepSim(page, 1 / 60);
-    await page.keyboard.up(key);
-  }
-  return debug;
+/** The punch's own cone test, so the aim check and the sim agree. */
+const PUNCH_HALF_ANGLE = 0.85;
+
+function aim(debug, enemy) {
+  const dx = enemy.x - debug.player.x;
+  const dz = enemy.z - debug.player.z;
+  const distance = Math.hypot(dx, dz);
+  if (distance < 0.001) return { distance, onAxis: 1, delta: 0 };
+  const forwardX = -Math.sin(debug.player.yaw);
+  const forwardZ = -Math.cos(debug.player.yaw);
+  const onAxis = (dx / distance) * forwardX + (dz / distance) * forwardZ;
+  const wanted = Math.atan2(-dx, -dz);
+  let delta = wanted - debug.player.yaw;
+  while (delta > Math.PI) delta -= Math.PI * 2;
+  while (delta < -Math.PI) delta += Math.PI * 2;
+  return { distance, onAxis, delta };
 }
 
-/** Step until the nearest enemy is within `radius` metres, or give up. */
-async function approach(page, radius, { maxSteps = 500, step = 0.1 } = {}) {
+/**
+ * Close the distance and keep the enemy in the swing's arc.
+ *
+ * Written as one loop on purpose. The first version walked in one helper, turned
+ * in another, and stepped 0.1 s at a time — which is ~700 browser round-trips,
+ * and on CI's software renderer each one costs ~90 ms, so the test spent 62 s
+ * measuring its own polling and timed out. Stepping in bigger slices and
+ * alternating "turn" with "let the clock run" does the same job in under a
+ * hundred calls, and the enemy converges on its attack range rather than
+ * overshooting, so a coarse step cannot skip past the window we are looking for.
+ */
+async function closeAndAim(page, { maxCalls = 80 } = {}) {
   let debug = await readDebug(page);
-  for (let i = 0; i < maxSteps; i++) {
-    const found = nearest(debug);
-    if (found && found.distance <= radius) return debug;
-    debug = await stepSim(page, step);
+  for (let i = 0; i < maxCalls; i++) {
     if (debug.combat.dead) return debug;
+    const found = nearest(debug);
+    if (!found) {
+      debug = await stepSim(page, 0.5);
+      continue;
+    }
+    const { distance, onAxis, delta } = aim(debug, found.enemy);
+    // Aim at half the cone, not its edge. Stopping the instant the enemy is
+    // technically in range leaves the swing a rounding error away from
+    // whiffing; landing it near dead-centre costs at most one more turn.
+    if (distance <= 2.6 && onAxis >= Math.cos(PUNCH_HALF_ANGLE * 0.5)) return debug;
+    if (Math.abs(delta) > 0.3) {
+      const key = delta > 0 ? 'KeyQ' : 'KeyE';
+      await page.keyboard.down(key);
+      debug = await stepSim(page, Math.min(0.3, Math.abs(delta) / (1.9 * (debug.settings.look ?? 1)) + 0.02));
+      await page.keyboard.up(key);
+    } else {
+      debug = await stepSim(page, 0.4);
+    }
   }
   return debug;
 }
@@ -160,24 +173,18 @@ test('a punch connects — desktop key and phone tap', async ({ page, isMobile }
   let debug = await startFrozen(page, `?seed=4242&${ENCOUNTER}&enemies=1&hearts=5`);
   expect(debug.combat.enemies).toBe(1);
 
-  // Let it notice you and close the distance.
-  debug = await approach(page, 7, { maxSteps: 400 });
+  debug = await closeAndAim(page);
   expect(debug.combat.dead, 'you survived the walk').toBe(false);
   const target = nearest(debug);
   expect(target, 'an enemy is out there').toBeTruthy();
+  expect(target.distance, 'it is inside the swing').toBeLessThanOrEqual(2.7);
+  const { onAxis } = aim(debug, target.enemy);
+  expect(onAxis, 'and it is in front of you, not behind').toBeGreaterThan(Math.cos(PUNCH_HALF_ANGLE));
 
-  // Turn to face it, then let it come to you. A punch that connects from behind
-  // would prove nothing about the arc.
-  await facePoint(page, { x: target.enemy.x, z: target.enemy.z });
-  debug = await approach(page, 2.6, { maxSteps: 300 });
-  expect(debug.combat.dead, 'you survived the closing distance').toBe(false);
-  // Re-aim at the last moment: it has been walking at you, so the bearing it
-  // had a second ago is not the bearing it has now.
-  await facePoint(page, { x: nearest(debug).enemy.x, z: nearest(debug).enemy.z }, { maxFrames: 20 });
+  await saveShot(page, 'combat-about-to-punch', testInfo);
   const before = debug.combat.hitsLanded;
   expect(before).toBe(0);
 
-  await saveShot(page, 'combat-about-to-punch', testInfo);
   if (isMobile) {
     await page.locator('.touch-attack').tap();
   } else {
@@ -187,12 +194,12 @@ test('a punch connects — desktop key and phone tap', async ({ page, isMobile }
 
   expect(after.combat.hitsLanded, 'the swing connected').toBeGreaterThan(before);
   expect(after.combat.swings).toBe(1);
-  const swung = after.combat.events.filter((e) => e.kind === 'punch');
-  expect(swung.length, 'the log says a swing happened').toBeGreaterThan(0);
+  expect(
+    after.combat.events.filter((e) => e.kind === 'punch').length,
+    'the log says a swing happened',
+  ).toBeGreaterThan(0);
   const hit = after.combat.roster.find((e) => e.id === target.enemy.id);
-  if (hit) {
-    expect(hit.health, 'and it cost the enemy something').toBeLessThanOrEqual(target.enemy.health);
-  }
+  if (hit) expect(hit.health, 'and it cost the enemy something').toBeLessThanOrEqual(target.enemy.health);
   await saveShot(page, 'combat-after-punch', testInfo);
 
   watch.assertClean();
