@@ -169,7 +169,22 @@ test('the Perpendicularity has its Chasmfiend when the game loads, and it sleeps
   const fiend = poolChasmia[0];
   const fromGate = Math.hypot(fiend.home.x - gate.position.x, fiend.home.z - gate.position.z);
   assert.ok(fromGate < gate.radius + 4, `its home belongs to the gate (${fromGate.toFixed(1)} m)`);
+  assert.ok(
+    fromGate > gate.radius,
+    `its circle stays out of the water (${fromGate.toFixed(1)} m vs pool radius ${gate.radius})`,
+  );
   assert.equal(fiend.aggroRange, 5, 'a tight sleeping circle, so a swim is never punished');
+
+  // The realm suite's exact lane: out the far side, back in again. The pool lives
+  // at z=-14 with radius 3.4, so its re-entry lane runs along x=0 from z=-24 to
+  // z=-17. The giant's circle must clear it with room to breathe.
+  for (const z of [-24, -20, -17.4, -14, -11]) {
+    const distance = Math.hypot(fiend.home.x - 0, fiend.home.z - z);
+    assert.ok(
+      distance > fiend.aggroRange + 0.5,
+      `lane point (0, ${z}) comes within ${distance.toFixed(1)} m of the giant's ${fiend.aggroRange} m circle — it would wake`,
+    );
+  }
 
   // A player walking to the pool and through it is not jumped by the ambience:
   // the full spawn-walk passes outside the override and it stays idle.
