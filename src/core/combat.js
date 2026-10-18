@@ -43,6 +43,8 @@ export const EVENTS = Object.freeze({
   disengage: 'disengage',
   /** The spawn director put one in the world. */
   spawn: 'spawn',
+  /** A telegraphed strike was broken off because the player faced it (issue #21). */
+  flinch: 'flinch',
   /** The player is back at their beacon. */
   respawn: 'respawn',
   /** A beacon was touched: the respawn point moved and the player healed. */

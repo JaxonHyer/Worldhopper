@@ -3,6 +3,60 @@
 One line per meaningful decision, with the reason. Newest first. The owner reads
 this to stay oriented; agents add to it in the same PR as the change.
 
+## M3 — the owner's combat pass: giant rare Chasmfiends, white spines, a calmer punch, AI skins (Agent 1, 2026-10-17)
+
+The owner's playtest notes on WP-3.1/3.2, reviewed with Agent 2's PR #19 (WP-3.3
+archetypes + WP-3.5 fairness angle test) which this PR stacks on:
+
+- **"Chasmfiends should be more rare... have one spawn at this Perpendicularity
+  when the game loads (for testing). Chasmfiends are like a 14 or more legged
+  creature and they are GIANT: they are unbelievably big."** Four changes, each
+  test-guarded: spawn weights 3:1 → **9:1** (one in ten draws; `chooseType` is
+  exported so the rarity is sampled over 4,000 seeded draws and asserted
+  between 1% and 20%); row becomes `height 6.5, radius 3.0, legs 14` (the rig
+  fans legs over 4 in rippling pairs — limb count is data, the brief's "1–4" is
+  the *budget default* the owner's WP-3.3 design pass overrides); each map's
+  `enemyPolicy.placements` field guarantees one at the pool `(2, −20)` at load,
+  seeded deterministically outside the RNG stream; and that placement carries a
+  **5 m aggro override** — it sleeps until you deliberately walk up to it, which
+  is what keeps every gate-adjacent e2e test (and every fresh player who only
+  wanted a swim) unjumped. Verified headlessly against the whole gate gauntlet:
+  hitsTaken 0 across the timed paths.
+- **"Whitespines are quadrupeds with white spines; their backs are about as
+  high as the players head."** Row becomes `height 2.1` — the rig puts the back
+  at `height − headSize·0.85` = 1.68 m against the player's 1.70 m eye line —
+  plus a `colors.spines` plate row (`#f7f2e6`) along the back, because the
+  identity is read from behind, and a slimmer `dims` override. A render test
+  asserts the back sits 1.5–1.8 m and the plates are near-white.
+- **"The player spins around really quick [to punch] then spins around again —
+  make the spin slower so it does not feel as glitchy."** The swing-facing ease
+  in `player-view.js` was rate 18 (~80 ms for a half-turn): now **7** (~180
+  ms). The sim's punch still resolves instantly; this is the body catching up.
+  A feel number that is deliberately NOT further tunable unless the owner
+  playtests back: it's recorded here in case a slider is wanted.
+- **"Using AI generated textures instead of procedurally/bash/svg generated
+  ones will probably look better. Try it."** Enemies get baked creature skins:
+  four AI-generated sheets (chasmfiend shell + limb, whitespine body + head),
+  downscaled to 32×32, quantised to ≤16 flat colours, baked to base64 RGBA in
+  `core/enemy-skins.js` and drawn as nearest-filtered DataTextures — the same
+  path as pixel-art.js, so the Minecraft tier holds and boot stays
+  byte-identical (CI screenshots deterministic). Original assets for this
+  project, per §9. Player/NPC skins stay procedural — those were accepted
+  through three owner passes (M1.5–M1.8) and are not being churned.
+- **Agent 2's issue #21 (disengage-when-faced) — decided.** Implemented as a
+  per-archetype `flinchWhenFaced` flag, default off, enabled ONLY on the
+  Chasmfiend: on a killable enemy it would make every fight spongy on a phone
+  (face it, it cancels, alert, hunts, repeat — free fight denial), and the
+  roadmap binds that rule to the Inquisitor (M7), not to every mob. On the
+  unkillable giant it instead gives the player the one defence that isn't a
+  weapon: *stand your ground and look at it.* Event `flinch` added to the
+  contract log; three unit tests pin flag-on, flag-off and the facing maths.
+- **Sequencing.** #19 reviewed + approved by Agent 1 (comment posted); this PR
+  edits the same `ENEMY_TYPES` rows, so it is stacked on #19's branch tip and
+  must merge AFTER #19 merges. Agent 2's two tests that asserted the old
+  numbers (14-legs row, opening-cast size) are amended with comments pointing
+  here, per the owner's design change after review.
+
 ## M3 — WP-3.1 + WP-3.2: the world fights back, and the fairness contract is a test (Agent 1, 2026-10-17)
 
 The owner's ask was three sentences: *"enemies and a procedural roaming enemy

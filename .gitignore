@@ -16,3 +16,4 @@ test-results/
 .vite/
 .env
 .env.*
+tmp/textures/                (raw AI source sheets — kept local only; the baked skins live in src/core/enemy-skins.js)

@@ -18,12 +18,14 @@ import {
   ENEMY_TYPES,
   FAIRNESS,
   activeCap,
+  chooseType,
   createEnemy,
   createSpawner,
   enemyStateCounts,
   findSpawnPoint,
   listEnemyTypeIds,
   nearestEnemy,
+  playerFacingDot,
   resolveWindup,
   stepEnemies,
   stepSpawner,
@@ -60,12 +62,13 @@ function context(state, overrides = {}) {
  * below assert something about nothing. Deterministic, so a run that trips the
  * contract trips it every time.
  */
-function wander(state, seconds, seed = 7, { tether = { x: 0, z: 0 }, radius = 22 } = {}) {
+function wander(state, seconds, seed = 7, { tether = { x: 0, z: 0 }, radius = 22, onTick = null } = {}) {
   const rng = createRng(seed);
   const ctx = context(state);
   let held = { x: 0, y: 0 };
   const steps = Math.round(seconds * 60);
   for (let i = 0; i < steps; i++) {
+    onTick?.(i);
     if (i % 45 === 0) {
       const { x, z } = state.player.position;
       const away = Math.hypot(x - tether.x, z - tether.z);
@@ -131,12 +134,64 @@ test('an unkillable archetype is slower than a walking player, so escape is real
 test('the world opens inhabited, so nobody lands in an empty one', () => {
   for (const mapId of ['blank-basin', 'roshar']) {
     const state = world(4242, mapId);
-    assert.equal(state.enemies.length, getMap(mapId).enemyPolicy.initial, `${mapId} should open with its initial pack`);
+    const policy = getMap(mapId).enemyPolicy;
+    // The opening cast is the procedural ring pack plus any authored placements
+    // (the owner's pool-side Chasmfiend on Roshar).
+    const expected = Math.max(0, policy.initial ?? 0) + (policy.placements?.length ?? 0);
+    assert.equal(state.enemies.length, expected, `${mapId} should open with its initial pack`);
     for (const enemy of state.enemies) {
       assert.equal(enemy.state, ENEMY_STATES.idle);
       assert.ok(Number.isFinite(enemy.position.y), `${enemy.id} is not on the ground`);
     }
   }
+});
+
+test('the Perpendicularity has its Chasmfiend when the game loads, and it sleeps until you choose', () => {
+  // The owner's testing ask (2026-10-17): "have one spawn at this
+  // Perpendicularity when the game loads," while the wandering pack stops
+  // making them often. The pack-weight side lives in the rarity test below;
+  // this side is the guaranteed placement.
+  const state = world(4242, 'roshar');
+  const gate = getMap('roshar').perpendicularity;
+  const poolChasmia = state.enemies.filter((e) => e.typeId === 'storm-warden');
+  assert.ok(poolChasmia.length >= 1, 'a Chasmfiend waits by the gate');
+  const fiend = poolChasmia[0];
+  const fromGate = Math.hypot(fiend.home.x - gate.position.x, fiend.home.z - gate.position.z);
+  assert.ok(fromGate < gate.radius + 4, `its home belongs to the gate (${fromGate.toFixed(1)} m)`);
+  assert.equal(fiend.aggroRange, 5, 'a tight sleeping circle, so a swim is never punished');
+
+  // A player walking to the pool and through it is not jumped by the ambience:
+  // the full spawn-walk passes outside the override and it stays idle.
+  const ctx = context(state);
+  for (let i = 0; i < 60 * 8; i++) {
+    stepWorld(state, 1 / 60, { move: { x: 0, y: 1 }, jump: false, sprint: false, attack: false }, ctx);
+  }
+  assert.equal(fiend.state, ENEMY_STATES.idle, `the walk to the pool never woke it (${fiend.state})`);
+  assert.equal(state.combat.hitsTaken, 0);
+  // ...but deliberate approach is honoured, exactly as the owner will test it.
+  assert.ok(
+    Math.hypot(state.player.position.x - fiend.position.x, state.player.position.z - fiend.position.z) >
+      fiend.aggroRange,
+    'and the test really never got closer than its circle (otherwise this guard proves nothing)',
+  );
+});
+
+test('Chasmfiends are RARE in the director’s draws now (the owner, 2026-10-17)', () => {
+  // Sampling chooseType over a long seeded horizon: the weight change [3,1] -> [9,1]
+  // was the request ("decrease their likelihood of spawning in the monster
+  // spawner"), and the numbers only count if a test keeps someone honest.
+  const state = world(4242, 'roshar');
+  const ctx = context(state);
+  let fiends = 0;
+  let whitespines = 0;
+  for (let i = 0; i < 4000; i++) {
+    const pick = chooseType(state, ctx);
+    if (pick === 'storm-warden') fiends++;
+    else if (pick === 'crag-lurker') whitespines++;
+  }
+  const fraction = fiends / (fiends + whitespines);
+  assert.ok(fraction < 0.2, `Chasmfiends are ${(fraction * 100).toFixed(1)}% of draws — not rare`);
+  assert.ok(fraction > 0.01, 'and they do still happen');
 });
 
 test('turning encounters off turns them off', () => {
@@ -291,6 +346,63 @@ test('the places you leave behind stop being populated', () => {
   assert.ok(state.spawner.culled > 0, 'and the count says so');
 });
 
+test('facing a flagged archetype mid-windup breaks its strike off — the Inquisitor rule (issue #21)', () => {
+  const state = world(4242, 'roshar');
+  const fiend = state.enemies.find((e) => e.typeId === 'storm-warden');
+  assert.ok(fiend, 'the pool Chasmfiend is here');
+  // Put it on top of the player and let it commit to the strike.
+  fiend.position.x = state.player.position.x + 2.4;
+  fiend.position.z = state.player.position.z;
+  fiend.home.x = fiend.position.x;
+  fiend.home.z = fiend.position.z;
+  tick(state, 1);
+  for (let i = 0; i < 60 * 6 && fiend.state !== ENEMY_STATES.attack; i++) tick(state, 1);
+  assert.equal(fiend.state, ENEMY_STATES.attack, 'it wound up, so this test is not asserting about nothing');
+
+  // Stand your ground and LOOK at it.
+  const dx = fiend.position.x - state.player.position.x;
+  const dz = fiend.position.z - state.player.position.z;
+  state.player.yaw = Math.atan2(-dx, -dz);
+  const before = state.events.filter((e) => e.kind === EVENTS.damage && e.by === fiend.id).length;
+  tick(state, 2);
+
+  assert.ok(state.events.some((e) => e.kind === EVENTS.flinch && e.by === fiend.id), 'a flinch was logged');
+  assert.notEqual(fiend.state, ENEMY_STATES.attack, `the strike broke off (${fiend.state})`);
+  const after = state.events.filter((e) => e.kind === EVENTS.damage && e.by === fiend.id).length;
+  assert.equal(after, before, 'and no damage arrived');
+  assert.ok(fiend.tell < 0.2, 'its tell reset with the strike');
+});
+
+test('an unflagged archetype does NOT flinch when faced, however hard you stare', () => {
+  const state = world(4242, 'roshar');
+  const spine = state.enemies.find((e) => e.typeId === 'crag-lurker');
+  assert.ok(spine, 'a Whitespine is out there');
+  spine.position.x = state.player.position.x + 1.8;
+  spine.position.z = state.player.position.z;
+  spine.home.x = spine.position.x;
+  spine.home.z = spine.position.z;
+  for (let i = 0; i < 60 * 4 && spine.state !== ENEMY_STATES.attack; i++) tick(state, 1);
+  assert.equal(spine.state, ENEMY_STATES.attack);
+
+  const dx = spine.position.x - state.player.position.x;
+  const dz = spine.position.z - state.player.position.z;
+  state.player.yaw = Math.atan2(-dx, -dz);
+  tick(state, 60 * (spine.windup + 0.2));
+  assert.ok(
+    !state.events.some((e) => e.kind === EVENTS.flinch && e.by === spine.id),
+    'no flag: facing it means nothing. That asymmetry is the design.',
+  );
+});
+
+test('playerFacingDot reads the look direction, whatever way the world is', () => {
+  // Straight ahead: equal to one. Behind: minus one. Matches the punch cone's math.
+  const player = { position: { x: 0, z: 0 }, yaw: 0 };
+  assert.ok(playerFacingDot(player, { position: { x: 0, z: -5 } }) > 0.99);
+  assert.ok(playerFacingDot(player, { position: { x: 0, z: 5 } }) < -0.99);
+  player.yaw = Math.PI / 2;
+  assert.ok(playerFacingDot(player, { position: { x: -5, z: 0 } }) > 0.99);
+});
+
 test('a dead player is not hunted', () => {
   const state = world();
   const enemy = state.enemies[0];
@@ -338,8 +450,31 @@ test('the fairness contract holds over a whole run', () => {
     enemy.home.z = pack.z + 6;
     enemy.position.x = enemy.home.x;
     enemy.position.z = enemy.home.z;
+    // A guaranteed encounter, not a hoped-for one: the contract being measured
+    // here is the log's ORDERING, not encounter pacing — so the pack is put
+    // into its hunting state and the wanders stay close, and the test's claims
+    // stop depending on how many times in 75 s a random walk happens to be hit.
+    enemy.state = ENEMY_STATES.hunt;
+    enemy.cooldown = 0;
   }
-  wander(state, 75, 11, { tether: pack, radius: 16 });
+  // And keep feeding the fight: every two sim-seconds one hunter is set at
+  // the player's shoulder, on purpose. A 7.9 m/s random walk outruns most
+  // wind-ups (which is GOOD news for real players, and USELESS for this
+  // test) — the contract being measured is the log's ordering, not pacing,
+  // so the encounter is engineered instead of hoped for.
+  wander(state, 75, 11, {
+    tether: pack,
+    radius: 10,
+    onTick: (i) => {
+      if (i % 120 !== 0) return;
+      const hunter = state.enemies.find((e) => !e.dying);
+      if (!hunter) return;
+      hunter.position.x = state.player.position.x + 1.2;
+      hunter.position.z = state.player.position.z;
+      hunter.state = ENEMY_STATES.hunt;
+      hunter.cooldown = 0;
+    },
+  });
 
   const damages = state.events.filter((e) => e.kind === EVENTS.damage);
   assert.ok(damages.length >= 3, `expected a real encounter; the log has ${damages.length} damage events`);

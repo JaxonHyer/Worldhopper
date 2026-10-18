@@ -19,6 +19,7 @@ import { createCameraState, resolveCamera } from '../../src/core/camera.js';
 import { AVATAR, createPlayerAvatar, nextFacing } from '../../src/render/player-view.js';
 import { nameplateMetrics } from '../../src/render/npc-view.js';
 import { wrapAngle } from '../../src/core/math.js';
+import { ENEMY_TYPES } from '../../src/core/enemy.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
 
@@ -627,6 +628,7 @@ test('an enemy is drawn from world state, as boxes and nothing else', () => {
 
   assert.equal(world.stats().enemyCount, state.enemies.length, 'one view per live enemy');
   for (const enemy of state.enemies) {
+    const type = ENEMY_TYPES[enemy.typeId];
     const group = world.scene.getObjectByName(enemy.id);
     assert.ok(group, `${enemy.id} must be in the scene`);
     assert.equal(group.userData.kind, 'enemy');
@@ -644,7 +646,16 @@ test('an enemy is drawn from world state, as boxes and nothing else', () => {
         `${node.name} is a ${node.geometry.type}`,
       );
       if (node.geometry.type === 'BoxGeometry') boxes++;
-      assert.ok(node.material.map === undefined || node.material.map === null, `${node.name} carries a texture`);
+      // Textures are allowed, but ONLY the baked creature skins named by the
+      // archetype row — AI art for the bosses, pixel grids at 32x32. Anything
+      // else textured would be the tier quietly slipping.
+      if (node.material.map) {
+        const skin = (type.texture ?? {});
+        assert.ok(
+          Object.values(skin).includes(node.material.map.name),
+          `${node.name} carries an undeclared texture: ${node.material.map.name}`,
+        );
+      }
     });
     // Body, head, and at least one limb: the brief's 1–4 limbs.
     assert.ok(boxes >= 3, `${enemy.id} is only ${boxes} boxes`);
@@ -755,4 +766,67 @@ test('the enemy flame pool is sized by the contract, so play allocates nothing',
     if (node.name.startsWith('enemy-flame-')) slots++;
   });
   assert.equal(slots, 6, 'the fairness contract’s hard cap on live enemies');
+});
+
+test('the Chasmfiend rig is the giant 14-legger the owner ordered, and its tell fits the body', () => {
+  const { state, world } = buildWorld();
+  world.sync(state);
+  const fiend = state.enemies.find((e) => e.typeId === 'storm-warden') ?? state.enemies[0];
+  const type = ENEMY_TYPES[fiend.typeId];
+  const view = world.scene.getObjectByName(fiend.id);
+
+  let legs = 0;
+  let rings = 0;
+  let ringMesh = null;
+  view.traverse((node) => {
+    if (node.name.startsWith('enemy-leg-')) legs++;
+    if (node.isMesh && node.geometry.type === 'RingGeometry') {
+      rings++;
+      ringMesh = node;
+    }
+  });
+  assert.equal(legs, type.legs, `the rig renders every leg the row declares (${type.legs})`);
+  assert.ok(rings >= 1, 'the tell ring exists');
+
+  // The fairness ring scales with the body, so a giant's warning is giant.
+  fiend.tell = 0.7;
+  world.sync(state);
+  assert.ok(ringMesh.scale.x > type.radius, `ring at tell 0.7 spans width ${ringMesh.scale.x.toFixed(2)} vs body radius ${type.radius}`);
+
+  // And the shell skin is on the body — the AI-texture experiment is live.
+  const body = view.getObjectByName('enemy-body');
+  assert.ok(body.material.map, 'a baked skin is actually sampling');
+  assert.ok(body.material.map.name.includes('chasm') || body.material.map.name.includes('whitespine'));
+});
+
+test('the Whitespine’s back sits at the player’s head, with white plates along it', () => {
+  const { state, world } = buildWorld();
+  world.sync(state);
+  const spine = state.enemies.find((e) => e.typeId === 'crag-lurker');
+  assert.ok(spine, 'a Whitespine is present');
+  const type = ENEMY_TYPES['crag-lurker'];
+
+  // The back (top of the body box) is the measurement the owner gave:
+  // "backs are about as high as the player's head" — head at ~1.7 m.
+  const back = type.height - Math.min(0.5, type.height * 0.26) * 0.85;
+  assert.ok(back >= 1.5 && back <= 1.8, `back at ${back.toFixed(2)} m, asked ~1.7 m`);
+
+  const view = world.scene.getObjectByName(spine.id);
+  const plates = [];
+  view.traverse((node) => {
+    if (node.name === 'enemy-spine') plates.push(node);
+  });
+  assert.ok(plates.length >= 5, `the spine LINE reads (${plates.length} plates)`);
+  // The plates must be the bright namesake colour — "white spines" — or the
+  // whole point is lost in the fog.
+  const tint = plates[0].material.color;
+  assert.ok(tint.r > 0.85 && tint.g > 0.85 && tint.b > 0.75, `spine plate colour rgb(${tint.r.toFixed(2)},${tint.g.toFixed(2)},${tint.b.toFixed(2)}) is not white`);
+});
+
+test('a quad rig fan-out: fourteen legs is data, and the ripples are procedural', () => {
+  // The Chasmfiend's gait is a phase ripple down each row — legs move as boxes
+  // on pivots, nothing skeletal. Assert the data path, not the frame.
+  const type = ENEMY_TYPES['storm-warden'];
+  assert.equal(type.legs, 14);
+  assert.ok(type.legs % 2 === 0, 'fanned in pairs');
 });

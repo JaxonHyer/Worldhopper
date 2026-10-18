@@ -14,7 +14,10 @@ test('the owner-picked Whitespine and Chasmfiend have one readable silhouette an
   assert.equal(whitespine.name, 'Whitespine');
   assert.equal(chasmfiend.name, 'Chasmfiend');
   assert.deepEqual([whitespine.legs, whitespine.arms], [4, 0], 'Whitespine is the low, spined quadruped');
-  assert.deepEqual([chasmfiend.legs, chasmfiend.arms], [4, 0], 'Chasmfiend is a broad shell-backed quadruped');
+  // Amended by Agent 1 in the owner's 2026-10-17 playtest pass, after Agent 2's
+  // PR was reviewed and approved: "Chasmfiends are like a 14 or more legged
+  // creature and they are GIANT." The row, not the test's intent, is the design.
+  assert.deepEqual([chasmfiend.legs, chasmfiend.arms], [14, 0], 'the Chasmfiend is a many-legged shell-backed giant');
   assert.ok(chasmfiend.height > whitespine.height * 2, 'the Chasmfiend silhouette is visibly larger');
   assert.ok(chasmfiend.radius > whitespine.radius * 2, 'the Chasmfiend body reads broader');
   assert.notEqual(whitespine.colors.tell, chasmfiend.colors.tell, 'each archetype has its own single tell colour');

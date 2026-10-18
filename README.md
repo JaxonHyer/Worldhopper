@@ -117,11 +117,15 @@ Their words are JSON files under `src/content/npcs/`, one per person.
 **The world is inhabited, and it fights back.** Enemies appear in a ring around
 you and wander their own patch until they notice you; the director keeps the
 world populated as you explore and empties it behind you, so a long walk neither
-runs out of company nor accumulates an army. Two archetypes so far, and they are
-placeholders with invented names pending the owner's design pass: the **crag
-lurker**, which you can punch, and the **storm warden**, which you cannot — a
-punch against it recoils and does nothing, and the only answer to it is your
-feet. Both are slower than you walk.
+runs out of company nor accumulates an army. Two Rosharan archetypes, from the
+owner's design pass: the **Whitespine** — a fast, spined quadruped you can
+punch, white plates along a back built to read in the fog — and the
+**Chasmfiend**: a fourteen-legged, six-and-a-half-metre shellback you **cannot
+fight at all**. Chasmfiends are rare (one in ten wandering draws), except for
+the one that always stands by the Perpendicularity when the game loads — for
+testing. Punch it and your fist recoils off the shell; the one defence is to
+**stand your ground and look at it**, and its strike breaks off. Both are
+slower than you walk.
 
 **Fight back:** <kbd>J</kbd> at a keyboard, a left click once the mouse is
 captured, or the amber **punch** button on a phone. One tap is one swing; the

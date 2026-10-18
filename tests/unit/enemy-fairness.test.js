@@ -31,6 +31,10 @@ test('seeded Roshar spawn bearings tend to land outside the player’s view cone
 
   // Multiple fixed headings keep the measurement tied to player yaw rather than
   // to one convenient direction. Every world and every spawn is seed-derived.
+  // (Expected count derived from a fresh world rather than from `policy.initial`:
+  // the owner's pool-side Chasmfiend placement joined the opening cast after
+  // this test was written, in the 2026-10-17 design pass.)
+  const openingCast = createWorldState({ map, seed: 1, settings }).enemies.length;
   for (let seed = 1; seed <= 1024; seed++) {
     const state = createWorldState({ map, seed, settings });
     state.player.yaw = ((seed % 32) / 32) * Math.PI * 2;
@@ -46,7 +50,7 @@ test('seeded Roshar spawn bearings tend to land outside the player’s view cone
     }
   }
 
-  assert.equal(total, 1024 * map.enemyPolicy.initial, 'the sample includes each seeded opening encounter');
+  assert.equal(total, 1024 * openingCast, 'the sample includes each seeded opening encounter');
   const outsideRatio = outside / total;
   assert.ok(
     outsideRatio >= 0.7,

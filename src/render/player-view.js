@@ -256,7 +256,12 @@ export function createPlayerAvatar({ variant = 'boy', skin = null } = {}) {
             facing,
             { x: -Math.sin(player.yaw ?? 0), z: -Math.cos(player.yaw ?? 0) },
             step,
-            { minSpeed: 0, rate: 18 },
+            // The owner's note (2026-10-17): at 18 the body snapped round inside
+            // ~80 ms and back, which read as a glitch ("the player spins around
+            // really quick punches then spins around again"). Seven is a visible
+            // turn instead of a snap (~180 ms for a half-turn) — the punch still
+            // resolves instantly in the sim; this is the *body* catching up.
+            { minSpeed: 0, rate: 7 },
           )
         : nextFacing(facing, player.velocity, step);
       group.rotation.y = facing;

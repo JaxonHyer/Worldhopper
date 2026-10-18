@@ -100,7 +100,9 @@ export const roshar = {
    */
   enemyPolicy: {
     types: ['crag-lurker', 'storm-warden'],
-    weights: [3, 1],
+    // The owner (2026-10-17): Chasmfiends should be RARE. One in ten draws —
+    // an event, not a traffic jam.
+    weights: [9, 1],
     initial: 3,
     maxActive: 4,
     spawnInterval: 8,
@@ -108,6 +110,18 @@ export const roshar = {
     spawnMax: 40,
     despawnRadius: 95,
     leashRange: 46,
+    /**
+     * One guaranteed Chasmfiend, looming by the Perpendicularity when the game
+     * loads — the owner's testing ask (2026-10-17): "have one spawn at this
+     * Perpendicularity when the game loads."
+     *
+     * Six metres from the pool's centre: close enough that it *belongs* to the
+     * gate, far enough that a player walking into the water can cross it
+     * unjumped. Its aggro circle is a tight 5 m override — it sleeps until you
+     * deliberately walk up to look at it, which protects the gate's own
+     * walking tests and every fresh player who only wanted a swim.
+     */
+    placements: [{ typeId: 'storm-warden', x: 2, z: -20, aggroRange: 5 }],
   },
 
   /**

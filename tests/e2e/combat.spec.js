@@ -170,8 +170,13 @@ test('a punch connects — desktop key and phone tap', async ({ page, isMobile }
   const watch = attachWatch(page);
   // One enemy and five hearts: enough of a fight to be a real test, and enough
   // health to survive the walk up to it.
-  let debug = await startFrozen(page, `?seed=4242&${ENCOUNTER}&enemies=1&hearts=5`);
+  // The test range, and exactly one enemy: on Roshar a cap of one would be
+  // filled by the *pool* Chasmfiend (placements come first), which cannot be
+  // fought at all — so a punch test belongs on the map with no placements.
+  let debug = await startFrozen(page, `?map=blank-basin&seed=4242&${ENCOUNTER}&enemies=1&hearts=5`);
   expect(debug.combat.enemies).toBe(1);
+  expect(debug.combat.roster[0].type, 'at this seed the single draw is a Whitespine; a Chasmfiend draw means re-seeding THIS test').toBe('crag-lurker');
+  expect(debug.combat.roster[0].fightable, 'a punch test needs a fightable target').toBe(true);
 
   // The aim loop depends on Q/E turning the player — and until this PR those
   // keys were dead code, which is exactly the kind of thing this test should
@@ -301,6 +306,37 @@ test('enemies are flames in the Cognitive Realm, like everything else that lives
   // actors, not furniture, so they are flames *in addition to* the entity count.
   expect(debug.combat.enemies).toBe(debug.skin.enemyFlames);
   await saveShot(page, 'combat-enemy-flames', testInfo);
+
+  watch.assertClean();
+});
+
+test('a Chasmfiend looms at the Perpendicularity when the game loads, and the pool does not wake it', async ({ page, isMobile }, testInfo) => {
+  // The owner's two asks, as a picture you can hold: "rare in the spawner, but
+  // have one spawn at this Perpendicularity when the game loads (for testing)."
+  const watch = attachWatch(page);
+  let debug = await startFrozen(page, '?map=roshar&seed=4242');
+  expect(debug.mapId).toBe('roshar');
+
+  const fiend = debug.combat.roster.find((e) => e.type === 'storm-warden');
+  expect(fiend, 'the pool Chasmfiend is in the world at load').toBeTruthy();
+  const gate = { x: 0, z: -14 };
+  const fromGate = Math.hypot(fiend.x - gate.x, fiend.z - gate.z);
+  expect(fromGate, 'it belongs to the gate, close enough to read as its guardian').toBeLessThan(8);
+  expect(fiend.state, 'asleep: an encounter you choose, not one you are handed').toBe('idle');
+
+  // It should be unmissable on the first screen: the load camera looks down -Z,
+  // straight at the pool and the giant behind it.
+  await saveShot(page, 'chasmfiend-at-the-gate', testInfo);
+
+  // Walk into the water — the whole point of the sleeping circle is that the
+  // gate's own route never triggers the giant's street-hush.
+  const before = debug.combat.hitsTaken;
+  await page.keyboard.down('KeyW');
+  debug = await stepSim(page, 2.4);
+  await page.keyboard.up('KeyW');
+  expect(debug.combat.hitsTaken, 'the walk to the pool is not punished').toBe(before);
+  expect(debug.combat.roster.find((e) => e.type === 'storm-warden').state).toBe('idle');
+  await saveShot(page, 'pool-still-quiet', testInfo);
 
   watch.assertClean();
 });

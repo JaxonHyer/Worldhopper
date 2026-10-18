@@ -16,7 +16,8 @@ lane, **open an issue describing the interface you need** and keep moving.
 | `src/main.js`, `index.html`, `src/style.css` | **Agent 1** | The boot and the frame loop. One writer, always. |
 | `src/ui/hud.js`, `src/ui/fade.js`, `src/ui/debug-overlay.js`, `src/ui/tuning-panel.js`, `src/ui/dock.js`, `src/ui/credits.js` | **Agent 1** | Existing chrome. |
 | `src/content/` *(new)* | **Agent 2** | Content data and its systems: NPC dialog JSON, definitions, later journal entries. |
-| `ENEMY_TYPES` rows in `src/core/enemy.js` *(WP-3.3)* | **Agent 2, by exception** | Archetype *data* only — silhouette, speeds, ranges, timing, colours, `fightable`. The state machine around it is Agent 1's. Adding a row needs a one-line PR touching nothing else; adding a *state* needs a `contract` discussion first. |
+| `ENEMY_TYPES` rows in `src/core/enemy.js` *(WP-3.3)* | **Agent 2, by exception** | Archetype *data* only — silhouette, speeds, ranges, timing, colours, `fightable`, `flinchWhenFaced`, `dims`, `texture` refs. The state machine around it is Agent 1's. Adding a row needs a one-line PR touching nothing else; adding a *state* needs a `contract` discussion first. |
+| `src/core/enemy-skins.js` *(M3 pass)* | **Agent 1** | Baked AI creature skins the rows reference. Generating or re-baking a sheet is renderer work (it feeds `src/render/enemy-view.js`); renewing a sheet's art is the world's designer's call via the rows. |
 | `src/ui/dialog.js` *(new)*, `src/ui/npc-*.js` *(new)* | **Agent 2** | New UI surfaces for the content lane. |
 | `tests/unit/` | shared | Add your own files. **Do not edit another lane's test to make your change pass** — that is how a regression gets signed off. |
 | `tests/e2e/` | shared | Add your own spec files, e.g. `tests/e2e/npc.spec.js`. |
