@@ -118,14 +118,15 @@ Their words are JSON files under `src/content/npcs/`, one per person.
 you and wander their own patch until they notice you; the director keeps the
 world populated as you explore and empties it behind you, so a long walk neither
 runs out of company nor accumulates an army. Two Rosharan archetypes, from the
-owner's design pass: the **Whitespine** — a fast, spined quadruped you can
-punch, white plates along a back built to read in the fog — and the
-**Chasmfiend**: a fourteen-legged, six-and-a-half-metre shellback you **cannot
-fight at all**. Chasmfiends are rare (one in ten wandering draws), except for
-the one that always stands by the Perpendicularity when the game loads — for
-testing. Punch it and your fist recoils off the shell; the one defence is to
-**stand your ground and look at it**, and its strike breaks off. Both are
-slower than you walk.
+owner's design passes: the **Whitespine** — a fast, spined quadruped worth
+**ten punches**, with snappy reactions and white plates along a back built to
+read in the fog — and the **Chasmfiend**: a centipede-crab the length of a
+street, a chain of shell forty legs deep with pincers that rise before it
+strikes. **You cannot fight it at all.** Chasmfiends are rare (one in ten
+wandering draws), except for the one that always guards the Perpendicularity
+when the game loads — for testing. Punch it and your fist recoils off the
+shell; the one defence is to **stand your ground and look at it**, and its
+strike breaks off. Both are slower than you walk.
 
 **Fight back:** <kbd>J</kbd> at a keyboard, a left click once the mouse is
 captured, or the amber **punch** button on a phone. One tap is one swing; the

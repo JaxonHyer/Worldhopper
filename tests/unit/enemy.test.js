@@ -120,6 +120,17 @@ test('every map declares at most three archetypes, and one of them cannot be fou
   }
 });
 
+test('the owner’s Whitespine buff is pinned: 10 hearts and faster reactions (2026-10-18)', () => {
+  const spine = ENEMY_TYPES['crag-lurker'];
+  assert.equal(spine.health, 10, '"like 10 punches worth" — pinned as a number, not a vibe');
+  assert.ok(spine.attackCooldown <= 1.15, `attack cadence ${spine.attackCooldown}s — faster than the 1.7s it was`);
+  assert.ok(spine.alertTime <= 0.35, `commits to the hunt faster: alert ${spine.alertTime}s`);
+  // "Faster reactions" can never mean "unfair reactions": the wind-up still
+  // floors at the contract's 0.4 s, after its own scale and the slider.
+  assert.ok(resolveWindup(spine, 0.55) >= FAIRNESS.minWindup);
+  assert.ok(resolveWindup(spine, 0.4) >= FAIRNESS.minWindup, 'even at the slider’s minimum, the tell holds');
+});
+
 test('an unkillable archetype is slower than a walking player, so escape is real', () => {
   for (const typeId of listEnemyTypeIds()) {
     const type = ENEMY_TYPES[typeId];
@@ -158,7 +169,22 @@ test('the Perpendicularity has its Chasmfiend when the game loads, and it sleeps
   const fiend = poolChasmia[0];
   const fromGate = Math.hypot(fiend.home.x - gate.position.x, fiend.home.z - gate.position.z);
   assert.ok(fromGate < gate.radius + 4, `its home belongs to the gate (${fromGate.toFixed(1)} m)`);
+  assert.ok(
+    fromGate > gate.radius,
+    `its circle stays out of the water (${fromGate.toFixed(1)} m vs pool radius ${gate.radius})`,
+  );
   assert.equal(fiend.aggroRange, 5, 'a tight sleeping circle, so a swim is never punished');
+
+  // The realm suite's exact lane: out the far side, back in again. The pool lives
+  // at z=-14 with radius 3.4, so its re-entry lane runs along x=0 from z=-24 to
+  // z=-17. The giant's circle must clear it with room to breathe.
+  for (const z of [-24, -20, -17.4, -14, -11]) {
+    const distance = Math.hypot(fiend.home.x - 0, fiend.home.z - z);
+    assert.ok(
+      distance > fiend.aggroRange + 0.5,
+      `lane point (0, ${z}) comes within ${distance.toFixed(1)} m of the giant's ${fiend.aggroRange} m circle — it would wake`,
+    );
+  }
 
   // A player walking to the pool and through it is not jumped by the ambience:
   // the full spawn-walk passes outside the override and it stays idle.

@@ -139,8 +139,10 @@ any   --health <= 0-->  dying  --deathTimer-->  removed
 An **archetype is a row in `ENEMY_TYPES`, never a second machine.** WP-3.3 adds
 archetypes by adding data. `ENEMY_TYPES[id]` supplies: silhouette (`legs`,
 `arms`, `radius`, `height`, optional `dims` overrides — the owner's 14-leg
-giant needed more limbs than the budget default, which is data, and the rig
-fans pairs along the body for `legs > 4`), speeds (`roamSpeed`, `huntSpeed`),
+giant needed more limbs than the budget default, which is data; and from the
+2026-10-18 pass, `dims.segments` builds a chained centipede-crab frame whose
+`dims.pincers` raise as its tell, while the rig fans pairs along the body for
+`legs > 4`), speeds (`roamSpeed`, `huntSpeed`),
 ranges (`attackRange`, `roamRadius`), timing (`windupScale`, `attackCooldown`,
 `alertTime`), threat (`damage`), whether it can be fought (`fightable`), option
 `flinchWhenFaced` (see §6 `flinch`), its colours including `tell` and the

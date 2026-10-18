@@ -3,6 +3,39 @@
 One line per meaningful decision, with the reason. Newest first. The owner reads
 this to stay oriented; agents add to it in the same PR as the change.
 
+## M3 — the owner's combat pass, round two: a centipede-crab, a flipped face, a meaner Whitespine (Agent 1, 2026-10-18)
+
+Three playtest notes on the merged #22, each small, each test-pinned:
+
+- **"Make the Chasmfiend longer, less wide and shorter. Like a LOT longer. A
+  cross between a centipede and a crab."** The giant's mass left its height
+  (6.5 m wall) and went into length: `dims.segments` = 6 armoured chain
+  sections (~11 m of shell, tapering to the tail), `height` 2.6, `radius` 2.2,
+  and **crab pincers up front that RISE as the wind-up closes** — the owner gets
+  a tell that reads from across the fog, and it costs two rotations in the
+  already-procedural rig. Additions to the data vocabulary: `dims.segments`,
+  `dims.pincers`; the rig fans its fourteen legs down the whole chain and
+  undulates sections instead of bobbing one blob. The pool placement now carries
+  `rotationY: π` so it FACES the spawn, claws first over the pool's far rim,
+  tail clear of the water — verified again that every gate-adjacent walk is
+  unhindered (hitsTaken 0). Agent 2's size assertion was amended a second time —
+  same rule as the first: the owner changed the numbers, so the test now
+  measures the giant by chain length rather than crown height, with the note.
+- **"The whitespine is good. Just flip the face texture upside down."** The bake
+  was upside down on the box face; the flip lives in the baked data itself,
+  and the renderer transposes nothing (a row-swap in
+  `core/enemy-skins.js`, plus the comment so the next bake doesn't undo it).
+- **"Give the whitespine more health. Like 10 punches worth. Also increase its
+  attack speed/reaction time."** `health` 2 → **10**; `attackCooldown` 1.7 →
+  **1.1** and `alertTime` 0.45 → **0.3** (it commits and re-swings faster);
+  `windupScale` 1 → **0.8** so its tell quickens too — *bounded*: the 0.4 s
+  fairness floor still applies after scale and slider (the pin test asserts it
+  at the slider's minimum, because "faster reactions" may never mean "unfair
+  reactions").
+
+Mutation checks this pass: `segments: 1` and `health: 2` each turn exactly the
+intended tests red.
+
 ## M3 — the owner's combat pass: giant rare Chasmfiends, white spines, a calmer punch, AI skins (Agent 1, 2026-10-17)
 
 The owner's playtest notes on WP-3.1/3.2, reviewed with Agent 2's PR #19 (WP-3.3

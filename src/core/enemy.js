@@ -64,7 +64,8 @@ export const ENEMY_TYPES = Object.freeze({
     name: 'Whitespine',
     /** Stable map-policy id; species, look, and gameplay are our interpretation. */
     fightable: true,
-    health: 2,
+    /** The owner (2026-10-18): "like 10 punches worth" — a real fight, not a two-tap. */
+    health: 10,
     /** metres — body radius, used for reach, avoidance and spawning */
     radius: 0.58,
     /**
@@ -83,12 +84,16 @@ export const ENEMY_TYPES = Object.freeze({
     huntSpeed: 3.5,
     /** metres — close enough to swing */
     attackRange: 2.25,
-    /** multiplier on the owner's wind-up slider (a readable tell) */
-    windupScale: 1,
-    /** seconds between swings once it is on you */
-    attackCooldown: 1.7,
-    /** seconds it holds, facing you, before it commits */
-    alertTime: 0.45,
+    /**
+     * A snappier tell than the others'. Never below the fairness floor:
+     * `resolveWindup()` applies FAIRNESS.minWindup AFTER this scale and the
+     * owner's slider, so the contract holds no matter what gets tuned.
+     */
+    windupScale: 0.8,
+    /** seconds between swings once it is on you — the owner asked for a faster cadence */
+    attackCooldown: 1.1,
+    /** seconds it holds, facing you, before it commits — quicker to commit (owner, 2026-10-18) */
+    alertTime: 0.3,
     /** metres — how far from home it wanders on its own */
     roamRadius: 13,
     /** how hard its strike is, in hearts */
@@ -122,8 +127,16 @@ export const ENEMY_TYPES = Object.freeze({
      * player's height — and the spawner makes them rare enough that the size
      * stays an event, not a traffic jam.
      */
-    radius: 3.0,
-    height: 6.5,
+    radius: 2.2,
+    /**
+     * The owner (2026-10-18): "longer, less wide and shorter — a LOT longer.
+     * A cross between a centipede and a crab." The giant's mass moved out of
+     * height (6.5 m of wall) and into length: a low armoured chain of
+     * segments, fourteen legs rippling down both rows, crab pincers at the
+     * head that raise before it strikes. Vertical measure only — the length
+     * lives in `dims.segments`.
+     */
+    height: 2.6,
     legs: 14,
     arms: 0,
     roamSpeed: 0.8,
@@ -144,7 +157,11 @@ export const ENEMY_TYPES = Object.freeze({
       eye: '#f5e8c4',
       tell: '#78dce8',
     },
-    dims: { bodyWidth: 4.6, bodyDepth: 3.3, legWidth: 0.55 },
+    /**
+     * The segmented frame: 6 chain sections behind the head, ~11 m of shell —
+     * the rig builds `segments` instead of one body box when this is present.
+     */
+    dims: { segments: 6, width: 2.6, depth: 1.9, height: 1.3, legHeight: 1.1, legWidth: 0.5, headSize: 0.65, pincers: true },
     /**
      * The Inquisitor rule, shipped generically for the one archetype it can
      * never spoil: facing this thing mid-windup breaks its strike off. Where a
@@ -171,7 +188,7 @@ export function listEnemyTypeIds() {
  * The entity is plain JSON-serialisable data — no closures, no three.js — so
  * world state stays describable, testable and comparable.
  */
-export function createEnemy({ typeId, id, x, z, map, seed, windup, homeSeed = 0, home = null, aggroRange = null }) {
+export function createEnemy({ typeId, id, x, z, map, seed, windup, homeSeed = 0, home = null, aggroRange = null, rotationY = 0 }) {
   const type = ENEMY_TYPES[typeId];
   if (!type) throw new Error(`unknown enemy type: ${typeId}`);
   const homeX = Number.isFinite(home?.x) ? home.x : Number.isFinite(x) ? x : 0;
@@ -199,7 +216,7 @@ export function createEnemy({ typeId, id, x, z, map, seed, windup, homeSeed = 0,
     velocity: { x: 0, y: 0, z: 0 },
     /** knockback impulse, decayed each step */
     knockback: { x: 0, z: 0 },
-    yaw: 0,
+    yaw: Number.isFinite(rotationY) ? rotationY : 0,
     /** procedural wander target and the clock that picks the next one */
     roamTarget: { x: homeX, z: homeZ },
     roamTimer: 1 + (homeSeed % 7) * 0.35,
@@ -712,6 +729,7 @@ function spawnEnemy(state, context, spot, typeId, placement = null) {
     homeSeed: state.spawner.count,
     home: placement?.home ?? null,
     aggroRange: Number.isFinite(placement?.aggroRange) ? placement.aggroRange : null,
+    rotationY: Number.isFinite(placement?.rotationY) ? placement.rotationY : 0,
   });
   // A fresh wind-up is whatever the slider says *now*, floored by the contract.
   enemy.windup = resolveWindup(ENEMY_TYPES[typeId], context.settings?.enemyWindup);

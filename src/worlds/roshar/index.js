@@ -121,7 +121,20 @@ export const roshar = {
      * deliberately walk up to look at it, which protects the gate's own
      * walking tests and every fresh player who only wanted a swim.
      */
-    placements: [{ typeId: 'storm-warden', x: 2, z: -20, aggroRange: 5 }],
+    placements: [
+      // rotationY π: it FACES the spawn, claws first over the pool's far rim,
+      // and its long shell trails south, clear of the water.
+      //
+      // 2026-10-18 pass: moved off-axis (2,-20) -> (5.5,-16.5). Shorter meant
+      // its head hid behind the player AND the pool's light pillar on the load
+      // screen — and "guaranteed at the pool for testing" only matters if the
+      // owner can SEE it. Now it frames on the right of the beam, head out,
+      // chain trailing in profile. Constraints it must keep (both unit-tested):
+      //   - outside the pool itself (its 5 m circle can't sit in the water).
+      //   - at least 5.5 m from the re-entry lane x=0, so the realm suite's
+      //     walk-out-and-back never wakes it.
+      { typeId: 'storm-warden', x: 5.5, z: -16.5, aggroRange: 5, rotationY: Math.PI },
+    ],
   },
 
   /**

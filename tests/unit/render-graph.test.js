@@ -823,6 +823,34 @@ test('the Whitespine’s back sits at the player’s head, with white plates alo
   assert.ok(tint.r > 0.85 && tint.g > 0.85 && tint.b > 0.75, `spine plate colour rgb(${tint.r.toFixed(2)},${tint.g.toFixed(2)},${tint.b.toFixed(2)}) is not white`);
 });
 
+test('the centipede-crab frame: six chain sections, pincers up front, and a LOT longer (owner, 2026-10-18)', () => {
+  // Roshar, not the test range: the guaranteed pool-side Chasmfiend lives there
+  // (the range has no placements, so its draws are all Whitespines at 9:1).
+  const { state, world } = buildRosharan();
+  world.sync(state);
+  const fiend = state.enemies.find((e) => e.typeId === 'storm-warden');
+  assert.ok(fiend, 'the pool Chasmfiend is in the scene');
+  const view = world.scene.getObjectByName(fiend.id);
+
+  let segmentBoxes = 0;
+  let pincerBoxes = 0;
+  let lastSegmentZ = -Infinity;
+  view.traverse((node) => {
+    if (node.name.startsWith('enemy-segment-')) {
+      segmentBoxes++;
+      lastSegmentZ = Math.max(lastSegmentZ, node.position.z);
+    }
+    if (node.name === 'enemy-pincer') pincerBoxes++;
+  });
+  const type = ENEMY_TYPES['storm-warden'];
+  assert.equal(segmentBoxes, type.dims.segments - 1, 'every chain section is a box');
+  assert.equal(pincerBoxes, 2, 'crab claws, one per side');
+
+  // The owner said "a LOT longer". The shell must run for metres, not blobs:
+  // assert the tail section sits at least three body-depths behind the head.
+  assert.ok(lastSegmentZ >= type.dims.depth * 3, `shell tail at ${lastSegmentZ.toFixed(1)} m behind the head`);
+});
+
 test('a quad rig fan-out: fourteen legs is data, and the ripples are procedural', () => {
   // The Chasmfiend's gait is a phase ripple down each row — legs move as boxes
   // on pivots, nothing skeletal. Assert the data path, not the frame.
