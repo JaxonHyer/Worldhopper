@@ -115,8 +115,8 @@ const blankBasin = {
   enemyPolicy: {
     /** archetypes this world has. The warden cannot be fought, only avoided. */
     types: ['crag-lurker', 'storm-warden'],
-    /** how often each appears: the unkillable one is the rarer of the two */
-    weights: [3, 1],
+    /** how often each appears: Chasmfiends are rare — an event, not scenery */
+    weights: [9, 1],
     /** alive at load, so a player never lands in an empty world */
     initial: 3,
     /** the pocket's own ceiling; the owner's slider and a hard 6 sit above it */

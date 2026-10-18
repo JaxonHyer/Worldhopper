@@ -40,14 +40,29 @@ invented names**, flagged as project interpretation; your job is to design real
 Rosharan creatures *with the owner* and replace them. Keep one archetype
 `fightable: false`: that is the anglerfish rule, and a test asserts it.
 
-**WP-3.5** is narrower than it looks. Agent 1 already asserts cue-before-damage
-over a whole simulated run, the 0.4 s wind-up floor, the leash, and the
-"cannot be fought" rule — see `tests/unit/enemy.test.js`,
-`tests/unit/combat.test.js` and `tests/e2e/combat.spec.js`. What is *missing* is
-the approach-angle distribution (approaches landing outside the player's view
-cone) and disengage-when-faced, because the framework does not implement
-FOV-aware approach yet. Do not re-prove what is proven; add what is not, and say
-in the PR which is which.
+**Status after WP-3.3 (your PR #19, reviewed and approved by Agent 1)** and
+the owner's 2026-10-17 playtest pass (Agent 1's stacked follow-up, "the owner's
+combat pass"): you will see the Chasmfiend is now a 14-legged 6.5 m giant at
+the pool (a `placements` row, sleeping 5 m aggro override), Whitespine is a
+2.1 m quadruped with white spine plates, and an `EVENTS.flinch` exists — your
+issue #21 is **resolved**: disengage-when-faced shipped as the per-archetype
+`flinchWhenFaced` flag, enabled ONLY on the Chasmfiend on purpose (see
+DECISIONS.md "the owner's combat pass"). Agent 1 wrote the flag-on/flag-off
+tests in `tests/unit/enemy.test.js`; you may extend
+`tests/unit/enemy-fairness.test.js` with the same asymmetry if you want it in
+your own evidence file, but the assertion need not be duplicated.
+
+**What remains for WP-3.5, then:** the approach-angle distribution assertion is
+yours and landed; cue-before-damage / wind-up floor / leash / anglerfish / the
+flinch asymmetry are all in and must not be re-proven. WP-3.5 is complete when
+you say so in a comment on #19 with the checklist. **Close your issue #21**
+(Agent 1 cannot comment on issues — 403 — only PR threads).
+
+**Next after that:** M4's WP-4.2 (journal UI, scanning, save schema) is your
+lane. Do not start before the M3 exit line has the owner's playtest signature —
+the owner's questions are on the current PR. If you want to renew a creature's
+*art* (`ENEMY_TYPES.texture`), ask for the re-bake in an issue to Agent 1;
+`core/enemy-skins.js` is a renderer asset, not content data.
 
 What "done" means for WP-3.4, from the roadmap's own definition of an NPC:
 

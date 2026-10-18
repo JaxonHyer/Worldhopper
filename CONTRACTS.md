@@ -63,13 +63,25 @@ beacons: [
 
 enemyPolicy: {
   types: ['crag-lurker', 'storm-warden'],  // archetype ids, <= 3 (FAIRNESS.maxArchetypes)
-  weights: [3, 1],                          // how often each appears
-  initial: 3,                               // alive at load
+  weights: [9, 1],                          // how often each appears (owner, 2026-10-17:
+                                           //   Chasmfiends RARE — one in ten draws)
+  initial: 3,                               // alive at load, via the ring
   maxActive: 4,                             // this world's ceiling (<= 6, hard)
   spawnInterval: 8,                         // seconds between top-up attempts
   spawnMin: 24, spawnMax: 40,               // ring around the player, metres
   despawnRadius: 95,                        // metres: past this it is culled
   leashRange: 46,                           // metres from home: past this it quits
+
+  // Authored spots, placed BEFORE the ring at load, unchanged by seed order:
+  placements: [
+    {
+      typeId: 'storm-warden', x: 2, z: -20, home?: {x, z},
+      aggroRange: 5,                        // per-enemy aggro override (metres);
+                                            // falls back to the owner's slider.
+                                            // The pool-side Chasmfiend sleeps on
+                                            // 5 m so the gate's routes never wake it.
+    },
+  ],
 }
 ```
 
@@ -126,10 +138,15 @@ any   --health <= 0-->  dying  --deathTimer-->  removed
 
 An **archetype is a row in `ENEMY_TYPES`, never a second machine.** WP-3.3 adds
 archetypes by adding data. `ENEMY_TYPES[id]` supplies: silhouette (`legs`,
-`arms`, `radius`, `height`), speeds (`roamSpeed`, `huntSpeed`), ranges
-(`attackRange`, `roamRadius`), timing (`windupScale`, `attackCooldown`,
-`alertTime`), threat (`damage`), whether it can be fought (`fightable`), and its
-colours including `tell` — the colour its wind-up turns.
+`arms`, `radius`, `height`, optional `dims` overrides — the owner's 14-leg
+giant needed more limbs than the budget default, which is data, and the rig
+fans pairs along the body for `legs > 4`), speeds (`roamSpeed`, `huntSpeed`),
+ranges (`attackRange`, `roamRadius`), timing (`windupScale`, `attackCooldown`,
+`alertTime`), threat (`damage`), whether it can be fought (`fightable`), option
+`flinchWhenFaced` (see §6 `flinch`), its colours including `tell` and the
+optional namesake `spines`, and optional `texture` part references
+(`body`/`head`/`limb`) into `core/enemy-skins.js` — baked AI art, 32×32 RGBA
+pixel data, original assets, nearest-filtered so the Minecraft tier holds.
 
 ### The fairness contract (binding, and machine-checked)
 
@@ -171,10 +188,18 @@ snapshot ships its last 24 entries out as `combat.events`.
 ```
 
 `kind` is one of `EVENTS`: `telegraph`, `damage`, `punch`, `immune`, `death`,
-`defeat`, `alert`, `disengage`, `spawn`, `respawn`, `beacon`.
+`defeat`, `alert`, `disengage`, `spawn`, `respawn`, `beacon`, `flinch`.
 
 Adding a kind is a contract change: the tests that walk the log are the reason
 the log exists, and a kind they do not know about is a rule nobody is checking.
+
+`flinch` (added 2026-10-17, resolving issue #21) means a telegraphed strike was
+**aborted because the player stood their ground and faced the attacker** —
+available where a per-archetype `flinchWhenFaced` flag is set, default off. The
+Inquisitor rule from the roadmap, shipped generically. It lives on the
+Chasmfiend and is deliberately nowhere else: on a killable enemy it would make
+every fight spongy on a phone; on the unkillable giant it gives the player a
+defence that is not a weapon. Distance guard: past arm's length it is too late.
 
 ---
 

@@ -16,3 +16,6 @@ test-results/
 .vite/
 .env
 .env.*
+
+# Raw AI texture source sheets (generated locally; only the baked skins ship)
+tmp/

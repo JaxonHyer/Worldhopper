@@ -67,9 +67,15 @@ export const ENEMY_TYPES = Object.freeze({
     health: 2,
     /** metres — body radius, used for reach, avoidance and spawning */
     radius: 0.58,
-    /** metres — how tall the rig is; the nameplate and flames read this */
-    height: 1.05,
-    /** one low four-legged silhouette, with the renderer's simple spine ridge */
+    /**
+     * metres — how tall the rig is.
+     *
+     * The owner (2026-10-17): "Whitespines are quadrupeds with white spines;
+     * their backs are about as high as the player's head." The rig puts the
+     * back at `height - headSize*0.85`, so 2.1 m lands the back at ~1.68 m
+     * against the player's 1.70 m eye line — exactly the measure given.
+     */
+    height: 2.1,
     legs: 4,
     arms: 0,
     /** m/s */
@@ -92,30 +98,44 @@ export const ENEMY_TYPES = Object.freeze({
       limb: '#403631',
       head: '#e4ded3',
       eye: '#f4e7b0',
+      /** the namesake: white plates along the back, so the spine reads from behind */
+      spines: '#f7f2e6',
       /** one tell: an amber wind-up ring */
       tell: '#ffb03a',
     },
+    /** A slimmer hunter's frame than the default quadruped proportions. */
+    dims: { bodyWidth: 0.95, bodyDepth: 1.05 },
+    /** AI-baked creature skin (see core/enemy-skins.js); null fields stay flat. */
+    texture: { body: 'whitespine-body', head: 'whitespine-head' },
   },
+
   'storm-warden': {
     id: 'storm-warden',
     name: 'Chasmfiend',
     /** Cannot be fought at all — only avoided; a game rule, not a canon claim. */
     fightable: false,
     health: 0,
-    /** A broad, towering shell-backed quadruped silhouette, built from simple boxes. */
-    radius: 1.2,
-    height: 2.3,
-    legs: 4,
+    /**
+     * metres — the owner's measure (2026-10-17): "Chasmfiends are like a 14 or
+     * more legged creature and they are GIANT: they are unbelievably big."
+     * Six and a half metres of shell-backed crustacean, four times the
+     * player's height — and the spawner makes them rare enough that the size
+     * stays an event, not a traffic jam.
+     */
+    radius: 3.0,
+    height: 6.5,
+    legs: 14,
     arms: 0,
     roamSpeed: 0.8,
-    /** slower than the player's 7.9 m/s walk, so running away always works */
+    /** slower than the player's 7.9 m/s walk: it is a landmark you escape, not a duel */
     huntSpeed: 2.6,
-    attackRange: 3.2,
-    /** one slow tell: a cyan wind-up ring and the shared lean */
-    windupScale: 1.7,
-    attackCooldown: 2.8,
-    alertTime: 0.9,
-    roamRadius: 18,
+    /** long reach for a long body: its strike is felt from a step further out */
+    attackRange: 4.2,
+    /** an unmistakable, slow tell: you are meant to watch the street hush */
+    windupScale: 2.0,
+    attackCooldown: 3.4,
+    alertTime: 1.2,
+    roamRadius: 10,
     damage: 1,
     colors: {
       body: '#6d6a5c',
@@ -124,7 +144,19 @@ export const ENEMY_TYPES = Object.freeze({
       eye: '#f5e8c4',
       tell: '#78dce8',
     },
+    dims: { bodyWidth: 4.6, bodyDepth: 3.3, legWidth: 0.55 },
+    /**
+     * The Inquisitor rule, shipped generically for the one archetype it can
+     * never spoil: facing this thing mid-windup breaks its strike off. Where a
+     * killable enemy would become spongy (a phone player could deny every
+     * attack forever and farm it), the unkillable giant gives the player a
+     * real line of defence that is not a weapon: *stand your ground and look
+     * at it*. That is also the assertion WP-3.5 was waiting on (issue #21).
+     */
+    flinchWhenFaced: true,
+    texture: { body: 'chasm-fiend-shell', head: 'chasm-fiend-shell', limb: 'chasm-fiend-limb' },
   },
+
 });
 
 export function listEnemyTypeIds() {
@@ -139,11 +171,11 @@ export function listEnemyTypeIds() {
  * The entity is plain JSON-serialisable data — no closures, no three.js — so
  * world state stays describable, testable and comparable.
  */
-export function createEnemy({ typeId, id, x, z, map, seed, windup, homeSeed = 0 }) {
+export function createEnemy({ typeId, id, x, z, map, seed, windup, homeSeed = 0, home = null, aggroRange = null }) {
   const type = ENEMY_TYPES[typeId];
   if (!type) throw new Error(`unknown enemy type: ${typeId}`);
-  const homeX = Number.isFinite(x) ? x : 0;
-  const homeZ = Number.isFinite(z) ? z : 0;
+  const homeX = Number.isFinite(home?.x) ? home.x : Number.isFinite(x) ? x : 0;
+  const homeZ = Number.isFinite(home?.z) ? home.z : Number.isFinite(z) ? z : 0;
   return {
     id,
     kind: 'enemy',
@@ -186,6 +218,14 @@ export function createEnemy({ typeId, id, x, z, map, seed, windup, homeSeed = 0 
     remove: false,
     /** how long it has known about the player, for the fairness log */
     awareFor: 0,
+    /**
+     * An authored per-placement aggro override (see enemyPolicy.placements).
+     * Null means "read the owner's slider"; a number means this one enemy
+     * guards a smaller circle — the pool-side Chasmfiend sleeps until you
+     * choose to walk up and see it, which is what keeps the gate's own
+     * tests (and a fresh player) from being jumped by the ambience.
+     */
+    aggroRange,
   };
 }
 
@@ -246,7 +286,7 @@ function stepEnemy(enemy, state, context, dt) {
   const leash = Number.isFinite(context.map.enemyPolicy?.leashRange)
     ? context.map.enemyPolicy.leashRange
     : 48;
-  const aggro = aggroRange(settings);
+  const aggro = Number.isFinite(enemy.aggroRange) ? enemy.aggroRange : aggroRange(settings);
   const speed = speedScale(settings);
 
   // Timers that run in every state.
@@ -352,8 +392,24 @@ function stepEnemy(enemy, state, context, dt) {
       // moment of the strike. The rig reads it and leans back, then throws
       // itself forward — the one cue per archetype the roadmap asks for.
       enemy.tell = clamp(1 - enemy.timer / Math.max(0.001, enemy.windup), 0, 1);
-      // It commits: it does not track you around corners during the wind-up,
-      // which is what makes stepping sideways a real answer.
+      // The Inquisitor rule, as a per-archetype flag (see ENEMY_TYPES): stand
+      // your ground and *look* at it, and the strike breaks off. Only ever
+      // enabled where it cannot make a fight spongy — the unkillable ones.
+      // Distance guard: at arm's length it is too late to be impressed.
+      if (
+        type.flinchWhenFaced &&
+        !state.combat?.dead &&
+        distance > 1.2 &&
+        playerFacingDot(state.player, enemy) >= FLINCH_CONE
+      ) {
+        const cooldown = type.attackCooldown * 0.5;
+        enemy.state = ENEMY_STATES.alert;
+        enemy.timer = Math.max(0.4, type.alertTime * 0.8);
+        enemy.cooldown = cooldown;
+        enemy.tell = 0;
+        emitEvent(state, { kind: EVENTS.flinch, by: enemy.id, type: enemy.typeId, distance: round2(distance) });
+        break;
+      }
       if (enemy.timer <= 0) {
         const strikeRange = type.attackRange * 1.2;
         if (distance <= strikeRange && !state.combat?.dead) {
@@ -410,6 +466,23 @@ export function strikeDamage(type, settings) {
   const base = Number.isFinite(type?.damage) ? type.damage : 1;
   const scale = Number.isFinite(settings?.enemyDamage) ? settings.enemyDamage : 1;
   return clamp(Math.round(base * scale), 1, 5);
+}
+
+/**
+ * The arc of "is the player looking at me", as a dot product of the player's
+ * look direction against the vector to the enemy. cos(53 deg): generous, so a
+ * phone player does not need pixel-perfect aiming to stand their ground.
+ */
+export const FLINCH_CONE = 0.6;
+
+export function playerFacingDot(player, enemy) {
+  const dx = enemy.position.x - player.position.x;
+  const dz = enemy.position.z - player.position.z;
+  const distance = Math.hypot(dx, dz);
+  if (distance < 0.0001) return 1;
+  const fx = -Math.sin(player.yaw);
+  const fz = -Math.cos(player.yaw);
+  return (dx / distance) * fx + (dz / distance) * fz;
 }
 
 function round2(value) {
@@ -528,12 +601,26 @@ export function placeInitialEnemies(state, context) {
   const policy = context.map.enemyPolicy;
   if (!policy || !state.spawner) return state;
   const cap = activeCap(state, context);
-  const wanted = Math.min(cap, Math.max(0, policy.initial ?? 0));
-  const origin = state.player.position;
-  for (let i = 0; i < wanted; i++) {
-    const spot = findSpawnPoint(state, context, origin.x, origin.z);
-    if (!spot) break;
-    spawnEnemy(state, context, spot, chooseType(state, context));
+  if (cap > 0) {
+    /**
+     * Authored placements first: concrete spots the map wants guaranteed at
+     * load (the owner's pool-side Chasmfiend). They are design, not luck, so
+     * they are placed deterministically and do not touch the RNG stream — a
+     * world with placements replays exactly, and the ring spawns after them
+     * are unaffected by how many there were.
+     */
+    for (const placement of policy.placements ?? []) {
+      if (!ENEMY_TYPES[placement.typeId]) continue;
+      spawnEnemy(state, context, { x: placement.x, z: placement.z }, placement.typeId, placement);
+    }
+    // ...then the procedural ring pack, capped as before.
+    const wanted = Math.min(cap - state.enemies.length, Math.max(0, policy.initial ?? 0));
+    const origin = state.player.position;
+    for (let i = 0; i < wanted; i++) {
+      const spot = findSpawnPoint(state, context, origin.x, origin.z);
+      if (!spot) break;
+      spawnEnemy(state, context, spot, chooseType(state, context));
+    }
   }
   return state;
 }
@@ -548,8 +635,8 @@ export function activeCap(state, context) {
   return clamp(Math.min(Math.round(fromSettings), Math.round(fromPolicy), FAIRNESS.maxActive), 0, FAIRNESS.maxActive);
 }
 
-/** Pick an archetype, weighted, from the map's own list. */
-function chooseType(state, context) {
+/** Pick an archetype, weighted, from the map's own list. Exported so the rarity is testable. */
+export function chooseType(state, context) {
   const policy = context.map.enemyPolicy;
   const types = Array.isArray(policy.types) ? policy.types : [];
   const valid = types.filter((id) => ENEMY_TYPES[id]);
@@ -589,6 +676,16 @@ export function findSpawnPoint(state, context, fromX, fromZ) {
     const probe = { position: { x, z }, radius: 1.2, y: 0 };
     if (isBlocked(x, z, probe, context)) continue;
     if (nearNpc(state, x, z, 5)) continue;
+    // Not on top of another enemy: a giant already standing somewhere is a
+    // landmark, and the ring arriving inside it reads as a bug, not luck.
+    let onAnother = false;
+    for (const other of state.enemies) {
+      if (Math.hypot(other.position.x - x, other.position.z - z) < (other.radius ?? 1) + 3) {
+        onAnother = true;
+        break;
+      }
+    }
+    if (onAnother) continue;
     return { x, z };
   }
   return null;
@@ -602,7 +699,7 @@ function nearNpc(state, x, z, clearance) {
   return false;
 }
 
-function spawnEnemy(state, context, spot, typeId) {
+function spawnEnemy(state, context, spot, typeId, placement = null) {
   if (!typeId) return null;
   const enemy = createEnemy({
     typeId,
@@ -613,6 +710,8 @@ function spawnEnemy(state, context, spot, typeId) {
     seed: context.seed,
     windup: context.settings?.enemyWindup,
     homeSeed: state.spawner.count,
+    home: placement?.home ?? null,
+    aggroRange: Number.isFinite(placement?.aggroRange) ? placement.aggroRange : null,
   });
   // A fresh wind-up is whatever the slider says *now*, floored by the contract.
   enemy.windup = resolveWindup(ENEMY_TYPES[typeId], context.settings?.enemyWindup);
