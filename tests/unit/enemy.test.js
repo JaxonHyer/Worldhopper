@@ -120,6 +120,17 @@ test('every map declares at most three archetypes, and one of them cannot be fou
   }
 });
 
+test('the owner’s Whitespine buff is pinned: 10 hearts and faster reactions (2026-10-18)', () => {
+  const spine = ENEMY_TYPES['crag-lurker'];
+  assert.equal(spine.health, 10, '"like 10 punches worth" — pinned as a number, not a vibe');
+  assert.ok(spine.attackCooldown <= 1.15, `attack cadence ${spine.attackCooldown}s — faster than the 1.7s it was`);
+  assert.ok(spine.alertTime <= 0.35, `commits to the hunt faster: alert ${spine.alertTime}s`);
+  // "Faster reactions" can never mean "unfair reactions": the wind-up still
+  // floors at the contract's 0.4 s, after its own scale and the slider.
+  assert.ok(resolveWindup(spine, 0.55) >= FAIRNESS.minWindup);
+  assert.ok(resolveWindup(spine, 0.4) >= FAIRNESS.minWindup, 'even at the slider’s minimum, the tell holds');
+});
+
 test('an unkillable archetype is slower than a walking player, so escape is real', () => {
   for (const typeId of listEnemyTypeIds()) {
     const type = ENEMY_TYPES[typeId];

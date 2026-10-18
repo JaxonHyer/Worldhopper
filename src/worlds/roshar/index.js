@@ -121,7 +121,11 @@ export const roshar = {
      * deliberately walk up to look at it, which protects the gate's own
      * walking tests and every fresh player who only wanted a swim.
      */
-    placements: [{ typeId: 'storm-warden', x: 2, z: -20, aggroRange: 5 }],
+    placements: [
+      // rotationY π: it FACES the spawn, claws first over the pool's far rim,
+      // and its long shell trails south, clear of the water.
+      { typeId: 'storm-warden', x: 2, z: -20, aggroRange: 5, rotationY: Math.PI },
+    ],
   },
 
   /**

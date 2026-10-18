@@ -7,23 +7,27 @@
  * requirement. Limb count is data, not a rule: the budget in the brief is the
  * *design default*, and the owner's 14-legged Chasmfiend (2026-10-17) is the
  * sanctioned exception — the row says how many, this file says how they move.
- * Fanned pairs along the body for shells, corner pairs for quadrupeds.
+ * Fanned pairs along the body for shells, corner pairs for quadrupeds, and —
+ * from the owner's 2026-10-18 note — a segmented frame for "a cross between a
+ * centipede and a crab": a chain of armoured boxes that tapers toward the
+ * tail, crab pincers up front that RAISE as the wind-up tightens, and a
+ * travelling undulation down the chain instead of leg pairs on a blob.
  *
  * Every motion is a rotation of a box around a pivot, driven by numbers the
  * sim already owns:
  *
- *   walk        `stridePhase`  -> legs swing/ripple, body bobs
- *   the tell    `tell` (0..1)  -> leans back, then throws itself at you
+ *   walk        `stridePhase`  -> legs ripple / the chain undulates, body bobs
+ *   the tell    `tell` (0..1)  -> lean-back, and for the giant: pincers up
  *   recoil      `recoil`       -> knocked backwards, squashed
  *   hit-flash   `hitFlash`     -> the body flashes toward white
  *   dying       `deathTimer`   -> sinks and shrinks
  *
  * The tell is the fairness contract made visible. An enemy cannot damage you
  * without a wind-up of at least 0.4 s, and this is the half of that rule you
- * can see: a ring opens on the ground and the body leans back into it. If the
- * ring is not legible on a phone, the encounter is not fair, which is why it is
- * drawn at the feet (always in frame in third person) and scaled to the body —
- * a giant's warning has to fit the giant.
+ * can see: a ring opens on the ground and the body answers. If the cue is not
+ * legible on a phone, the encounter is not fair, which is why it is drawn at
+ * the feet (always in frame in third person) and scaled to the body — and why
+ * the giant's cue is *claws in the air*.
  */
 
 import * as THREE from 'three';
@@ -36,6 +40,8 @@ const TELL_LEAN = 0.42;
 const TELL_LUNGE = 0.55;
 /** The aggro mark's size, metres. Small, above the head, unmissable in motion. */
 const MARK_SIZE = 0.24;
+/** How far each segment overlaps the one ahead, so the chain reads armoured. */
+const SEGMENT_STEP = 0.92;
 
 const scratchColor = new THREE.Color();
 const whiteColor = new THREE.Color('#ffffff');
@@ -104,16 +110,25 @@ export function createEnemyView(entity) {
 
   // --- proportions, from the archetype (with per-row overrides) --------------
   const dims = type.dims ?? {};
+  const segmented = Number.isInteger(dims.segments) && dims.segments > 0;
   const height = type.height;
   const headSize = dims.headSize ?? Math.min(0.5, height * 0.26);
   const legHeight = dims.legHeight ?? height * 0.42;
   const legWidth = dims.legWidth ?? Math.max(0.14, height * (type.legs > 4 ? 0.09 : 0.13));
-  const bodyHeight = dims.bodyHeight ?? height - legHeight - headSize * 0.85;
-  const bodyWidth = dims.bodyWidth ?? (type.legs >= 4 ? height * 0.62 : height * 0.34);
-  const bodyDepth = dims.bodyDepth ?? (type.legs >= 4 ? height * 0.44 : height * 0.26);
+  let bodyHeight, bodyWidth, bodyDepth;
+  if (segmented) {
+    bodyHeight = dims.height;
+    bodyWidth = dims.width;
+    bodyDepth = dims.depth;
+  } else {
+    bodyHeight = dims.bodyHeight ?? height - legHeight - headSize * 0.85;
+    bodyWidth = dims.bodyWidth ?? (type.legs >= 4 ? height * 0.62 : height * 0.34);
+    bodyDepth = dims.bodyDepth ?? (type.legs >= 4 ? height * 0.44 : height * 0.26);
+  }
   const armHeight = bodyHeight * 0.9;
 
   const hipY = legHeight;
+  /** The top of the shell: where the back rides, also the aggro mark's anchor. */
   const bodyTop = hipY + bodyHeight;
 
   const texture = type.texture ?? {};
@@ -121,16 +136,18 @@ export function createEnemyView(entity) {
   // --- legs -----------------------------------------------------------------
   const legs = [];
   const multi = type.legs > 4;
-  if (multi) {
-    // Fanned pairs along the sides, like a shell-backed crawle: the Chasmfiend
-    // layout. Seven pairs spread along the body's depth, each ripple a beat
-    // behind the pair ahead — procedural crustacean gait, not a rig.
+  if (segmented || multi) {
+    // Fanned pairs along the sides — the crustacean layout. For a segmented
+    // frame the pairs fan down the whole chain (a ripple per segment pair);
+    // for a plain shell they fan across the blob.
     const pairs = Math.ceil(type.legs / 2);
+    const spanZ = segmented ? dims.depth * 0.3 + dims.segments * dims.depth * SEGMENT_STEP * 0.82 : bodyDepth * 0.76;
+    const startZ = segmented ? dims.depth * 0.25 : -bodyDepth * 0.38;
     for (let side = 0; side < 2; side++) {
       for (let j = 0; j < pairs && legs.length < type.legs; j++) {
         const leg = part(legWidth, legHeight, legWidth, texture.limb, type.colors.limb, `enemy-leg-${legs.length}`);
-        const across = (side === 0 ? -1 : 1) * bodyWidth * 0.46;
-        const along = pairs === 1 ? 0 : -bodyDepth * 0.38 + (j / (pairs - 1)) * bodyDepth * 0.76;
+        const across = (side === 0 ? -1 : 1) * bodyWidth * (segmented ? 0.52 : 0.46);
+        const along = pairs === 1 ? 0 : startZ + (j / (pairs - 1)) * spanZ;
         leg.position.set(across, hipY, along);
         leg.userData.rip = j * 0.9 + side * Math.PI;
         group.add(leg);
@@ -150,16 +167,65 @@ export function createEnemyView(entity) {
   }
 
   // --- body -----------------------------------------------------------------
-  const body = part(bodyWidth, bodyHeight, bodyDepth, texture.body, type.colors.body, 'enemy-body');
-  body.position.y = bodyTop;
-  group.add(body);
+  // A single hunch box, or the segmented chain. Segment 0 always answers to
+  // the name 'enemy-body', so everything downstream (tests, spines, flash) has
+  // one handle regardless of frame.
+  const segments = [];
+  const pincers = [];
+  let body;
+  if (segmented) {
+    const count = dims.segments;
+    for (let j = 0; j < count; j++) {
+      const taper = 1 - (j / Math.max(1, count - 1)) * 0.45;
+      const seg = part(
+        bodyWidth * taper,
+        bodyHeight * (1 - (j / Math.max(1, count - 1)) * 0.25),
+        bodyDepth * (1 - (j / Math.max(1, count - 1)) * 0.22),
+        texture.body,
+        type.colors.body,
+        j === 0 ? 'enemy-body' : `enemy-segment-${j}`,
+      );
+      seg.position.set(0, bodyTop - j * bodyHeight * 0.06, j * bodyDepth * SEGMENT_STEP);
+      group.add(seg);
+      segments.push(seg);
+    }
+    body = segments[0];
+
+    if (dims.pincers) {
+      // Crab pincers: an arm segment hanging from the front corners plus a
+      // claw block at its end, on a pivot, so "claws in the air" is the tell.
+      for (const side of [-1, 1]) {
+        const pivot = new THREE.Group();
+        pivot.position.set(side * bodyWidth * 0.44, legHeight + bodyHeight * 0.5, -bodyDepth * 0.38);
+        const arm = part(0.4, 1.5, 0.4, texture.limb, type.colors.limb, 'enemy-pincer-arm');
+        arm.rotation.x = 0.5;
+        pivot.add(arm);
+        const clawGeometry = new THREE.BoxGeometry(0.85, 0.5, 1.9);
+        clawGeometry.translate(0, 0, -0.7);
+        geometries.push(clawGeometry);
+        const claw = new THREE.Mesh(clawGeometry, materialFor(texture.body, type.colors.body));
+        claw.name = 'enemy-pincer';
+        claw.position.set(0, -1.15, -0.5);
+        claw.rotation.y = side * -0.35;
+        pivot.add(claw);
+        pivot.rotation.y = side * 0.4;
+        pivot.rotation.x = 0.25;
+        group.add(pivot);
+        pincers.push(pivot);
+      }
+    }
+  } else {
+    body = part(bodyWidth, bodyHeight, bodyDepth, texture.body, type.colors.body, 'enemy-body');
+    body.position.y = bodyTop;
+    group.add(body);
+  }
 
   // --- spines ----------------------------------------------------------------
   // The Whitespine's namesake: flat plates along the back, bright against the
   // dark hide, tapering toward the tail so the spine-line reads from behind.
   // The default small ridge stays for any quadruped without its own colour.
   const spines = [];
-  if (type.colors.spines) {
+  if (!segmented && type.colors.spines) {
     const count = 6;
     for (let i = 0; i < count; i++) {
       const taper = 1 - (i / count) * 0.55;
@@ -170,7 +236,7 @@ export function createEnemyView(entity) {
       group.add(plate);
       spines.push(plate);
     }
-  } else if (type.legs === 4 || type.legs >= 4) {
+  } else if (!segmented && type.legs >= 4) {
     for (let i = 0; i < 3; i++) {
       const spine = part(bodyWidth * 0.16, bodyHeight * 0.34, bodyDepth * 0.2, null, type.colors.head, 'enemy-spine');
       spine.position.set(0, bodyTop - bodyHeight * (0.25 + i * 0.28), -bodyDepth * 0.5);
@@ -182,7 +248,12 @@ export function createEnemyView(entity) {
 
   // --- head -----------------------------------------------------------------
   const head = part(headSize, headSize, headSize, texture.head, type.colors.head, 'enemy-head');
-  head.position.set(0, bodyTop + headSize * 0.92, type.legs >= 4 ? -bodyDepth * 0.12 : 0);
+  if (segmented) {
+    // A low, wide jaw under the shell's forward rim — crab, not crow.
+    head.position.set(0, bodyTop - headSize * 0.2, -bodyDepth * 0.42);
+  } else {
+    head.position.set(0, bodyTop + headSize * 0.92, type.legs >= 4 ? -bodyDepth * 0.12 : 0);
+  }
   group.add(head);
 
   // Eyes: two small boxes on the front face. Flat colour, no expression — but
@@ -287,7 +358,7 @@ export function createEnemyView(entity) {
 
       // --- the tell ---------------------------------------------------------
       // Lean back through the wind-up, then snap forward as it lands. `tell`
-      // runs 0 -> 1 across the wind-up, so the last tenth of it is the strike.
+      // runs 0 -> 1 across the wind-up: the giant reads it as claws-to-the-sky.
       const wantedLean = enemy.tell > 0 ? -TELL_LEAN * Math.sin(Math.min(1, enemy.tell) * Math.PI * 0.92) : 0;
       lean += (wantedLean - lean) * ease;
       const lunge = enemy.tell > 0.86 ? (enemy.tell - 0.86) / 0.14 : 0;
@@ -306,9 +377,27 @@ export function createEnemyView(entity) {
       group.rotation.y = enemy.yaw;
       // The body leans; the group stays upright, so the feet never leave the
       // ground (a creature that tilts into the floor reads as broken).
-      body.rotation.x = lean;
+      if (segments.length > 0) {
+        // The chain answers the tell staggered, head first, tail last — the
+        // rearing you watch before a chasmfiend decides to land on you.
+        for (let j = 0; j < segments.length; j++) {
+          segments[j].rotation.x = lean * (0.8 - j * 0.11);
+        }
+        // And its gait is a slow undulation down the shell, not a bob.
+        const undulation = walking ? 1 : 0.3;
+        for (let j = 0; j < segments.length; j++) {
+          segments[j].rotation.y = Math.sin(enemy.stridePhase * 2 + j * 0.7) * 0.045 * undulation;
+        }
+      } else {
+        body.rotation.x = lean;
+      }
       head.rotation.x = lean * 0.6;
       for (const arm of arms) arm.rotation.x = -lean * 1.4;
+      // The tell you cannot miss: the pincers climb as `tell` closes on 1.
+      for (const [i, pivot] of pincers.entries()) {
+        pivot.rotation.x = 0.25 + enemy.tell * 1.35;
+        pivot.rotation.y = (i === 0 ? -1 : 1) * (0.4 + enemy.tell * 0.5);
+      }
 
       const swing = walking ? 0.5 : 0.08;
       legs.forEach((leg) => {
@@ -362,6 +451,11 @@ export function createEnemyView(entity) {
       bodyWidth,
       bodyDepth,
       bodyTop,
+      segmented,
+      segments: segments.length,
+      pincers: pincers.length,
+      /** metres of shell behind the head — the owner's "a LOT longer" measure. */
+      chainLength: segments.length > 0 ? segments[segments.length - 1].position.z + bodyDepth / 2 : 0,
       textured: materials.filter((m) => m.map).length,
     }),
   };
