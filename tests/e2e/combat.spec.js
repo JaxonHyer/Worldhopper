@@ -329,11 +329,14 @@ test('a Chasmfiend looms at the Perpendicularity when the game loads, and the po
   await saveShot(page, 'chasmfiend-at-the-gate', testInfo);
 
   // Walk into the water — the whole point of the sleeping circle is that the
-  // gate's own route never triggers the giant's street-hush.
+  // gate's own route never triggers the giant's street-hush. 1.5 s is the walk
+  // every realm test takes: inside the pool, still clear of its 5 m circle.
+  // (2.4 s walked THROUGH the pool into the circle, where alert is correct.)
   const before = debug.combat.hitsTaken;
   await page.keyboard.down('KeyW');
-  debug = await stepSim(page, 2.4);
+  debug = await stepSim(page, 1.5);
   await page.keyboard.up('KeyW');
+  expect(debug.player.z, 'the walk really reaches the pool, or "kept quiet" proves nothing').toBeLessThan(-10.5);
   expect(debug.combat.hitsTaken, 'the walk to the pool is not punished').toBe(before);
   expect(debug.combat.roster.find((e) => e.type === 'storm-warden').state).toBe('idle');
   await saveShot(page, 'pool-still-quiet', testInfo);
