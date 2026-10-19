@@ -327,13 +327,19 @@ function insightsOf(state, map) {
   };
 }
 
+/** The hop block mapper — whitelist discipline, the trap the suite documents twice. */
 function hopsOf(param) {
-  if (!param) return { count: 0, last: null, available: [], atGate: false };
+  const insideGate = param?.insideGate && typeof param.insideGate === 'object' ? param.insideGate : null;
+  const nearestGate = param?.nearestGate && typeof param.nearestGate === 'object' ? param.nearestGate : null;
   return {
-    count: Number.isFinite(param.count) ? param.count : 0,
-    last: param.last ?? null,
-    available: Array.isArray(param.available) ? param.available : [],
-    atGate: Boolean(param.atGate),
+    count: Number.isFinite(param?.count) ? param.count : 0,
+    last: param?.last ?? null,
+    insideGate: insideGate
+      ? { id: String(insideGate.id), target: String(insideGate.target), label: String(insideGate.label ?? insideGate.id) }
+      : null,
+    nearestGate: nearestGate
+      ? { id: String(nearestGate.id), target: String(nearestGate.target), distance: Number.isFinite(nearestGate.distance) ? nearestGate.distance : 0 }
+      : null,
   };
 }
 

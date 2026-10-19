@@ -142,6 +142,21 @@ test('the snapshot drops no UI field it is given', () => {
     'the snapshot must report exactly the ui fields the game hands it',
   );
   assert.equal(snapshot.ui.fade, true);
+
+test('the snapshot reports exactly the hops fields the game hands it (the second whitelist trap, guarded)', () => {
+  // Same family of bug as the ui whiteline, seen live in PR #26's second run:
+  // main.js passed insideGate/nearestGate while the snapshot's hopsOf mapper
+  // still modelled the old available/atGate shape — `undefined` on assertions
+  // that expected null, for a game that was fine. The snapshot must carry
+  // exactly what the mapper documents, every key.
+  const snapshot = realSnapshot();
+  assert.deepEqual(
+    Object.keys(snapshot.hops).sort(),
+    ['count', 'insideGate', 'last', 'nearestGate'].sort(),
+    'snapshot.hops must carry exactly the documented keys, no more, no fewer',
+  );
+  assert.equal(snapshot.hops.insideGate, null);
+});
   assert.equal(snapshot.ui.fades, 2);
 
   // The render block is the same kind of whitelist — the fields it is handed
