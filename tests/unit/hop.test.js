@@ -1,14 +1,20 @@
 /**
- * Hops (WP-4.3, stub) — legal only inside a Perpendicularity, only while in
- * the Cognitive Realm, and only to a world that exists.
+ * Hop gates (corrected model, 2026-10-19): a Perpendicularity is ONLY a realm
+ * swap. A worldhop is two of them — into your gate, walk on the 2D plane to a
+ * different gate, out there. So the rules being pinned are:
+ *
+ *  - every map carries the SECOND gate's rendezvous for the other world (data),
+ *  - a gate answers only while you are BOTH in the lens AND inside its ring
+ *    (edge situations, never "standing anywhere"),
+ *  - landing is always the other world's pool, because a gate's exit is water.
  */
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { availableHops, collectHopLinks, hopPromptText, landingSpot } from '../../src/core/hop.js';
+import { collectHopGates, hopGateInside, landingSpot, nearestHopGate } from '../../src/core/hop.js';
 import { createWorldState } from '../../src/core/world-state.js';
-import { getMap, hasMap } from '../../src/core/maps/index.js';
+import { getMap, hasMap, MAPS, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
 import { REALMS } from '../../src/core/config.js';
 
@@ -20,67 +26,78 @@ function world(mapId) {
   return { map, state, context: { map, seed: state.seed, obstacles: state.obstacles, settings } };
 }
 
-function placeAtGate(state, gate, margin = 0) {
-  state.player.position.x = gate.position.x;
-  state.player.position.z = gate.position.z + margin;
+function place(state, x, z) {
+  state.player.position.x = x;
+  state.player.position.z = z;
 }
 
-test('both maps carry one authored link, to each other, and both targets exist', () => {
-  const rosharLinks = collectHopLinks(getMap('roshar'));
-  const basinLinks = collectHopLinks(getMap('blank-basin'));
-  assert.equal(rosharLinks.length, 1);
-  assert.equal(basinLinks.length, 1);
-  assert.equal(rosharLinks[0].target, 'blank-basin');
-  assert.equal(basinLinks[0].target, 'roshar');
-  for (const link of [...rosharLinks, ...basinLinks]) {
-    assert.ok(hasMap(link.target), `${link.id} targets a registered map`);
-    assert.ok(link.label.length > 0, `${link.id} has a prompt-worthy label`);
-  }
-  // Stub door-closes-behind-you symmetry: A goes to B, and B goes back to A.
-  assert.equal(basinLinks[0].target, getMap('roshar').id);
-  assert.equal(rosharLinks[0].target, getMap('blank-basin').id);
-});
-
-test('a hop is legal ONLY while inside the gate AND inside the lens', () => {
-  const { state, context } = world('roshar');
-  const gate = context.map.perpendicularity;
-  placeAtGate(state, gate);
-
-  // Physical realm inside the pool: a swim, not a hop. It must be illegal.
-  state.realm = REALMS.physical;
-  assert.deepEqual(availableHops(state, context), [], 'physical + inside gate: no hop');
-
-  // The lens, inside the gate: exactly the hop the canon describes.
-  state.realm = REALMS.cognitive;
-  assert.equal(availableHops(state, context).length, 1, 'cognitive + inside gate: hop legal');
-  assert.equal(availableHops(state, context)[0].target, 'blank-basin');
-
-  // Outside the gate's own disk, still in the lens: not at the gate = no hop.
-  placeAtGate(state, gate, gate.radius + 2.5);
-  assert.deepEqual(availableHops(state, context), [], 'cognitive + outside gate: no hop');
-
-  // The gate back home follows the same rule, no special-casing per world.
-  const home = world('blank-basin');
-  const homeGate = home.context.map.perpendicularity;
-  home.state.realm = REALMS.cognitive;
-  placeAtGate(home.state, homeGate);
-  assert.equal(availableHops(home.state, home.context)[0].target, 'roshar');
-});
-
-test('you land AT the target gate, inside its pool — never on unmapped terrain', () => {
-  for (const id of ['roshar', 'blank-basin']) {
-    const spot = landingSpot(getMap(id));
-    const gate = getMap(id).perpendicularity;
+test('both maps carry exactly one rendezvous for the other world, and it is a REAL gate', () => {
+  for (const mapId of Object.keys(MAPS)) {
+    const gates = collectHopGates(getMap(mapId));
+    assert.equal(gates.length, 1, `${mapId} should declare one second Perpendicularity`);
+    const gate = gates[0];
+    assert.ok(hasMap(gate.target), `${gate.id} exits somewhere the game knows about`);
+    assert.notEqual(gate.target, mapId, 'a hop gate never exits back onto its own world');
+    assert.ok(gate.radius >= 1.8 && gate.radius <= 6, `ring ${gate.radius} is walk-overable for a thumb`);
+    // Standing apart from the map's own pool, or "the second gate" is
+    // indistinguishable from the first (the walk IS the worldhop).
+    const pool = getMap(mapId).perpendicularity;
     assert.ok(
-      Math.hypot(spot.x - gate.position.x, spot.z - gate.position.z) <= gate.radius,
-      `landing violates the gate on ${id}`,
+      Math.hypot(gate.position.x - pool.position.x, gate.position.z - pool.position.z) >= 10,
+      `${gate.id} stands too close to the pool to be a second gate`,
+    );
+    assert.ok(gate.label.length > 0, 'and it has a label a player could read');
+  }
+  // And the round trip is symmetric by construction: out through one, home the other.
+  assert.equal(collectHopGates(getMap('roshar'))[0].target, 'blank-basin');
+  assert.equal(collectHopGates(getMap('blank-basin'))[0].target, 'roshar');
+});
+
+test('a gate only answers while you are inside its ring AND inside the lens', () => {
+  const { state, context } = world('roshar');
+  const gate = collectHopGates(context.map)[0];
+  place(state, gate.position.x, gate.position.z);
+
+  state.realm = REALMS.physical;
+  assert.equal(hopGateInside(state, context), null, 'inside the ring but in the physical realm: a gate sleeps');
+
+  state.realm = REALMS.cognitive;
+  const hit = hopGateInside(state, context);
+  assert.ok(hit, 'inside the ring inside the lens: the gate answers');
+  assert.equal(hit.gate.target, 'blank-basin');
+
+  // On the rim, nothing: "out on the plane" is a walk, not a menu.
+  place(state, gate.position.x + gate.radius + 1.5, gate.position.z);
+  assert.equal(hopGateInside(state, context), null, 'outside the ring, even in the lens: no hop');
+});
+
+test('coming out means water: the landing is the target world’s pool', () => {
+  for (const [from, to] of [['roshar', 'blank-basin'], ['blank-basin', 'roshar']]) {
+    const spot = landingSpot(getMap(to));
+    const pool = getMap(to).perpendicularity;
+    assert.ok(
+      Math.hypot(spot.x - pool.position.x, spot.z - pool.position.z) <= pool.radius,
+      `the ${from}->${to} landing is not at ${to}'s pool`,
     );
   }
 });
 
-test("'a hop needs no prompt you cannot read': the label says where it goes", () => {
-  const links = collectHopLinks(getMap('roshar'));
-  const text = hopPromptText(links[0]);
-  assert.equal(text, 'Hop to the Quiet Basin');
-  assert.ok(text.startsWith('Hop to'), 'a thumb reads the verb first');
+test('the walk IS the prompt (nearest gate math stays honest)', () => {
+  const { state, context } = world('roshar');
+  const gate = collectHopGates(context.map)[0];
+  // From the pool, the rendezvous must be a measurable, pawnable walk — long
+  // enough to be a choice, short enough to be a stroll (the plane is flat).
+  place(state, 0, -14);
+  const near = nearestHopGate(state, context);
+  assert.ok(near, 'from the home gate, a second gate is findable');
+  assert.equal(near.gate.id, gate.id);
+  assert.ok(
+    near.distance > 12 && near.distance < 80,
+    `the second gate is ${near.distance.toFixed(1)} m off — too short/long to be a real walk between worlds`,
+  );
+});
+
+test('the default map always opens on a world with a way out (WP-4.3 stub guard)', () => {
+  const map = getMap(DEFAULT_MAP_ID);
+  assert.ok(collectHopGates(map).length > 0, 'the opening world must have its second Perpendicularity');
 });

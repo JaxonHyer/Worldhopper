@@ -84,6 +84,60 @@ loaded, so `map` in main.js became a `let` and the switch adopts the
 destination's own `defaultPalette` inside the fade — palette names are
 per-world and cold-ridge has no place on Roshar.
 
+## M4 — corrected: worldhopping is TWO Perpendicularities, not a scene swap (Agent 1, 2026-10-19)
+
+The owner's correction, and it matters more than a wording change, so the
+"first stub" is being **erased and rebuilt** rather than patched: *"Perpendicu-
+larities are ONLY a swap between the physical and cognitive realms. The
+cognitive realm is 2d and does not include outer space, so you can go into a
+Perpendicularity on one planet, find a different one and come out on a
+different planet. 2 Perpendicularities are needed to worldhop."*
+
+The old stub (the "Hop to X" prompt inside the pool doing the swap) conflated
+the two verbs — it made the gate both the realm-swap portal AND a teleport
+menu. The owner is right, and the canon's own anchors had said so all along:
+a gate swaps realms; travel-by-foot between worlds uses two of them.
+
+- **The hop is a WALK on the 2D cognitive plane.** `map.hopGates` declares the
+  OTHER world's gate as a rendezvous inside THIS map's shadesmar ({ id,
+  target, position, radius, label }), drawn in the lens as a second, dimmer
+  well of light in the distance — "find a different one" is literally pacing
+  to a column you can see from the pool's own column. Waking up in it fires
+  the swap. No prompt, no button.
+- **Each gate keeps ONE job.** The pool is the realm-swap portal (unchanged
+  since M2, fade, edge-trigger). A rendezvous gate is also edge-triggered —
+  walking into it fires once and stepping out re-arms it — but its function is
+  to load the target world and land you at ITS pool, PHYSICAL side. You come
+  OUT on another planet: the whole point of having used two gates.
+- **Arriving is just arriving.** Post-hop you stand in the target pool's
+  physical water with the home gate armed=false: its dance re-arms when you
+  step out, exactly like every flip already behaves — the new world's pool is
+  then the new normal, its own pool dance, its own rendezvous home on the
+  map's mirrored `hopGates` row (a stub door must close behind you and still
+  be a door on the other side).
+- **Rendezvous placement is playability data, not a vibe.** Roshar's second
+  gate walks WEST from the pool (-26..-28 m, ~3.5 s stroll): a node-level
+  probe showed paths E/NE of the pool pass within ~4 m of the Chasmfiend's
+  override circle and would wake the giant mid-transit; west lanes stay 6 m+
+  clear (tested at the suite's seed, and on purpose the test does NOT rely on
+  the giant staying asleep in general, only on this lane).
+- **Force-labels stay off a gate.** A hop gate has a label in data (snapped
+  into the debug snapshot's hops block for the harness) but the player-facing
+  discovery is the column of light, not UI. That is the WP-4.1 "realm clues"
+  vocabulary stretching exactly where the roadmap asked for it, and it is why
+  this redesign is *additive* to the puzzle rather than fighting it.
+
+**Still parked, same question as before:** WP-4.1's "the gate starts closed"
+(the owner accepted the always-open pool twice; hardening or not is theirs).
+
+**The protocol for myself, recorded because this is the second time it has
+cost a whole run:** SWEEP data first ("give shape to" over "silently absorb
+home-gate into gates[]" — the pool stayed `perpendicularity`, hop gates are
+`hopGates`, mirrors kept), then the trigger that reads it, then ONE contract
+for hop semantics (counts landings between planets, realm stays physical at
+arrival is *the opposite* of last run's stub), then assertion-first playable
+walks. And CI is quoted, not skipped, with the walk line lane probe committed.
+
 ## M3 — the pass note: the Chasmfiend's collision covers its whole body (Agent 1, 2026-10-18)
 
 One sentence from the owner: *"Make it so that the Chamfiends collision covers

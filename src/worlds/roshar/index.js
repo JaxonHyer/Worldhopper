@@ -224,14 +224,18 @@ export const roshar = {
   },
 
   /**
-   * The hop out (WP-4.3, stub): the gate's authored link to another world.
+   * The second Perpendicularity this shadesmar carries (corrected WP-4.3).
    *
-   * The basin is a stub destination on purpose — it is our only other map,
-   * and stubs are for proving the mechanism, not for sellling a tour. Its
-   * label is plain, invented, and flagged as project interpretation (no
-   * canon is claimed for the test range; see DECISIONS.md).
+   * The canon's hop: go INTO a gate (this pool), WALK to a different gate on
+   * the cognitive plane, and come OUT there. So Roshar's realm reads a
+   * rendezvous for the other world's gate — visible from the pool as a second
+   * column of light, a little walk west on the plane. The basin itself is a
+   * stub destination (our only other world); its label is plain, invented
+   * and flagged as project interpretation.
    */
-  hopLinks: [{ id: 'hop-peaks-basin', target: 'blank-basin', label: 'the Quiet Basin' }],
+  hopGates: [
+    { id: 'hop-to-basin', target: 'blank-basin', position: { x: -28, z: -6 }, radius: 3.4, label: 'the Quiet Basin' },
+  ],
 
   variants: [
     {

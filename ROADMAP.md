@@ -485,13 +485,13 @@ may claim it.
       or does the puzzle live on a second gate/world?)*
 - [ ] WP-4.2 Journal UI, scanning, save schema — **Agent 2**
 - [x] WP-4.3 Hop to world #2 (stub) — **Agent 1**
-      *(landed 2026-10-19: `hopLinks` per map, legal only inside the gate while
-      in the lens per canon (travel is staged there = the canon's own two
-      rules), one shared prompt slot (Talk/Hop), white-out map swap, arrival
-      at the target gate still in the lens. Roshar ↔ "the Quiet Basin" round
-      trip, project-interpretation label, end-to-end asserted. Stub limits
-      named in DECISIONS.md; WP-4.1's closed-gate puzzle stays parked on the
-      owner's call.)*
+      *(landed 2026-10-19, then **CORRECTED on the owner's note** that day:
+      gates are only realm-swaps, so a worldhop is TWO Perpendicularities —
+      in one, walk between them on the 2D cognitive plane, out the other onto
+      your new planet's physical side. `hopGates` authored mirrored per map
+      (Roshar ↔ "the Quiet Basin"), rendezvous drawn in the lens, contact
+      trigger + white-out, landing at the target pool. Round trip end-to-end
+      asserted. Stub limits named in DECISIONS.md.)*
 - [ ] WP-4.4 Full-run regression suite — **Agent 2**
 - [ ] **Vertical slice complete** (whole crew)
 

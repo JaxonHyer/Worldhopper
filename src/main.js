@@ -15,7 +15,7 @@ import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
 import { createWorldState, respawn, setRealm, stepWorld, toggleRealm } from './core/world-state.js';
 import { COMBAT, setHearts } from './core/combat.js';
-import { availableHops, hopPromptText, landingSpot } from './core/hop.js';
+import { collectHopGates, hopGateInside, landingSpot, nearestHopGate } from './core/hop.js';
 import { gateStatus as gateStatusFor } from './core/gate.js';
 import { terrainHeight } from './core/terrain.js';
 // The Perpendicularity's rule lives in the core, where it can be tested without
@@ -140,10 +140,8 @@ function bootstrap() {
   interactPrompt.type = 'button';
   interactPrompt.className = 'interact-prompt';
   interactPrompt.hidden = true;
-  // One slot, two possible offers: Talk (physical, near an NPC) — or a Hop
-  // (in the Cognitive Realm, standing inside the gate). The label is mutable
-  // because the slot is; the slot is one because the thumb gets one thing to
-  // aim at, not a row of choices.
+  // One slot, for now one offer: Talk, near an NPC. (The WP-4.3 hop became
+  // contact-driven: the gate you walk into is the choice itself — no button.)
   interactPrompt.innerHTML =
     '<span class="interact-prompt__label">Talk</span><span class="interact-prompt__hint"><kbd>F</kbd> on desktop · tap on phone</span>';
   const interactPromptLabel = interactPrompt.querySelector('.interact-prompt__label');
@@ -293,7 +291,16 @@ function bootstrap() {
    * instead of going quiet.
    */
   let gateArmed = true;
-  /** WP-4.3: how many hops this session has done, and which link it last took. */
+  /**
+   * Hop gates are edge-triggered like the pool: walking into one fires once;
+   * stepping out re-arms it. Map of hop-gate id -> armed flag.
+   */
+  const hopArmed = new Map();
+  function hopArmedGet(id) {
+    if (!hopArmed.has(id)) hopArmed.set(id, true);
+    return hopArmed.get(id);
+  }
+  /** WP-4.3: how many hops this session has done, and which gate it last took. */
   let hopCount = 0;
   let lastHopLink = null;
   /**
@@ -320,6 +327,20 @@ function bootstrap() {
       fade.play(() => {
         hud.setRealm(toggleRealm(state));
       });
+    }
+    // Hop gates: the OTHER Perpendicularities this shadesmar carries (in the
+    // Cognitive Realm only — they live on the far side; here they are terrain
+    // if you're in the physical realm, and walking through them means nothing).
+    // Edge-triggered like the pool: step in once, it fires once.
+    if (!transitioning && state.realm === REALMS.cognitive) {
+      const hit = hopGateInside(state, context);
+      if (hit && hopArmedGet(hit.gate.id)) {
+        hopArmed.set(hit.gate.id, false);
+        doHop(hit.gate);
+      }
+    }
+    for (const hopGate of collectHopGates(map)) {
+      if (!gateStatusFor(state.player.position, hopGate).inside) hopArmed.set(hopGate.id, true);
     }
     // The beat the fade is covering: the world holds still while the screen is
     // black, so nothing can happen to the player that they cannot see.
@@ -378,41 +399,29 @@ function bootstrap() {
       });
     }
 
-    // The one prompt slot: a Hop (in the Cognitive Realm, standing inside the
-    // Perpendicularity — the gate between worlds, staged in the realm) or Talk
-    // (physical, near an NPC). Hop is checked first; the gate is shared, and
-    // you cannot swim and converse at once.
-    const hopLink =
-      dialogOpen || transitioning || state.realm !== 'cognitive' || !map.perpendicularity
-        ? null
-        : (availableHops(state, context)[0] ?? null);
+    // NPC interaction: show Talk near a person, physical realm only (you talk
+    // to the body, not the flame). The hop is NOT here: a rendezvous gate
+    // fires on contact, like the pool — the gate you step into IS the choice
+    // (the owner's correction, 2026-10-19: gates are realm-swaps; the hop is
+    // walking between two of them on the far side, never a button).
     const nearbyNpc = dialogOpen || transitioning || state.realm !== 'physical' ? null : nearestInteractableNpc(state);
-
-    if (!dialogOpen && hopLink) {
-      interactPromptLabel.textContent = hopPromptText(hopLink);
-      interactPrompt.hidden = false;
-    } else if (!dialogOpen && nearbyNpc) {
+    if (!dialogOpen && nearbyNpc) {
       interactPromptLabel.textContent = 'Talk';
       interactPrompt.hidden = false;
     } else {
       interactPrompt.hidden = true;
     }
-
-    if (input.consumeInteract() && !dialogOpen && !transitioning) {
-      if (hopLink) {
-        doHop(hopLink);
-      } else if (nearbyNpc) {
-        const npcData = loadNpc(nearbyNpc.npcId);
-        const machine = createDialogueMachine(npcData);
-        // Release mouse capture so the player can click the buttons (a captured
-        // cursor hides the pointer and steals clicks from dialog choices).
-        input.releaseCapture();
-        dialog.open(machine);
-      }
+    if (input.consumeInteract() && nearbyNpc && !dialogOpen && !transitioning) {
+      const npcData = loadNpc(nearbyNpc.npcId);
+      const machine = createDialogueMachine(npcData);
+      // Release mouse capture so the player can click the buttons (a captured
+      // cursor hides the pointer and steals clicks from dialog choices).
+      input.releaseCapture();
+      dialog.open(machine);
     }
     // Consume any buffered interact while the dialog is open or nothing is in
     // range, so a press held while the prompt hides does not fire next frame.
-    if (dialogOpen || (!nearbyNpc && !hopLink)) input.consumeInteract();
+    if (dialogOpen || !nearbyNpc) input.consumeInteract();
 
     // Touch controls appear the first time a finger does anything (or if the
     // device says it is coarse), and never on a plain desktop session.
@@ -553,22 +562,28 @@ function bootstrap() {
    * the frame loop resolves camera from the new state on the next tick, so a
    * hop costs one rebuildWorld like a seed change, plus a fade's black frame.
    */
-  function doHop(link) {
+  /**
+   * The hop, corrected (2026-10-19): you come OUT of a Perpendicularity.
+   *
+   * The owner's rule, with the canon behind it: a gate swaps realms, so a hop
+   * is two of them — INTO your world's pool (realm flip), WALK to a different
+   * gate on the cognitive plane, and OUT there, on the other planet. So the
+   * swap below always lands you on the target world's PHYSICAL side, standing
+   * at its pool, exactly like arriving home through the water.
+   */
+  function doHop(gate) {
     input.releaseCapture();
     fade.play(() => {
       hopCount += 1;
-      lastHopLink = link.id;
-      setPaletteOptions(link.target);
-      map = getMap(link.target);
+      lastHopLink = gate.id;
+      setPaletteOptions(gate.target);
+      map = getMap(gate.target);
       // Adopt the destination's own palette: a palette name only means
       // something on the world that invented it (the cold-ridge rule).
       applySetting('palette', map.defaultPalette ?? map.variants[0].id);
       state = createWorldState({ map, seed: settings.seed, settings });
       rebuildWorld();
-      // Travel is staged in the Cognitive Realm: you leave in the lens, and
-      // you arrive still there, at the new world's gate. Walking out of the
-      // pool dismounts you back into the new world's physical side.
-      setRealm(state, REALMS.cognitive);
+      setRealm(state, REALMS.physical);
       const spot = landingSpot(map);
       state.player.position.x = spot.x;
       state.player.position.z = spot.z;
@@ -579,6 +594,9 @@ function bootstrap() {
       state.player.yaw = 0;
       state.player.pitch = -0.04;
       hud.setRealm(state.realm);
+      // Arrival is standing IN the target pool: like a realm flip, the dance
+      // re-arms only after you step out of the water.
+      gateArmed = false;
     });
   }
 
@@ -665,12 +683,17 @@ function bootstrap() {
         node: dialog.activeNodeId,
       },
       // WP-4.3: the hop offer and history, computed from the one source of
-      // truth (`availableHops`) — the snapshot never re-derives it.
+      // truth (hopGateInside/nearestHopGate) — the snapshot never re-derives
+      // whether an offer is legal, it reads it.
       hops: {
         count: hopCount,
         last: lastHopLink,
-        available: availableHops(state, context).map((link) => ({ id: link.id, target: link.target, label: link.label })),
-        atGate: gateStatusFor(state.player.position, map.perpendicularity).inside,
+        insideGate: hopGateInside(state, context)?.gate
+          ? ((g) => ({ id: g.id, target: g.target, label: g.label }))(hopGateInside(state, context).gate)
+          : null,
+        nearestGate: nearestHopGate(state, context)
+          ? ((n) => ({ id: n.gate.id, target: n.gate.target, distance: Math.round(n.distance * 10) / 10 }))(nearestHopGate(state, context))
+          : null,
       },
       paused: pausedSim,
       input: {
