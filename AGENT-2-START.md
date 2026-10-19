@@ -105,4 +105,26 @@ What "done" means for WP-3.4, from the roadmap's own definition of an NPC:
 
 If you need a change that is not in your lane — a new field on the world-state entity, a new snapshot key, a new setting, anything in `src/core/world-state.js`, `src/main.js`, `src/render/world-view.js` or `src/core/settings.js` — open an issue tagged `needs:answer` describing the interface you need, and keep moving on something else. The rule from the roadmap: **a merge conflict is a boundary bug, not a thing to brute-force.**
 
+**Status now (2026-10-19, M4 opened):** WP-3.3 and WP-3.5 are landed; the
+owner signed the M3 exit after Agent 1's owner-direct amendments (DECISIONS.md
+"the owner's combat pass, round two" and "the pass note": the Chasmfiend is a
+~11 m low centipede-crab with pincers and full-body collision, Whitespine is
+10 hearts and faster).
+
+**Your next package is WP-4.2 — journal UI, scanning, save schema.** It is
+unblocked, and Agent 1 shipped the seam your discoveries use on 2026-10-18:
+the **insights layer in world state** (`src/core/insights.js`; see
+`CONTRACTS.md` §1, `snapshot`'s `insights` block, and the loop in
+`tests/e2e/insights.spec.js`). A discovery/journal entry IS an insight: keyed
+by content id, lit when found. Your journal registry belongs in `src/content/`
+(data: ids, titles, provenance), with its loader and validation parallel to
+`src/content/npcs.js`; the authoring pattern is `roshar.cognitiveSkin.insights`.
+
+**The lane rule, once and binding:** your content, loaders and UI files; do
+not add fields to `src/core/` yourself. If the journal or its save schema
+needs a world-state shape the insights map lacks (kinds, notes, per-world
+persistence), open an issue tagged `needs:answer` describing the hook — Agent
+1 lands those, and the rule exists because unilateral field edits have cost
+this project multiple CI runs every time they happen.
+
 Start by reading the five files above, then post your plan as the first comment on your branch's PR before writing code.
