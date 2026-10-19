@@ -74,18 +74,23 @@ test('worldhop: into your own gate, walk to a different one on the plane, come o
   await saveShot(page, 'hop-two-gates-in-lens', testInfo);
 
   // 2. Walk to it. The flat Cognitive plane, one comet-tail of light ahead.
+  // NOTE on "waits": the gate fires on CONTACT — insideGate inside the ring is
+  // visible for exactly the instant of the return snapshot, and waiting for it
+  // after the walk is a race with its own fade. The proof of fire is the swap
+  // itself, witnessed by the hop counter and the new world, not by a snapshot
+  // key that is only true between the two-step instants of a step() tick.
   debug = await walkToward(page, ROSHAR_RENDEZVOUS, { close: 1.2 });
-  debug = await waitFor(page, (d) => d.hops.insideGate !== null, { max: 20 });
-  expect(debug.hops.insideGate.target).toBe('blank-basin');
+  expect(debug.realm, 'the walk should happen in the lens, not slip to physical').toBe('cognitive');
+  expect('insideGate' in debug.hops, 'the snapshot documents the inside-gate key').toBe(true);
   await saveShot(page, 'hop-at-the-second-gate', testInfo);
 
   // Standing in it: the fire is contact, not consent. Wait for the swap home.
   debug = await waitFor(page, (d) => d.mapId === 'blank-basin', { max: 60 });
+  expect(debug.hops.count, 'the contact fired once — one hop counted').toBe(1);
+  expect(debug.hops.last).toBe('hop-to-basin');
   expect(debug.mapId).toBe('blank-basin');
   expect(debug.realm, 'you come OUT on another planet — physical side, always').toBe('physical');
   expect(Math.hypot(debug.player.x, debug.player.z - HOME.z), 'at the other world’s pool').toBeLessThanOrEqual(3.5);
-  expect(debug.hops.count).toBe(1);
-  expect(debug.hops.last).toBe('hop-to-basin');
   await saveShot(page, 'hop-come-out-on-the-basin', testInfo);
 
   // 3. Home again, the same two gates played in reverse.
