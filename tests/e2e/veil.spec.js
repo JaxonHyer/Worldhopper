@@ -63,6 +63,11 @@ test('the lens shows a laid trail from the pool to the second gate, pebble by pe
   expect(debug.skin.hopGates).toBe(1);
   expect(debug.skin.waylights, 'a laid chain, not a smear').toBeGreaterThan(5);
 
+  // The trail shot belongs to the LENS, not to the walk's end: capture before
+  // walking into the ring (a contact trigger that beats the lens home).
+  debug = await stepSim(page, 0.2);
+  await saveShot(page, 'waylight-trail-in-the-lens', testInfo);
+
   // Walk the marker line west and catch the fire: exactly one hop.
   debug = await walkToward(page, RENDEZVOUS, { close: 1.4 });
   await saveShot(page, 'waylight-trail-the-walk', testInfo);
