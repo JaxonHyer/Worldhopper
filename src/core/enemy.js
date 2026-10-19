@@ -389,6 +389,29 @@ export function resolveWindup(type, setting) {
 
 // --- the machine ------------------------------------------------------------
 
+/**
+ * Across the veil you are not hittable.
+ *
+ * The owner's rule (2026-10-19): "enemies cannot see the player while the
+ * player is in the cognitive realm." It is also the canon's own instinct: the
+ * Cognitive Realm is not the Physical Realm; the living on the far side of
+ * the veil cannot hate what they cannot witness. Written once here, applied
+ * everywhere the machine would otherwise notice, chase, or strike you.
+ *
+ * Behaviours it implies, deliberately stated:
+ *  - idle enemies do NOT aggro to you while the realm is cognitive (you're
+ *    simply not on their plane);
+ *  - an enemy mid-alert/hunt/attack when you flip loses you at once: the same
+ *    disengage everyone performs when you die — "loss of the trail is the
+ *    same as absence";
+ *  - a wound-up strike cannot land on you after the wind-up completes on the
+ *    other side. Telegraph after telegraph, the contract holds — the dent is
+ *    never unfair, it just no longer has a legal target.
+ */
+export function playerUnavailableToEnemies(state) {
+  return Boolean(state?.combat?.dead) || state?.realm === 'cognitive';
+}
+
 function aggroRange(settings) {
   return Math.max(3, Number.isFinite(settings?.enemyAggro) ? settings.enemyAggro : 16);
 }
@@ -449,12 +472,20 @@ function stepEnemy(enemy, state, context, dt) {
     return;
   }
 
-  // You cannot be hunted while you are dead: everyone loses interest at once.
-  if (state.combat?.dead) {
-    if (enemy.state !== ENEMY_STATES.disengage) {
-      enemy.state = ENEMY_STATES.disengage;
-      enemy.tell = 0;
-    }
+  // You cannot be hunted while you are gone — dead, or across the veil. The
+  // veil rule and the dead rule are the same shape of absence (the owner,
+  // 2026-10-19), and both disengage immediately rather than searching.
+  const playerUnavailable = playerUnavailableToEnemies(state);
+  if (
+    playerUnavailable &&
+    (enemy.state === ENEMY_STATES.alert || enemy.state === ENEMY_STATES.hunt || enemy.state === ENEMY_STATES.attack)
+  ) {
+    // Only engaged enemies feel the absence. Idle and homebound enemies are pace
+    // roamers on their own plane — their life does not stop the moment you step
+    // through the veil; your trail is just gone. The disengage↔idle cycle the
+    // more blanket rule caused is exactly the bug this line exists to avoid.
+    enemy.state = ENEMY_STATES.disengage;
+    enemy.tell = 0;
   }
 
   switch (enemy.state) {
@@ -468,9 +499,10 @@ function stepEnemy(enemy, state, context, dt) {
       const walk = walkToward(enemy, enemy.roamTarget, type.roamSpeed * speed, context, dt);
       enemy.stridePhase += dt * walk * 3.4;
       faceToward(enemy, enemy.roamTarget.x, enemy.roamTarget.z, dt);
-      // It only notices you inside its own range. `alert` is the approach cue:
-      // an enemy that can hurt you has always announced itself first.
-      if (!state.combat?.dead && distance <= aggro) {
+      // It only notices you inside its own range — and never across the
+      // veil. `alert` is the approach cue: an enemy that can hurt you has
+      // always announced itself first.
+      if (!playerUnavailable && distance <= aggro) {
         enemy.state = ENEMY_STATES.alert;
         enemy.timer = type.alertTime;
         emitEvent(state, { kind: EVENTS.alert, by: enemy.id, type: enemy.typeId, distance: round2(distance) });
@@ -504,7 +536,7 @@ function stepEnemy(enemy, state, context, dt) {
       enemy.tell = Math.max(0, enemy.tell - dt * 2);
       // Leash: far enough from home and it goes back, whatever you do. This is
       // the rule that makes escape always work.
-      if (homeDistance > leash || distance > aggro * 1.9 || state.combat?.dead) {
+      if (homeDistance > leash || distance > aggro * 1.9 || playerUnavailable) {
         toDisengage(enemy, state);
         break;
       }
@@ -556,7 +588,7 @@ function stepEnemy(enemy, state, context, dt) {
       }
       if (enemy.timer <= 0) {
         const strikeRange = type.attackRange * 1.2;
-        if (distance <= strikeRange && !state.combat?.dead) {
+        if (distance <= strikeRange && !playerUnavailable) {
           damagePlayer(state, {
             amount: strikeDamage(type, settings),
             by: enemy.id,

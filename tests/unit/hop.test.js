@@ -12,7 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { collectHopGates, hopGateInside, landingSpot, nearestHopGate } from '../../src/core/hop.js';
+import { collectHopGates, hopGateInside, landingSpot, nearestHopGate, waylightTrail } from '../../src/core/hop.js';
 import { createWorldState } from '../../src/core/world-state.js';
 import { getMap, hasMap, MAPS, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
@@ -100,4 +100,36 @@ test('the walk IS the prompt (nearest gate math stays honest)', () => {
 test('the default map always opens on a world with a way out (WP-4.3 stub guard)', () => {
   const map = getMap(DEFAULT_MAP_ID);
   assert.ok(collectHopGates(map).length > 0, 'the opening world must have its second Perpendicularity');
+});
+
+test('the waylight trail is a straight, walkable chain from outside the pool to outside the other ring', () => {
+  const home = getMap('roshar').perpendicularity;
+  const gate = collectHopGates(getMap('roshar'))[0];
+  const points = waylightTrail(home.position, { x: gate.position.x, z: gate.position.z, radius: gate.radius }, home.radius, 2);
+
+  assert.ok(points.length > 5, 'a chain, not a pebble');
+  const first = points[0];
+  const last = points[points.length - 1];
+  assert.ok(
+    Math.hypot(first.x - home.position.x, first.z - home.position.z) > home.radius,
+    'the chain starts just outside the home ring, not inside it',
+  );
+  assert.ok(
+    Math.hypot(last.x - gate.position.x, last.z - gate.position.z) > gate.radius,
+    'and it finishes outside the other ring, not inside it',
+  );
+  // Straight and evenly paced: the spacing between consecutive points stays at
+  // the laid beat, and every point is on the line between the two gates.
+  for (let i = 1; i < points.length; i++) {
+    const gap = Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
+    assert.ok(Math.abs(gap - 2) < 0.001, `uneven pace at ${i}: ${gap.toFixed(3)}`);
+  }
+  // And it is deterministic by construction: same call, same chain.
+  const again = waylightTrail(home.position, { x: gate.position.x, z: gate.position.z, radius: gate.radius }, home.radius, 2);
+  assert.deepEqual(points, again);
+});
+
+test('a degenerate target has no trail at all rather than a misleading one', () => {
+  const home = { x: 0, z: 0 };
+  assert.deepEqual(waylightTrail(home, { x: 1.5, z: 0, radius: 1 }, 3.4, 2), [], 'too close: no line');
 });

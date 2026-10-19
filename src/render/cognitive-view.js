@@ -24,7 +24,7 @@ import { beadVariation, resolveCognitiveSkin } from '../core/skin.js';
 import { terrainHeight } from '../core/world-state.js';
 import { FAIRNESS } from '../core/enemy.js';
 import { collectInsights, isLit } from '../core/insights.js';
-import { collectHopGates } from '../core/hop.js';
+import { collectHopGates, waylightTrail } from '../core/hop.js';
 
 /** Metres between bead centres, tuned so neighbours touch without merging. */
 const SEA_SPACING = 1.35;
@@ -324,6 +324,8 @@ export function createCognitiveView({ map, state, variant, settings }) {
    * what makes "find a different one" a real walk on this flat plane instead
    * of a menu.
    */
+
+  const materials = [beadMaterial, soulMaterial, flameOuter.material, flameCore.material];
   const geometries = [beadGeometry, soulGeometry, flameOuter.geometry, flameCore.geometry];
 
   const hopGates = collectHopGates(map).map((gate, index) => {
@@ -365,9 +367,35 @@ export function createCognitiveView({ map, state, variant, settings }) {
     return { group: gateGroup, well, column, gate };
   });
 
+  /**
+   * The waylight trail: a laid straight run of small flint discs from the home
+   * ring to each rendezvous ring (core/hop.js's `waylightTrail`).
+   *
+   * "A visually recognizable path" shouldn't ask the beads to be quiet first,
+   * so these are NOT sea-colored: flat ochre facets about one pace apart,
+   * glinting on the sim clock, high enough above the sea's own crowns that
+   * your eye follows them on the first glance from the pool column.
+   */
+  const waylights = [];
+  const waylightGeometry = new THREE.CylinderGeometry(0.26, 0.34, 0.07, 6, 1);
+  geometries.push(waylightGeometry);
+  const waylightMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color('#e8c96f') });
+  materials.push(waylightMaterial);
+  for (const gate of collectHopGates(map)) {
+    const homePool = map.perpendicularity ?? { position: { x: 0, z: 0 }, radius: gate.radius };
+    for (const point of waylightTrail(homePool.position, { x: gate.position.x, z: gate.position.z, radius: gate.radius }, homePool.radius ?? 3.4, 2)) {
+      const marker = new THREE.Mesh(waylightGeometry, waylightMaterial);
+      marker.name = `waylight-${gate.id}-${point.index}`;
+      marker.position.set(point.x, terrainHeight(map, seed, point.x, point.z) + 0.62, point.z);
+      marker.userData.gateId = gate.id;
+      marker.userData.index = point.index;
+      group.add(marker);
+      waylights.push(marker);
+    }
+  }
+
   let active = false;
   const anySoulMoves = soulEntities.some((entity) => entity.dynamic);
-  const materials = [beadMaterial, soulMaterial, flameOuter.material, flameCore.material];
 
   // The first layout happens on the first sync, when there is a player to
   // centre it on.
@@ -456,6 +484,12 @@ export function createCognitiveView({ map, state, variant, settings }) {
         slot.core.material.opacity = 0.68 + Math.sin(phase * 11.7) * 0.1;
       }
 
+      // Waylights bob noisily-but-softly, always present while the lens is on:
+      // the trail is the signpost, and a bobbing thing never reads as terrain.
+      waylights.forEach((marker) => {
+        marker.position.y = terrainHeight(map, seed, marker.position.x, marker.position.z) + 0.62 + Math.sin(t * 1.7 + marker.userData.index * 0.55) * 0.06;
+      });
+
       // Hop gates shimmer on the sim clock, slowly — a lighthouse you pace to.
       for (const hopGate of hopGates) {
         hopGate.column.rotation.y = t * 0.5 + hopGate.group.userData.index;
@@ -503,6 +537,7 @@ export function createCognitiveView({ map, state, variant, settings }) {
         enemyFlames: enemyFlamesDrawn,
         insights: insightFlames.length,
         hopGates: hopGates.length,
+        waylights: waylights.length,
         violations: skin.violations.length,
       };
     },

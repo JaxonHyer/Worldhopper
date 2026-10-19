@@ -54,6 +54,43 @@ export function collectHopGates(map) {
 }
 
 /**
+ * The waylight trail between the pool and a second gate.
+ *
+ * On the Cognitive Realm the distance between two Perpendicularities is real
+ * but featureless: beads to the horizon in every direction, and a column in
+ * each cardinal handedness. So the path itself gets a drawn voice: a straight
+ * run of small waylight markers, one every `spacing` metres, that starts a
+ * body-length clear of the home ring and ends just outside the rendezvous
+ * ring. Read from directly above (the lens reads from above): a bead-sized
+ * candle chain you can pace out from the pool to the other world.
+ *
+ * Straight lines, no curves: the realm is 2D, and a straight line on it is
+ * the shortest honest answer to "which way". Deterministic by construction
+ * (positions are a pure function of the two anchor points), so a screenful
+ * of the same seed draws the same trail twice.
+ *
+ * @param {{x: number, z: number}} from the home gate ring centre
+ * @param {{x: number, z: number, radius: number}} to the rendezvous
+ * @param {number} spacing metres between markers (~2 is a good walking beat)
+ * @returns {[{x: number, z: number, index: number}]} excluding both rings
+ */
+export function waylightTrail(from, to, fromRadius = 3.4, spacing = 2) {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const length = Math.hypot(dx, dz);
+  if (length < fromRadius + to.radius + spacing) return [];
+  const nx = dx / length;
+  const nz = dz / length;
+  const startAt = fromRadius + spacing * 0.5;
+  const endAt = length - to.radius - spacing * 0.4;
+  const points = [];
+  for (let d = startAt, index = 0; d <= endAt; d += spacing, index++) {
+    points.push({ x: from.x + nx * d, z: from.z + nz * d, index });
+  }
+  return points;
+}
+
+/**
  * The hop gate the player is inside, if any — cognitive realm only.
  *
  * The `inside` and `armed` shape is the edge trigger: standing in the

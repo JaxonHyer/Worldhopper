@@ -35,6 +35,7 @@ import { EVENTS, hasTelegraphFor } from '../../src/core/combat.js';
 import { createWorldState, entityHash, scaleFenceStatus, stepWorld } from '../../src/core/world-state.js';
 import { getMap } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
+import { REALMS } from '../../src/core/config.js';
 import { createRng } from '../../src/core/rng.js';
 
 const TEST_RANGE = 'blank-basin';
@@ -698,4 +699,53 @@ test('an unknown archetype in the list is skipped, not fatal', () => {
   state.enemies.length = 0;
   for (let i = 0; i < 60 * 30; i++) stepSpawner(state, ctx, 1 / 60);
   assert.equal(state.enemies.length, 0, 'a bad row in the data cannot invent an enemy');
+});
+
+test('the veil rule: in the Cognitive Realm, the living cannot see you (their hunt dies instantly)', () => {
+  const state = world(4242, 'roshar');
+  const enemy = nearestEnemy(state).enemy;
+  enemy.position.x = state.player.position.x + 3;
+  enemy.position.z = state.player.position.z;
+  tick(state, 1);
+  // It noticed you (physical realm): a hunt's honest beginning.
+  for (let i = 0; i < 60 * 3 && !['alert', 'hunt', 'attack'].includes(enemy.state); i++) tick(state, 1);
+  assert.ok(['alert', 'hunt', 'attack'].includes(enemy.state), `it engaged first (${enemy.state})`);
+
+  state.realm = REALMS.cognitive;
+  tick(state, 1);
+  assert.equal(enemy.state, ENEMY_STATES.disengage, 'the veil fell and its hunt died at once');
+});
+
+test('the veil rule: no alerts, no strikes, on the other side (attack mid-windup too)', () => {
+  const state = world(4242, 'roshar');
+  const enemy = nearestEnemy(state).enemy;
+  enemy.position.x = state.player.position.x + 1.8;
+  enemy.position.z = state.player.position.z;
+  enemy.home.x = enemy.position.x;
+  enemy.home.z = enemy.position.z;
+  for (let i = 0; i < 60 * 4 && enemy.state !== ENEMY_STATES.attack; i++) tick(state, 1);
+  assert.equal(enemy.state, ENEMY_STATES.attack, 'it wounded up in the physical world');
+
+  const hitsBefore = state.events.filter((e) => e.kind === EVENTS.damage && e.to === 'player').length;
+  state.realm = REALMS.cognitive;
+  tick(state, 90); // past its wind-up and its cooldown side-effects
+  const strikes = state.events.filter((e) => e.kind === EVENTS.damage && e.to === 'player');
+  assert.equal(strikes.length, hitsBefore, 'the wound-up strike had no legal target across the veil');
+
+  state.realm = REALMS.physical;
+  tick(state, 60);
+  assert.ok(
+    !state.events.some((e) => e.kind === EVENTS.alert && e.tick === state.tick - 1),
+    'and on the way home you do not retro-attend an alert that should have happened across it',
+  );
+});
+
+test('but the world stays alive regardless: it roams on its own plane while you are elsewhere', () => {
+  const state = world(4242, 'roshar');
+  const enemy = nearestEnemy(state).enemy;
+  const start = { x: enemy.position.x, z: enemy.position.z };
+  state.realm = REALMS.cognitive;
+  tick(state, 60 * 10);
+  const moved = Math.hypot(enemy.position.x - start.x, enemy.position.z - start.z);
+  assert.ok(moved > 0.05, `the veil does not freeze dwellers on their own side (${enemy.state}, moved ${moved.toFixed(2)} m)`);
 });

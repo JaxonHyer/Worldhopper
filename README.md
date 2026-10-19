@@ -92,11 +92,18 @@ sets how much of the world it shows.
 **Hop between worlds — walking between two gates.** A Perpendicularity is
 only ever a realm swap: into the pool is a flip — so a worldhop is TWO of
 them. Go into your gate (you're in the Cognitive Realm), then WALK to a
-*different* gate on that flat plane — a second, dimmer column of light in the
-distance — and stepping into it comes out on the other planet, standing at its
-own pool. The return trip is the same two gates in reverse (Roshar ↔ "the
-Quiet Basin" for now, a stub destination that proves the door closes behind
-you and still counts as a door).
+*different* gate on that flat plane. There's now **a laid trail of small
+ochre flint markers** between the two wells of light in the lens, so the way
+there reads at a glance from the pool's column. Stepping into the second well
+lands you on the other planet, at its pool; the return trip is the same two
+gates in reverse (Roshar ↔ "the Quiet Basin" for now, a stub destination
+proving the door closes behind you and still counts as a door).
+
+**And the far side is safe from them — by canon, too:** everything that lives
+on the physical side **cannot see you while you are in the Cognitive
+Realm**. Hunting an enemy? Step through the veil and it loses your trail
+right there (it goes home, not through the dimension). Walking on that other
+plane, they don't see you, no matter what they were doing.
 
 **Do one thing you can only do there.** In the Cognitive Realm, four small
 **memory-flames** stand on Roshar's pool obsidian — walk through one and it

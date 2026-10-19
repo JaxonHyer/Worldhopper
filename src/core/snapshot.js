@@ -240,6 +240,8 @@ export function buildSnapshot({
       npcFlames: Number.isFinite(render.skin?.npcFlames) ? render.skin.npcFlames : 0,
       /** How many hop gates this shadesmar is drawing (WP-4.3, corrected model). */
       hopGates: Number.isFinite(render.skin?.hopGates) ? render.skin.hopGates : 0,
+      /** And the guide trail to them (the owner's walk path on the plane). */
+      waylights: Number.isFinite(render.skin?.waylights) ? render.skin.waylights : 0,
       // How many enemy flames the cognitive layer drew. Named here for the same
       // reason as every line above it: this object is a whitelist, and a field
       // the renderer reports and this block does not reads back as `undefined`.
