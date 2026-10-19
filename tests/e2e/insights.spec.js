@@ -30,21 +30,49 @@ const FLAMES = [
   { id: 'lamp-basin-south', x: 0, z: -16.4 },
 ];
 
-/** Drive to (x, z) with whichever of W/A/S/D keeps approaching — sim time only. */
-async function walkToward(page, target, { close = 1.2, maxSteps = 120, step = 0.1 } = {}) {
-  let debug = await readDebug(page);
-  for (let i = 0; i < maxSteps; i++) {
+/**
+ * Drive to (x, z) with whichever of W/A/S/D keeps approaching — sim time only.
+ *
+ * Key events are DOM traffic, and each 0.1 s chunk of an old version of this
+ * helper cost up to four of them: ~200 round-trips just walking, which on CI's
+ * software renderer consumed the entire minute the timeout allows (run
+ * 39197770550). So keys are held ACROSS chunks until the bearing flips, and the
+ * read each pass is stepSim's own returned snapshot, not a second call.
+ */
+async function walkToward(page, target, { close = 1.2, maxChunks = 100, chunk = 0.25 } = {}) {
+  const held = new Set();
+  const toggle = async (key, on) => {
+    if (on && !held.has(key)) {
+      await page.keyboard.down(key);
+      held.add(key);
+    } else if (!on && held.has(key)) {
+      await page.keyboard.up(key);
+      held.delete(key);
+    }
+  };
+  let debug = await stepSim(page, 0);
+  for (let i = 0; i < maxChunks; i++) {
     const dx = target.x - debug.player.x;
     const dz = target.z - debug.player.z;
-    if (Math.hypot(dx, dz) <= close) break;
-    const keys = [];
-    if (dz < -0.2) keys.push('KeyW');
-    else if (dz > 0.2) keys.push('KeyS');
-    if (dx > 0.2) keys.push('KeyD');
-    else if (dx < -0.2) keys.push('KeyA');
-    for (const k of keys) await page.keyboard.down(k);
-    debug = await stepSim(page, step);
-    for (const k of keys) await page.keyboard.up(k);
+    const distance = Math.hypot(dx, dz);
+    if (distance <= close) break;
+    await toggle('KeyW', dz < -0.25);
+    await toggle('KeyS', dz > 0.25);
+    await toggle('KeyD', dx > 0.25);
+    await toggle('KeyA', dx < -0.25);
+    // Wall-clocked keys feed the sim through the window listener, so a bigger
+    // step near the target is the same walk, with less of our own polling.
+    debug = await stepSim(page, Math.min(chunk, Math.max(0.05, distance / 12)));
+  }
+  for (const key of held) await page.keyboard.up(key);
+  return debug;
+}
+
+/** Wait for a realm flip (the fade is wall-clocked; the read is gate-driven). */
+async function waitForRealm(page, wanted, { maxChunks = 60 } = {}) {
+  let debug = await readDebug(page);
+  for (let i = 0; i < maxChunks && debug.realm !== wanted; i++) {
+    debug = await stepSim(page, 0.25);
   }
   return debug;
 }
@@ -61,13 +89,13 @@ test('the memory-flames light only in the lens, and the world comes back changed
 
   // Wading the same water in the physical world: nothing ignites. The gate
   // flip is the *only* thing a wade may do — and it starts the loop.
-  await walkToward(page, { x: 0, z: -12 }, { close: 1.0 });
+  debug = await walkToward(page, { x: 0, z: -12 }, { close: 1.0 });
   debug = await stepSim(page, 0.2);
   expect(debug.insights.lit, 'a physical wade lights nothing').toBe(0);
 
   // The wade has taken you into the gate: wait for the fade to finish its work.
-  await expect.poll(async () => (await readDebug(page)).realm, { timeout: 15_000 }).toBe('cognitive');
-  debug = await readDebug(page);
+  debug = await waitForRealm(page, 'cognitive');
+  expect(debug.realm, 'the walk into the pool shifted realms').toBe('cognitive');
   expect(debug.insights.lit).toBe(0, 'arriving is not lighting');
 
   // The tour of the four small flames, inside the gate's own obsidian disk.
@@ -85,9 +113,9 @@ test('the memory-flames light only in the lens, and the world comes back changed
   debug = await walkToward(page, { x: 0, z: -7.5 }, { close: 0.6 });
   expect(Math.hypot(debug.player.x - GATE.x, debug.player.z - GATE.z)).toBeGreaterThan(GATE.radius ?? 3.4);
   // ...then walking back in returns us home, under a fade, world changed.
-  await walkToward(page, { x: 0, z: -14 }, { close: 1.2 });
-  await expect.poll(async () => (await readDebug(page)).realm, { timeout: 15_000 }).toBe('physical');
-  debug = await readDebug(page);
+  debug = await walkToward(page, { x: 0, z: -14 }, { close: 1.2 });
+  debug = await waitForRealm(page, 'physical');
+  expect(debug.realm, 'walking back into the pool brought the world home').toBe('physical');
   expect(debug.insights.lit).toBe(4, 'the light carried home: state, not illusion');
   expect(debug.insights.causeway).toBe(true);
 
