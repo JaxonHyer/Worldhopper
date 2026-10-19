@@ -53,6 +53,7 @@ export const SNAPSHOT_KEYS = Object.freeze([
   'dialog',
   'combat',
   'insights',
+  'hops',
   'skin',
   'settings',
   'settingsHint',
@@ -73,6 +74,7 @@ export function buildSnapshot({
   render,
   ui,
   dialog: dialogParam,
+  hops: hopsParam,
   input,
   paused,
   ready,
@@ -215,6 +217,12 @@ export function buildSnapshot({
      * already been the bug three times (see DECISIONS.md).
      */
     insights: insightsOf(state, map),
+    /**
+     * The hop layer (WP-4.3): which links are legal FROM HERE right now
+     * (computed by the frame loop, never re-derived), and how many the
+     * session has taken. Same top-level rule as `insights`: not under `ui`.
+     */
+    hops: hopsOf(hopsParam),
     // The cognitive manifestation the renderer is actually drawing, if any. A
     // map with no authored skin reports `unassigned` and draws no layer.
     skin: {
@@ -314,6 +322,16 @@ function insightsOf(state, map) {
     litIds,
     authoredAcrossMap: collectInsights(map).length,
     causeway: causewayComplete(state, { map, seed: state?.seed }),
+  };
+}
+
+function hopsOf(param) {
+  if (!param) return { count: 0, last: null, available: [], atGate: false };
+  return {
+    count: Number.isFinite(param.count) ? param.count : 0,
+    last: param.last ?? null,
+    available: Array.isArray(param.available) ? param.available : [],
+    atGate: Boolean(param.atGate),
   };
 }
 

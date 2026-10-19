@@ -43,6 +43,47 @@ touching the pool's `open: true`. Whether the default pool becomes the closed
 puzzle, or the puzzle lives on a second gate/world, is a taste call I'm not
 making alone.
 
+## M4 — WP-4.3: a hop at the Perpendicularity, staged in the lens (Agent 1, 2026-10-19)
+
+The owner's keep-going after the insights PR. WP-4.3 asks for a hop to world #2
+as a *stub*, and the stub took itself seriously: the canon's two rules are the
+whole design — travel is by-foot-at-a-gate with cognition contracting the
+distance ("Perpendicularities are the gates between realms/worlds"), and
+"travel between maps is a scene swap behind a transition" (ROADMAP.md).
+So: stand INSIDE the Perpendicularity while in the Cognitive Realm, choose the
+gate's authored link, white-out, land at the target gate — still in the lens,
+the mirror image of how a realm shift leaves you in the pool.
+
+- **The links are authored per map** (`hopLinks: [{ id, target, label }]`),
+  validated against the registry: a mistyped row degrades to "this gate goes
+  nowhere", never to a boot crash. Roshar links to `blank-basin` (label "the
+  Quiet Basin") and the basin links back — a stub door must close behind you,
+  or you never know it was a door. The basin destination is an honest stub
+  (our only other map, non-canon scanner). "The Quiet Basin" name and
+  destination are **project interpretation**, flagged.
+- **Legality is three facts, and it is one predicate** (`availableHops`):
+  realm == cognitive, player inside the pool's own disk, target exists. Both
+  halves mutation-checked in isolation (led from physical turns the gating
+  test red; led from anywhere-in-the-lens turns it red).
+- **The prompt slot just learned a second offer.** Talk and Hop share the one
+  interact button (hop wins whenever both are legal — the gate is shared, you
+  cannot converse and evacuate through it at once). Thumb-first: one button,
+  one mutable label.
+- **Travel is staged in the lens** — arrival keeps `state.realm ===
+  'cognitive'` and lands you at the target gate's centre (an adorable,
+  canon-shaped arrival AND the same "pool dismount dance" back out that the
+  realm shift already has: step out and back in and the new world's pool
+  flips to physical — asserted in e2e).
+- **What this stub does NOT have** (named so nobody guesses): no emberdark
+  diomodesque ceremony, no per-arrival variation, no world-#2 content (the
+  basin is the stub target), and nothing about WP-4.1's closed-gate puzzle —
+  which stays parked on the owner's call.
+
+One mechanics wrinkle worth a line: at runtime the hop CHANGES which map is
+loaded, so `map` in main.js became a `let` and the switch adopts the
+destination's own `defaultPalette` inside the fade — palette names are
+per-world and cold-ridge has no place on Roshar.
+
 ## M3 — the pass note: the Chasmfiend's collision covers its whole body (Agent 1, 2026-10-18)
 
 One sentence from the owner: *"Make it so that the Chamfiends collision covers

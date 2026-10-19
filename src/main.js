@@ -15,6 +15,9 @@ import { createFixedClock } from './core/clock.js';
 import { createFrameStats } from './core/frame-stats.js';
 import { createWorldState, respawn, setRealm, stepWorld, toggleRealm } from './core/world-state.js';
 import { COMBAT, setHearts } from './core/combat.js';
+import { availableHops, hopPromptText, landingSpot } from './core/hop.js';
+import { gateStatus as gateStatusFor } from './core/gate.js';
+import { terrainHeight } from './core/terrain.js';
 // The Perpendicularity's rule lives in the core, where it can be tested without
 // a browser: this file only decides *when* to ask it (M2).
 import { gateStatus, gateStep } from './core/gate.js';
@@ -78,7 +81,8 @@ function bootstrap() {
   // A URL flag rather than a setting, because a map is not a feel number: the
   // owner's tuned sliders and pinned defaults belong to the map they were tuned
   // on, and `?map=roshar` must not quietly rewrite them.
-  const map = getMap(mapId);
+  // `let`, not const: WP-4.3's hop changes which world is loaded at runtime.
+  let map = getMap(mapId);
   let variant = getVariant(map.id, settings.palette);
   let state = createWorldState({ map, seed: settings.seed, settings });
   // The realm is a lens over the world, and `?realm=cognitive` is how a
@@ -136,7 +140,13 @@ function bootstrap() {
   interactPrompt.type = 'button';
   interactPrompt.className = 'interact-prompt';
   interactPrompt.hidden = true;
-  interactPrompt.innerHTML = '<span>Talk</span><span class="interact-prompt__hint"><kbd>F</kbd> on desktop · tap on phone</span>';
+  // One slot, two possible offers: Talk (physical, near an NPC) — or a Hop
+  // (in the Cognitive Realm, standing inside the gate). The label is mutable
+  // because the slot is; the slot is one because the thumb gets one thing to
+  // aim at, not a row of choices.
+  interactPrompt.innerHTML =
+    '<span class="interact-prompt__label">Talk</span><span class="interact-prompt__hint"><kbd>F</kbd> on desktop · tap on phone</span>';
+  const interactPromptLabel = interactPrompt.querySelector('.interact-prompt__label');
   interactPrompt.addEventListener('click', () => {
     input.queueInteract();
   });
@@ -283,6 +293,9 @@ function bootstrap() {
    * instead of going quiet.
    */
   let gateArmed = true;
+  /** WP-4.3: how many hops this session has done, and which link it last took. */
+  let hopCount = 0;
+  let lastHopLink = null;
   /**
    * When the player died, on the frame loop's clock — null while they are alive.
    * Declared, not assigned, for the same reason as `gateArmed` above: a name
@@ -365,27 +378,41 @@ function bootstrap() {
       });
     }
 
-    // NPC interaction: find the nearest NPC within range, show the prompt, and
-    // consume an interact press to open the dialog. Dialog is only allowed in
-    // the physical realm (you talk to the body, not the flame) and when no
-    // other transition is happening.
+    // The one prompt slot: a Hop (in the Cognitive Realm, standing inside the
+    // Perpendicularity — the gate between worlds, staged in the realm) or Talk
+    // (physical, near an NPC). Hop is checked first; the gate is shared, and
+    // you cannot swim and converse at once.
+    const hopLink =
+      dialogOpen || transitioning || state.realm !== 'cognitive' || !map.perpendicularity
+        ? null
+        : (availableHops(state, context)[0] ?? null);
     const nearbyNpc = dialogOpen || transitioning || state.realm !== 'physical' ? null : nearestInteractableNpc(state);
-    if (nearbyNpc && !dialogOpen) {
+
+    if (!dialogOpen && hopLink) {
+      interactPromptLabel.textContent = hopPromptText(hopLink);
+      interactPrompt.hidden = false;
+    } else if (!dialogOpen && nearbyNpc) {
+      interactPromptLabel.textContent = 'Talk';
       interactPrompt.hidden = false;
     } else {
       interactPrompt.hidden = true;
     }
-    if (input.consumeInteract() && nearbyNpc && !dialogOpen && !transitioning) {
-      const npcData = loadNpc(nearbyNpc.npcId);
-      const machine = createDialogueMachine(npcData);
-      // Release mouse capture so the player can click the buttons (a captured
-      // cursor hides the pointer and steals clicks from dialog choices).
-      input.releaseCapture();
-      dialog.open(machine);
+
+    if (input.consumeInteract() && !dialogOpen && !transitioning) {
+      if (hopLink) {
+        doHop(hopLink);
+      } else if (nearbyNpc) {
+        const npcData = loadNpc(nearbyNpc.npcId);
+        const machine = createDialogueMachine(npcData);
+        // Release mouse capture so the player can click the buttons (a captured
+        // cursor hides the pointer and steals clicks from dialog choices).
+        input.releaseCapture();
+        dialog.open(machine);
+      }
     }
     // Consume any buffered interact while the dialog is open or nothing is in
     // range, so a press held while the prompt hides does not fire next frame.
-    if (dialogOpen || !nearbyNpc) input.consumeInteract();
+    if (dialogOpen || (!nearbyNpc && !hopLink)) input.consumeInteract();
 
     // Touch controls appear the first time a finger does anything (or if the
     // device says it is coarse), and never on a plain desktop session.
@@ -513,6 +540,48 @@ function bootstrap() {
     refreshContext();
   }
 
+  /**
+   * The hop (WP-4.3, stub): swap the loaded map behind a white-out.
+   *
+   * The canon's staging rule ("travel between [maps] is a scene swap behind a
+   * transition" — ROADMAP.md) uses the exact machinery the realm shift already
+   * proves: the player walks into a Perpendicularity while in the Cognitive
+   * Realm, chooses the gate's link, and lands at the target gate — still in
+   * the lens, standing in the new world's pool, the mirror image of arrival.
+   *
+   * Deliberately NOT inside fade.play's promise chain for camera freshness:
+   * the frame loop resolves camera from the new state on the next tick, so a
+   * hop costs one rebuildWorld like a seed change, plus a fade's black frame.
+   */
+  function doHop(link) {
+    input.releaseCapture();
+    fade.play(() => {
+      hopCount += 1;
+      lastHopLink = link.id;
+      setPaletteOptions(link.target);
+      map = getMap(link.target);
+      // Adopt the destination's own palette: a palette name only means
+      // something on the world that invented it (the cold-ridge rule).
+      applySetting('palette', map.defaultPalette ?? map.variants[0].id);
+      state = createWorldState({ map, seed: settings.seed, settings });
+      rebuildWorld();
+      // Travel is staged in the Cognitive Realm: you leave in the lens, and
+      // you arrive still there, at the new world's gate. Walking out of the
+      // pool dismounts you back into the new world's physical side.
+      setRealm(state, REALMS.cognitive);
+      const spot = landingSpot(map);
+      state.player.position.x = spot.x;
+      state.player.position.z = spot.z;
+      state.player.position.y = terrainHeight(map, state.seed, spot.x, spot.z);
+      state.player.velocity.x = 0;
+      state.player.velocity.y = 0;
+      state.player.velocity.z = 0;
+      state.player.yaw = 0;
+      state.player.pitch = -0.04;
+      hud.setRealm(state.realm);
+    });
+  }
+
   function syncUrl() {
     const query = new URLSearchParams();
     // Rebuilt from scratch each time; the boot flags are re-added below so a
@@ -594,6 +663,14 @@ function bootstrap() {
         open: dialog.visible,
         npcId: dialog.activeNpcId,
         node: dialog.activeNodeId,
+      },
+      // WP-4.3: the hop offer and history, computed from the one source of
+      // truth (`availableHops`) — the snapshot never re-derives it.
+      hops: {
+        count: hopCount,
+        last: lastHopLink,
+        available: availableHops(state, context).map((link) => ({ id: link.id, target: link.target, label: link.label })),
+        atGate: gateStatusFor(state.player.position, map.perpendicularity).inside,
       },
       paused: pausedSim,
       input: {

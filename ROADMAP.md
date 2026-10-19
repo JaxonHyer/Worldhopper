@@ -484,7 +484,14 @@ may claim it.
       always-open pool twice: does the default pool become the closed puzzle,
       or does the puzzle live on a second gate/world?)*
 - [ ] WP-4.2 Journal UI, scanning, save schema — **Agent 2**
-- [ ] WP-4.3 Hop to world #2 (stub) — **Agent 1**
+- [x] WP-4.3 Hop to world #2 (stub) — **Agent 1**
+      *(landed 2026-10-19: `hopLinks` per map, legal only inside the gate while
+      in the lens per canon (travel is staged there = the canon's own two
+      rules), one shared prompt slot (Talk/Hop), white-out map swap, arrival
+      at the target gate still in the lens. Roshar ↔ "the Quiet Basin" round
+      trip, project-interpretation label, end-to-end asserted. Stub limits
+      named in DECISIONS.md; WP-4.1's closed-gate puzzle stays parked on the
+      owner's call.)*
 - [ ] WP-4.4 Full-run regression suite — **Agent 2**
 - [ ] **Vertical slice complete** (whole crew)
 

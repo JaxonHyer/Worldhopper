@@ -223,6 +223,16 @@ export const roshar = {
     ],
   },
 
+  /**
+   * The hop out (WP-4.3, stub): the gate's authored link to another world.
+   *
+   * The basin is a stub destination on purpose — it is our only other map,
+   * and stubs are for proving the mechanism, not for sellling a tour. Its
+   * label is plain, invented, and flagged as project interpretation (no
+   * canon is claimed for the test range; see DECISIONS.md).
+   */
+  hopLinks: [{ id: 'hop-peaks-basin', target: 'blank-basin', label: 'the Quiet Basin' }],
+
   variants: [
     {
       id: 'storm-shore',
