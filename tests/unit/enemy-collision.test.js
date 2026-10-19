@@ -200,3 +200,78 @@ test('rocks and NPCs are exactly what they were (the hull is an addition, not a 
   }
   assert.deepEqual(a.player.position, b.player.position, 'collision is deterministic');
 });
+
+test('the real realm round-trip (the suite’s own path and seed) works on both maps again', () => {
+  // CI run 39182532718: the roaming guardian swung its tail across the x=0
+  // lane and the walk-out measured 2.08 m from pool centre (needs > 3.4).
+  // Fixed authorship: the guardian holds its post facing, tail always due
+  // south. Replay the suite's exact legs: step into the pool, walk out the far
+  // side, walk back in through the middle.
+  const walk = (state, ctx, seconds, dir = 1) => {
+    for (let i = 0; i < Math.round(seconds * 60); i++) {
+      stepWorld(state, 1 / 60, { move: { x: 0, y: dir }, jump: false, sprint: false, attack: false }, ctx);
+    }
+  };
+  for (const mapId of ['roshar', 'blank-basin']) {
+    const state = world(4242, mapId);
+    const ctx = context(state);
+    const poolZ = getMap(mapId).perpendicularity.position.z;
+    const poolDist = () => Math.hypot(state.player.position.x, state.player.position.z - poolZ);
+    // Entry: hold W until inside, same as the suite's own loop.
+    for (let i = 0; i < 10 && poolDist() > 3.4; i++) walk(state, ctx, 0.4);
+    assert.ok(poolDist() <= 3.4, `${mapId}: entry never reached the pool (${poolDist().toFixed(2)} m)`);
+    // Out the far side, 1.5 s — the assertion CI run 39182532718 broke on.
+    walk(state, ctx, 1.5);
+    assert.ok(poolDist() > 3.4, `${mapId}: walk-out reached only ${poolDist().toFixed(2)} m`);
+    // Home again: back in through the middle.
+    walk(state, ctx, 1.5, -1);
+    assert.ok(poolDist() <= 3.4, `${mapId}: re-entry did not return into the pool (${poolDist().toFixed(2)} m)`);
+  }
+});
+
+test('the sleeping guardian’s hull NEVER crosses the walking lane while it is on guard', () => {
+  // While idle or disengaging the yaw is pinned to guardFacing, so the ~11 m
+  // chain trails due south from the post: the lane x=0 stays free however its
+  // 2.5 m shuffle plays. Bake a minute of its service and check every frame.
+  const { state, fiend } = rosharanFiend();
+  const ctx = context(state);
+  assert.ok(Number.isFinite(fiend.guardFacing), 'the placement declares a guard facing');
+  for (let i = 0; i < 60 * 60; i++) {
+    stepWorld(state, 1 / 60, { move: { x: 0, y: 0 }, jump: false, sprint: false, attack: false }, ctx);
+    if (fiend.state !== 'idle' && fiend.state !== 'disengage') break; // it saw you, by design; checked below
+    const rings = collectEnemyObstacles(state, ctx).filter((o) => o.id.startsWith(fiend.id));
+    const worstX = Math.min(...rings.map((o) => o.x - o.radius));
+    assert.ok(
+      worstX > 0.5,
+      `ring reached the lane: ${worstX.toFixed(2)} m while in state ${fiend.state} (it is ${fiend.guardFacing === Math.PI ? 'pinned' : 'NOT PINNED'})`,
+    );
+    if (i > 60 * 40) break;
+  }
+});
+
+test('engagement still wins the facing: wake it and it turns to you (guard anchor, not ghost chained)', () => {
+  const { state, fiend } = rosharanFiend();
+  const ctx = context(state);
+  // Deliberate approach: step into its circle, standing where the lane meets it.
+  state.player.position.x = fiend.position.x - 3;
+  state.player.position.z = fiend.position.z;
+  for (let i = 0; i < 60 * 3 && fiend.state === 'idle'; i++) {
+    stepWorld(state, 1 / 60, { move: { x: 0, y: 0 }, jump: false, sprint: false, attack: false }, ctx);
+  }
+  assert.notEqual(fiend.state, 'idle', 'it engaged, so guard-pin must not freeze its tracking');
+  // ...and it may now turn (the pin does not hold while engaged).
+  // When you leave the circle it settles home, and the pin returns.
+  state.player.position.z -= 60;
+  for (let i = 0; i < 60 * 10 && fiend.state !== 'idle'; i++) {
+    stepWorld(state, 1 / 60, { move: { x: 0, y: 0 }, jump: false, sprint: false, attack: false }, ctx);
+  }
+  assert.equal(fiend.state, 'idle');
+  expectIdleYaw(fiend);
+});
+
+function expectIdleYaw(fiend) {
+  assert.ok(
+    Math.abs(((fiend.yaw - fiend.guardFacing + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.05,
+    `idle yaw ${fiend.yaw.toFixed(2)} should settle back to the guard-facing`,
+  );
+}

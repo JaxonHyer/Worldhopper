@@ -297,7 +297,7 @@ export function listEnemyTypeIds() {
  * The entity is plain JSON-serialisable data — no closures, no three.js — so
  * world state stays describable, testable and comparable.
  */
-export function createEnemy({ typeId, id, x, z, map, seed, windup, homeSeed = 0, home = null, aggroRange = null, rotationY = 0 }) {
+export function createEnemy({ typeId, id, x, z, map, seed, windup, homeSeed = 0, home = null, aggroRange = null, rotationY = 0, roamRadius = null, guardFacing = null }) {
   const type = ENEMY_TYPES[typeId];
   if (!type) throw new Error(`unknown enemy type: ${typeId}`);
   const homeX = Number.isFinite(home?.x) ? home.x : Number.isFinite(x) ? x : 0;
@@ -352,6 +352,24 @@ export function createEnemy({ typeId, id, x, z, map, seed, windup, homeSeed = 0,
      * tests (and a fresh player) from being jumped by the ambience.
      */
     aggroRange,
+    /**
+     * An authored per-placement wander cap (metres). Null means the archetype's
+     * own roam radius. The pool-side Chasmfiend shuffles beside the water
+     * instead of taking walkabouts across the gate's walking lane — the hull
+     * is real now, and a sleeping guardian that strays onto the lane is a
+     * wall where a swim used to be (CI run 39182532718 caught exactly that).
+     */
+    roamRadius,
+    /**
+     * The direction this enemy sleeps facing, in radians — or null. While it's
+     * not engaged (idle / disengaging) its yaw is pinned here, which for the
+     * pool-side Chasmfiend means the ~11 m tail always trails due south, off
+     * the gate's walking lane: a tight wander cap alone was not enough, because
+     * the giant can swing its own tail across the lane without ever taking a
+     * step (CI run 39182532718). While engaged it faces you, as it should,
+     * and when you leave its circle it settles back to its post.
+     */
+    guardFacing,
   };
 }
 
@@ -571,6 +589,12 @@ function stepEnemy(enemy, state, context, dt) {
       enemy.state = ENEMY_STATES.idle;
   }
 
+  // A sleeping guardian holds its post-facing, tail pinned off the lane;
+  // engagement unlocks facing normally, disengagement settles it home.
+  if (Number.isFinite(enemy.guardFacing) && (enemy.state === ENEMY_STATES.idle || enemy.state === ENEMY_STATES.disengage)) {
+    enemy.yaw = enemy.guardFacing;
+  }
+
   applyKnockback(enemy, dt);
 }
 
@@ -622,8 +646,11 @@ function pickRoamTarget(enemy, state, type) {
     state.spawner.rng = stepped.state;
     return stepped.value;
   };
+  // A placement may gift a tighter circle than the archetype's own — the
+  // sleeping Chasmfiend shuffles by the water rather than crossing the lane.
+  const roamRadius = Number.isFinite(enemy.roamRadius) ? enemy.roamRadius : type.roamRadius;
   const angle = draw() * Math.PI * 2;
-  const radius = type.roamRadius * (0.25 + draw() * 0.75);
+  const radius = roamRadius * (0.25 + draw() * 0.75);
   enemy.roamTarget.x = enemy.home.x + Math.cos(angle) * radius;
   enemy.roamTarget.z = enemy.home.z + Math.sin(angle) * radius;
   enemy.roamTimer = 2.5 + draw() * 4;
@@ -842,6 +869,8 @@ function spawnEnemy(state, context, spot, typeId, placement = null) {
     home: placement?.home ?? null,
     aggroRange: Number.isFinite(placement?.aggroRange) ? placement.aggroRange : null,
     rotationY: Number.isFinite(placement?.rotationY) ? placement.rotationY : 0,
+    roamRadius: Number.isFinite(placement?.roamRadius) ? placement.roamRadius : null,
+    guardFacing: Number.isFinite(placement?.guardFacing) ? placement.guardFacing : null,
   });
   // A fresh wind-up is whatever the slider says *now*, floored by the contract.
   enemy.windup = resolveWindup(ENEMY_TYPES[typeId], context.settings?.enemyWindup);

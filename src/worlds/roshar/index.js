@@ -133,7 +133,20 @@ export const roshar = {
       //   - outside the pool itself (its 5 m circle can't sit in the water).
       //   - at least 5.5 m from the re-entry lane x=0, so the realm suite's
       //     walk-out-and-back never wakes it.
-      { typeId: 'storm-warden', x: 5.5, z: -16.5, aggroRange: 5, rotationY: Math.PI },
+      // roamRadius 2.5 + guardFacing π: it shuffles on the poolside holding
+      // its post facing — tail ALWAYS trailing due south, off the gate lane.
+      // The hull is real now; a take-a-walk guardian that can swing 11 m of
+      // tail across the lane is a wall where a swim used to be (CI run
+      // 39182532718: the realm suite's walk-out measured 2.08 m, needs > 3.4).
+      {
+        typeId: 'storm-warden',
+        x: 5.5,
+        z: -16.5,
+        aggroRange: 5,
+        roamRadius: 2.5,
+        rotationY: Math.PI,
+        guardFacing: Math.PI,
+      },
     ],
   },
 

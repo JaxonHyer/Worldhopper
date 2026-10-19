@@ -31,10 +31,22 @@ through — obvious the moment the creature got long.
   and not standing on it, they are pushed to the nearest rim (or along their
   own velocity at dead-centre). Both halves get tests; drop either one and a
   named test turns red (mutation-checked).
+- **The CI red run was the hull working too well, and the fix was behaviour,
+  not geometry.** First run of this PR (39182532718) broke the realm suite's
+  walk-out at 2.08 m from pool centre (needs > 3.4): the roaming guardian,
+  free to wander 10 m, swung its ~11 m of *new* hull across the gate lane —
+  both by walking near it and, subtler, by TURNING without stepping anywhere:
+  the tail is a lever arm and it swept the lane from a standstill. The
+  placement now pins **roamRadius 2.5** (shuffles beside the water) and a
+  **guardFacing** (while idle/disengaging its yaw holds the post direction —
+  tail always due south, lane-free; waking you wins the facing immediately,
+  dozing off settles it home). Three unit tests pin: the suite's exact
+  round-trip on both maps at its own seed, minute-long "lane never crosses
+  while on guard", and engagement-still-tracks-you. A 512-seed x=0-lane sweep
+  was scoped honestly: some seeds rim the pool uphill — terrain, not hulls —
+  so the sweep is NOT the claim; the round-trip at the suite's seed is.
 - **The spawner respects whole footprints now** — no new enemy spawns inside
-  an existing hull, head OR tail; and the gate-lane unit test from the
-  placement pass was kept green as a regression (the giant's rings stay 5.5 m+
-  off x=0 — the realm suite's walk home is untouched).
+  an existing hull, head OR tail.
 
 **Determinism check:** two identical seeds with identical input streams land
 the player in the identical spot with collision live (asserted), because the
