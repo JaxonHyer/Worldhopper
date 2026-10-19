@@ -89,12 +89,14 @@ across the fade). Walking, jumping and looking all still work in the lens;
 `Realm transition (ms)` sets the length of the fade, and `Cognitive lens height`
 sets how much of the world it shows.
 
-**Hop between worlds (stub).** Stand INSIDE a Perpendicularity while in the
-Cognitive Realm and the gate offers its authored link as the prompt: tap it
-(or <kbd>F</kbd>) and you land at another world's gate, still in the lens —
-the canon's own rule that travel happens at gates, with the Cognition
-contracting the distance. Currently Roshar ↔ "the Quiet Basin" (a stub
-destination for proving the mechanism, round trip in and out).
+**Hop between worlds — walking between two gates.** A Perpendicularity is
+only ever a realm swap: into the pool is a flip — so a worldhop is TWO of
+them. Go into your gate (you're in the Cognitive Realm), then WALK to a
+*different* gate on that flat plane — a second, dimmer column of light in the
+distance — and stepping into it comes out on the other planet, standing at its
+own pool. The return trip is the same two gates in reverse (Roshar ↔ "the
+Quiet Basin" for now, a stub destination that proves the door closes behind
+you and still counts as a door).
 
 **Do one thing you can only do there.** In the Cognitive Realm, four small
 **memory-flames** stand on Roshar's pool obsidian — walk through one and it

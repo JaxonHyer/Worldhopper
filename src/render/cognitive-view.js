@@ -24,6 +24,7 @@ import { beadVariation, resolveCognitiveSkin } from '../core/skin.js';
 import { terrainHeight } from '../core/world-state.js';
 import { FAIRNESS } from '../core/enemy.js';
 import { collectInsights, isLit } from '../core/insights.js';
+import { collectHopGates } from '../core/hop.js';
 
 /** Metres between bead centres, tuned so neighbours touch without merging. */
 const SEA_SPACING = 1.35;
@@ -314,10 +315,59 @@ export function createCognitiveView({ map, state, variant, settings }) {
     return { group: flameGroup, outer, core, insight };
   });
 
+  /**
+   * The hop gates: the OTHER Perpendicularities this shadesmar carries.
+   *
+   * A gate you did not come through reads as a smaller, dimmer, colder well on
+   * the far side — an obsidian ring you could step into, and a thin column of
+   * light fixed over it (stationary, not the pool's breathing pulse). It is
+   * what makes "find a different one" a real walk on this flat plane instead
+   * of a menu.
+   */
+  const geometries = [beadGeometry, soulGeometry, flameOuter.geometry, flameCore.geometry];
+
+  const hopGates = collectHopGates(map).map((gate, index) => {
+    const gateGroup = new THREE.Group();
+    gateGroup.name = `hop-gate-${gate.id}`;
+    const wellGeometry = new THREE.RingGeometry(gate.radius * 0.55, gate.radius, 26, 1);
+    wellGeometry.rotateX(-Math.PI / 2);
+    geometries.push(wellGeometry);
+    const well = new THREE.Mesh(
+      wellGeometry,
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(palette.obsidianHighlight ?? '#8fb6d8'),
+        transparent: true,
+        opacity: 0.42,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    well.position.y = 0.08;
+    const columnGeometry = new THREE.CylinderGeometry(gate.radius * 0.3, gate.radius * 0.55, 9, 16, 1, true);
+    geometries.push(columnGeometry);
+    const column = new THREE.Mesh(
+      columnGeometry,
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(palette.flame ?? '#cfeaff'),
+        transparent: true,
+        opacity: 0.13,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    column.position.y = 4.5;
+    gateGroup.add(well, column);
+    gateGroup.position.set(gate.position.x, terrainHeight(map, seed, gate.position.x, gate.position.z), gate.position.z);
+    gateGroup.userData.gateId = gate.id;
+    gateGroup.userData.index = index;
+    group.add(gateGroup);
+    return { group: gateGroup, well, column, gate };
+  });
+
   let active = false;
   const anySoulMoves = soulEntities.some((entity) => entity.dynamic);
   const materials = [beadMaterial, soulMaterial, flameOuter.material, flameCore.material];
-  const geometries = [beadGeometry, soulGeometry, flameOuter.geometry, flameCore.geometry];
 
   // The first layout happens on the first sync, when there is a player to
   // centre it on.
@@ -406,6 +456,12 @@ export function createCognitiveView({ map, state, variant, settings }) {
         slot.core.material.opacity = 0.68 + Math.sin(phase * 11.7) * 0.1;
       }
 
+      // Hop gates shimmer on the sim clock, slowly — a lighthouse you pace to.
+      for (const hopGate of hopGates) {
+        hopGate.column.rotation.y = t * 0.5 + hopGate.group.userData.index;
+        hopGate.well.material.opacity = 0.36 + Math.sin(t * 1.3 + hopGate.group.userData.index * 1.1) * 0.08;
+      }
+
       // Souls follow their objects. Every one is static on this map, so this
       // costs one boolean per frame — and it is the line that keeps a soul on
       // its object the day something in the entity list starts moving (M3).
@@ -446,6 +502,7 @@ export function createCognitiveView({ map, state, variant, settings }) {
         npcFlames: npcFlames.length,
         enemyFlames: enemyFlamesDrawn,
         insights: insightFlames.length,
+        hopGates: hopGates.length,
         violations: skin.violations.length,
       };
     },
@@ -463,6 +520,10 @@ export function createCognitiveView({ map, state, variant, settings }) {
       for (const flame of insightFlames) {
         flame.outer.material.dispose();
         flame.core.material.dispose();
+      }
+      for (const hopGate of hopGates) {
+        hopGate.well.material.dispose();
+        hopGate.column.material.dispose();
       }
       group.clear();
     },

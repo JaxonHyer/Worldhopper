@@ -238,6 +238,8 @@ export function buildSnapshot({
       // the snapshot — which is exactly how the NPC flame assertion came back
       // `undefined` in CI run 38931025849 instead of failing on the renderer.
       npcFlames: Number.isFinite(render.skin?.npcFlames) ? render.skin.npcFlames : 0,
+      /** How many hop gates this shadesmar is drawing (WP-4.3, corrected model). */
+      hopGates: Number.isFinite(render.skin?.hopGates) ? render.skin.hopGates : 0,
       // How many enemy flames the cognitive layer drew. Named here for the same
       // reason as every line above it: this object is a whitelist, and a field
       // the renderer reports and this block does not reads back as `undefined`.
@@ -325,13 +327,19 @@ function insightsOf(state, map) {
   };
 }
 
+/** The hop block mapper — whitelist discipline, the trap the suite documents twice. */
 function hopsOf(param) {
-  if (!param) return { count: 0, last: null, available: [], atGate: false };
+  const insideGate = param?.insideGate && typeof param.insideGate === 'object' ? param.insideGate : null;
+  const nearestGate = param?.nearestGate && typeof param.nearestGate === 'object' ? param.nearestGate : null;
   return {
-    count: Number.isFinite(param.count) ? param.count : 0,
-    last: param.last ?? null,
-    available: Array.isArray(param.available) ? param.available : [],
-    atGate: Boolean(param.atGate),
+    count: Number.isFinite(param?.count) ? param.count : 0,
+    last: param?.last ?? null,
+    insideGate: insideGate
+      ? { id: String(insideGate.id), target: String(insideGate.target), label: String(insideGate.label ?? insideGate.id) }
+      : null,
+    nearestGate: nearestGate
+      ? { id: String(nearestGate.id), target: String(nearestGate.target), distance: Number.isFinite(nearestGate.distance) ? nearestGate.distance : 0 }
+      : null,
   };
 }
 

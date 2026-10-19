@@ -1,36 +1,54 @@
 /**
- * Hops end-to-end (WP-4.3, stub): stand in a Perpendicularity while inside the
- * Cognitive Realm, and the gate's authored link becomes the one prompt slot.
+ * Hops end-to-end (WP-4.3, corrected): a worldhop is two Perpendicularities.
  *
- * The round trip is what the stub really claims: out through the gate and home
- * again behind two fades. Travel is staged in the lens — arrival lands you at
- * the target pool, still there; dismounting back out is the same step-in dance
- * the realm shift already lets you do, and on a phone it is walking, never a
- * new button.
+ *  - Into Roshar's pool (a plain realm swap — the gate is only ever that).
+ *  - In the Cognitive Realm, WALK to a different, second gate standing on the
+ *    plane (there are two droughts of light now; the menu is your feet).
+ *  - Step into it: come OUT on another planet — physical side, at its pool.
+ *  - The way home re-uses the same two gates in reverse. A stub door must
+ *    close behind you and still be a door on the other side.
  *
- * Timing note (project convention): walks are sim time (step()), distances via
- * snapshot. Fades are wall-clocked, so realm/hop waits poll the actual flip.
+ * Everything is sim time (step()) and the snapshot's truth; the screenshots
+ * are evidence, never the assertion.
  */
 
 import { test, expect } from '@playwright/test';
 import { attachWatch, readDebug, saveShot, startFrozen, stepSim } from './helpers.js';
 
-const GATE = { x: 0, z: -14 };
+const HOME = { x: 0, z: -14 };
+const ROSHAR_RENDEZVOUS = { x: -28, z: -6 };
+const BASIN_RENDEZVOUS = { x: -26, z: -10 };
 
-/** Hold direction keys while stepping sim time, with a hard iteration cap. */
-async function walkUntil(page, predicate, { step = 0.25, max = 60, dir = 1 } = {}) {
-  const keys = [dir === 1 ? 'KeyW' : 'KeyS'];
-  for (const k of keys) await page.keyboard.down(k);
+/** Hold keys toward a point one returned-snapshot per chunk, capped. */
+async function walkToward(page, target, { close = 1.2, maxChunks = 120, chunk = 0.2 } = {}) {
+  const held = new Set();
+  const toggle = async (key, on) => {
+    if (on && !held.has(key)) {
+      await page.keyboard.down(key);
+      held.add(key);
+    } else if (!on && held.has(key)) {
+      await page.keyboard.up(key);
+      held.delete(key);
+    }
+  };
   let debug = await stepSim(page, 0);
-  for (let i = 0; i < max && !predicate(debug); i++) {
-    debug = await stepSim(page, step);
+  for (let i = 0; i < maxChunks; i++) {
+    const dx = target.x - debug.player.x;
+    const dz = target.z - debug.player.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance <= close) break;
+    await toggle('KeyW', dz < -0.25);
+    await toggle('KeyS', dz > 0.25);
+    await toggle('KeyD', dx > 0.25);
+    await toggle('KeyA', dx < -0.25);
+    debug = await stepSim(page, Math.min(chunk, Math.max(0.05, distance / 12)));
   }
-  for (const k of keys) await page.keyboard.up(k);
+  for (const key of held) await page.keyboard.up(key);
   return debug;
 }
 
-/** Poll until the snapshot satisfies the predicate (async flip, no stepping). */
-async function waitFor(page, predicate, { max = 80 } = {}) {
+/** Poll until the snapshot satisfies the predicate (fade-driven flips). */
+async function waitFor(page, predicate, { max = 60 } = {}) {
   let debug = await readDebug(page);
   for (let i = 0; i < max && !predicate(debug); i++) {
     debug = await stepSim(page, 0.2);
@@ -38,82 +56,72 @@ async function waitFor(page, predicate, { max = 80 } = {}) {
   return debug;
 }
 
-test('a hop at the Perpendicularity, staged in the lens, takes you to another world — and home', async ({ page, isMobile }, testInfo) => {
+test('worldhop: into your own gate, walk to a different one on the plane, come out on another planet', async ({ page, isMobile }, testInfo) => {
   const watch = attachWatch(page);
   let debug = await startFrozen(page, '?map=roshar&seed=4242');
   expect(debug.mapId).toBe('roshar');
   expect(debug.realm).toBe('physical');
   expect(debug.hops.count).toBe(0);
 
-  // The door is not offered before you are at the gate: walking toward the
-  // pool, the hop list stays empty right up to the rim.
-  debug = await stepSim(page, 0);
-  expect(debug.hops.available).toEqual([]);
-
-  // Walk into the Perpendicularity — the usual fade flips you into the lens.
+  // 1. Into your own Perpendicularity. It does exactly and only a realm swap.
   await page.keyboard.down('KeyW');
   debug = await waitFor(page, (d) => d.realm === 'cognitive', { max: 40 });
   await page.keyboard.up('KeyW');
   expect(debug.realm).toBe('cognitive');
-  expect(Math.hypot(debug.player.x - GATE.x, debug.player.z - GATE.z)).toBeLessThanOrEqual(3.4);
+  expect(debug.mapId).toBe('roshar', 'the gate swapped realms, not worlds');
+  expect(debug.hops.insideGate, 'your own pool is not a hop gate').toBe(null);
+  expect(debug.hops.nearestGate?.id, 'a second gate is out there, at walking distance').toBe('hop-to-basin');
+  await saveShot(page, 'hop-two-gates-in-lens', testInfo);
 
-  // The one prompt slot now offers the world hop.
-  debug = await stepSim(page, 0);
-  expect(debug.hops.available.length).toBe(1);
-  expect(debug.hops.available[0].target).toBe('blank-basin');
-  expect(debug.hops.atGate).toBe(true);
-  const prompt = page.locator('.interact-prompt');
-  await expect(prompt).toBeVisible();
-  await expect(prompt.locator('.interact-prompt__label')).toContainText('Hop to the Quiet Basin');
-  await saveShot(page, 'hop-offered', testInfo);
+  // 2. Walk to it. The flat Cognitive plane, one comet-tail of light ahead.
+  // NOTE on "waits": the gate fires on CONTACT — insideGate inside the ring is
+  // visible for exactly the instant of the return snapshot, and waiting for it
+  // after the walk is a race with its own fade. The proof of fire is the swap
+  // itself, witnessed by the hop counter and the new world, not by a snapshot
+  // key that is only true between the two-step instants of a step() tick.
+  debug = await walkToward(page, ROSHAR_RENDEZVOUS, { close: 1.2 });
+  expect(debug.realm, 'the walk should happen in the lens, not slip to physical').toBe('cognitive');
+  expect('insideGate' in debug.hops, 'the snapshot documents the inside-gate key').toBe(true);
+  await saveShot(page, 'hop-at-the-second-gate', testInfo);
 
-  // Choose it. The white-out covers the scene swap; we land at the new gate.
-  if (isMobile) await prompt.tap();
-  else await page.keyboard.press('KeyF');
+  // Standing in it: the fire is contact, not consent. Wait for the swap home.
   debug = await waitFor(page, (d) => d.mapId === 'blank-basin', { max: 60 });
+  expect(debug.hops.count, 'the contact fired once — one hop counted').toBe(1);
+  expect(debug.hops.last).toBe('hop-to-basin');
   expect(debug.mapId).toBe('blank-basin');
-  expect(debug.realm, 'arrival is staged in the lens — you leave in the lens, you arrive in it').toBe('cognitive');
-  expect(Math.hypot(debug.player.x - GATE.x, debug.player.z - GATE.z), 'you land at the target gate').toBeLessThanOrEqual(3.4);
-  expect(debug.hops.count).toBe(1);
-  expect(debug.hops.last).toBe('hop-peaks-basin');
-  await saveShot(page, 'hop-arrived-basin', testInfo);
+  expect(debug.realm, 'you come OUT on another planet — physical side, always').toBe('physical');
+  expect(Math.hypot(debug.player.x, debug.player.z - HOME.z), 'at the other world’s pool').toBeLessThanOrEqual(3.5);
+  await saveShot(page, 'hop-come-out-on-the-basin', testInfo);
 
-  // The door home opens the same way, and behind it is where you began.
-  debug = await waitFor(page, (d) => d.hops.available.length === 1, { max: 30 });
-  expect(debug.hops.available[0].target).toBe('roshar');
-  await expect(prompt).toBeVisible();
-  if (isMobile) await prompt.tap();
-  else await page.keyboard.press('KeyF');
+  // 3. Home again, the same two gates played in reverse.
+  await stepSim(page, 0.1);
+  debug = await walkToward(page, { x: 0, z: -20 }, { close: 0.6 }); // out of the water
+  debug = await walkToward(page, { x: 0, z: -14 }, { close: 0.8 }); // back in: realm swap, basin side
+  debug = await waitFor(page, (d) => d.realm === 'cognitive', { max: 40 });
+  expect(debug.realm).toBe('cognitive');
+  expect(debug.mapId).toBe('blank-basin');
+  expect(debug.hops.nearestGate?.id).toBe('hop-to-roshar');
+
+  debug = await walkToward(page, BASIN_RENDEZVOUS, { close: 1.2 });
   debug = await waitFor(page, (d) => d.mapId === 'roshar', { max: 60 });
   expect(debug.mapId).toBe('roshar');
-  expect(debug.realm).toBe('cognitive');
+  expect(debug.realm).toBe('physical');
   expect(debug.hops.count).toBe(2);
-  expect(debug.hops.last).toBe('hop-basin-peaks');
-  await saveShot(page, 'hop-returned-roshar', testInfo);
+  expect(debug.hops.last).toBe('hop-to-roshar');
+  await saveShot(page, 'hop-back-on-roshar', testInfo);
 
   watch.assertClean();
 });
 
-test('walking out of the arrival gate re-arms the original gate dance, on the new world', async ({ page }) => {
+test('a second Perpendicularity is drawn for the player to walk toward, only on the far side', async ({ page }, testInfo) => {
   const watch = attachWatch(page);
-  let debug = await startFrozen(page, '?map=roshar&seed=4242');
-
-  // One hop out, in the lens: arrive on the basin standing in its pool.
-  await page.keyboard.down('KeyW');
-  debug = await waitFor(page, (d) => d.realm === 'cognitive', { max: 40 });
-  await page.keyboard.up('KeyW');
-  const prompt = page.locator('.interact-prompt');
-  await expect(prompt).toBeVisible();
-  await page.keyboard.press('KeyF');
-  debug = await waitFor(page, (d) => d.mapId === 'blank-basin', { max: 60 });
-
-  // Walk out of the arrival pool — you are simply somewhere new, and its own
-  // gate is now the thing it always was: enter it and you shift realms.
-  debug = await walkUntil(page, (d) => Math.hypot(d.player.x - GATE.x, d.player.z - GATE.z) > 3.4, { max: 30, dir: -1 });
-  expect(Math.hypot(debug.player.x - GATE.x, debug.player.z - GATE.z), 'the walk out really leaves the pool').toBeGreaterThan(3.4);
+  await startFrozen(page, '?map=roshar&seed=4242&realm=cognitive');
+  // A boot flag start in the lens is a test convenience, not a travel mode:
+  // the beads, two wells of light, and exactly the spotless plane the owner
+  // described — "the cognitive realm is 2d and does not include outer space".
+  const debug = await stepSim(page, 0.1);
   expect(debug.realm).toBe('cognitive');
-  await walkUntil(page, (d) => Math.hypot(d.player.x - GATE.x, d.player.z - GATE.z) <= 3.4, { max: 30, dir: 1 });
-  debug = await waitFor(page, (d) => d.realm !== 'cognitive', { max: 40 });
-  expect(debug.realm).toBe('physical', 'stepping back into the basin pool shifts to physical, as anywhere else');
+  expect(debug.skin.hopGates, 'a rendezvous is drawn on the plane').toBeGreaterThanOrEqual(1);
+  expect(debug.skin.beads).toBeGreaterThan(1000);
   watch.assertClean();
 });

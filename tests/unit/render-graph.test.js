@@ -727,7 +727,7 @@ test('enemies are living: their bodies hide in the realm and a flame stands in',
  * tests actually assert on — and those are precisely the ones that keep going
  * missing.
  */
-const SKIN_COUNTS_THE_TESTS_READ = ['beads', 'souls', 'npcFlames', 'enemyFlames'];
+const SKIN_COUNTS_THE_TESTS_READ = ['beads', 'souls', 'npcFlames', 'enemyFlames', 'hopGates'];
 
 test('the skin counts the browser tests read survive the snapshot whitelist', () => {
   const { state, world } = buildRosharan();
