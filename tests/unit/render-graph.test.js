@@ -20,6 +20,7 @@ import { AVATAR, createPlayerAvatar, nextFacing } from '../../src/render/player-
 import { nameplateMetrics } from '../../src/render/npc-view.js';
 import { wrapAngle } from '../../src/core/math.js';
 import { ENEMY_TYPES } from '../../src/core/enemy.js';
+import { waylightTrail } from '../../src/core/hop.js';
 import { getMap, getVariant, DEFAULT_MAP_ID } from '../../src/core/maps/index.js';
 import { defaultSettings } from '../../src/core/settings.js';
 
@@ -727,7 +728,7 @@ test('enemies are living: their bodies hide in the realm and a flame stands in',
  * tests actually assert on — and those are precisely the ones that keep going
  * missing.
  */
-const SKIN_COUNTS_THE_TESTS_READ = ['beads', 'souls', 'npcFlames', 'enemyFlames', 'hopGates'];
+const SKIN_COUNTS_THE_TESTS_READ = ['beads', 'souls', 'npcFlames', 'enemyFlames', 'hopGates', 'waylights'];
 
 test('the skin counts the browser tests read survive the snapshot whitelist', () => {
   const { state, world } = buildRosharan();
@@ -857,6 +858,33 @@ test('a quad rig fan-out: fourteen legs is data, and the ripples are procedural'
   const type = ENEMY_TYPES['storm-warden'];
   assert.equal(type.legs, 14);
   assert.ok(type.legs % 2 === 0, 'fanned in pairs');
+});
+
+test('a walkable waylight trail is laid between the pool and its rendezvous — and it moves with the trail, never against it', () => {
+  const { state, world } = buildRosharan();
+  world.sync(state);
+  const trail = [];
+  world.scene.getObjectByName('cognitive-skin').traverse((node) => {
+    if (node.name.startsWith('waylight-')) trail.push(node);
+  });
+  const expected = waylightTrail({ x: 0, z: -14 }, { x: -28, z: -6, radius: 3.4 }, 3.4, 2);
+  assert.equal(trail.length, expected.length, `the lens drew every waylight the math laid (${expected.length})`);
+  assert.ok(trail.length > 5, 'and it is a chain, not one pebble');
+  // The trail is drawn above the bead sea, each marker a body-step from the next.
+  const sorted = [...trail].sort((a, b) => a.userData.index - b.userData.index);
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = Math.hypot(sorted[i].position.x - sorted[i - 1].position.x, sorted[i].position.z - sorted[i - 1].position.z);
+    assert.ok(gap > 1.5 && gap < 2.5, `waylights ${i - 1} -> ${i} spaced ${gap.toFixed(2)} m — reads as laid points, not a smear`);
+  }
+});
+
+test('worlds without a second gate lay no trail at all', () => {
+  const { world } = buildWorld(); // blank-basin has no hop gates in this seed's registry
+  const markers = [];
+  world.scene.getObjectByName('cognitive-skin').traverse((node) => {
+    if (node.name.startsWith('waylight-')) markers.push(node);
+  });
+  assert.equal(markers.length, 0, 'a world with no other world has no lure');
 });
 
 test('memory-flames stand in the lens, unlit and lit alike — and only in the lens', () => {

@@ -151,6 +151,47 @@ for hop semantics (counts landings between planets, realm stays physical at
 arrival is *the opposite* of last run's stub), then assertion-first playable
 walks. And CI is quoted, not skipped, with the walk line lane probe committed.
 
+## The veil and the waylights (Agent 1, 2026-10-19)
+
+Two owner clarifications, received after the corrected worldhop was merged into
+main and given the same site visit.
+
+- **"Make a path between the two Perpendicularities in the Cognitive Realm —
+  a visually recognizable path."** On the flat plane the reference is two
+  wells of light and beads to the horizon. The walk now has a laid voice:
+  `waylightTrail(pool, gate, radius, spacing)` in core/hop.js lays a straight
+  chain of small ochre flint discs, one pace (~2 m) apart, from just outside
+  the pool ring to just outside the second ring — high enough above the bead
+  sea's own crowns that your eye follows them from the pool column. It is
+  **project interpretation** by design (nothing in the books names a trail
+  there): flat laid stones on a plane of dark glass beads, picked warm-ochre
+  to never be mistaken for the sea itself, the living-flame language, or the
+  pale-blue pool beams. Data rule kept: `waylightTrail` is a pure function of
+  the two anchors — the same seed lays the same chain twice, and the render
+  count flows to the snapshot skin's `waylights` whitelist (which the
+  skin-counts guard test now also names).
+- **"Enemies cannot see the player while the player is in the Cognitive
+  Realm."** The veil is a one-file rule named once and applied at the three
+  perception seams (`playerUnavailableToEnemies(state)`: combat.dead || realm
+  === 'cognitive'):
+  - idle aggro never crosses (no alerts while you're across),
+  - `alert`/`hunt`/`attack` on the flip disengage instantly (the same
+    "lose interest" everyone performs when you die — "loss of the trail is
+    the same as absence"),
+  - a completing wind-up finds no legal target.
+  - Idle enemies and home-bound ones keep roaming: the veil does not freeze
+    dwellers on their own plane, and the one-line unscoped version
+    (disengage-for-everyone-forever) would disengage↔idle-loop forever, which
+    its own test caught the first time.
+- The conditional is deliberately NOT the render's: `stepEnemy` is gated, and
+  the fair-fight contract is untouched (telegraph→windup→strike still holds
+  everywhere damage could ever be pending — sim-side or not).
+
+  The lens exit ("headless tests assert approach...disengage-when-faced")
+  stands as is. These two are feel deltas, and the questions remain the
+  owner's, batched: is the trail readable on a phone top-down; and is the
+  absence felt as *you are somewhere else* rather than as a wall?
+
 ## M3 — the pass note: the Chasmfiend's collision covers its whole body (Agent 1, 2026-10-18)
 
 One sentence from the owner: *"Make it so that the Chamfiends collision covers
