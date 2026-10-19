@@ -31,7 +31,7 @@
  */
 
 import * as THREE from 'three';
-import { ENEMY_STATES, ENEMY_TYPES } from '../core/enemy.js';
+import { ENEMY_STATES, ENEMY_TYPES, enemyFrameSpec } from '../core/enemy.js';
 import { enemySkin } from '../core/enemy-skins.js';
 
 /** How far the body leans back at full wind-up, radians. */
@@ -40,11 +40,10 @@ const TELL_LEAN = 0.42;
 const TELL_LUNGE = 0.55;
 /** The aggro mark's size, metres. Small, above the head, unmissable in motion. */
 const MARK_SIZE = 0.24;
-/** How far each segment overlaps the one ahead, so the chain reads armoured. */
-const SEGMENT_STEP = 0.92;
-
 const scratchColor = new THREE.Color();
 const whiteColor = new THREE.Color('#ffffff');
+// SEGMENT_STEP lives in core/enemy.js's frame spec now; kept name for the leg
+// fan, whose rhythm is animation rather than frame geometry.
 
 /** Build one nearest-filtered DataTexture from a baked pixel-art skin row. */
 function toTexture(art, cache) {
@@ -108,9 +107,15 @@ export function createEnemyView(entity) {
     return mesh;
   };
 
-  // --- proportions, from the archetype (with per-row overrides) --------------
+  // --- proportions, from the frame spec (shared with collision) -------------
+  //
+  // `enemyFrameSpec` is the ONE geometry source: the hull rings the player
+  // bumps into are derived from the same numbers these boxes are placed with.
+  // Meshes and walls cannot drift apart, which is the only way "its collision
+  // covers its whole body" stays true when a row gets re-dimensioned.
   const dims = type.dims ?? {};
-  const segmented = Number.isInteger(dims.segments) && dims.segments > 0;
+  const frame = enemyFrameSpec(type);
+  const segmented = frame.segmented;
   const height = type.height;
   const headSize = dims.headSize ?? Math.min(0.5, height * 0.26);
   const legHeight = dims.legHeight ?? height * 0.42;
@@ -141,7 +146,7 @@ export function createEnemyView(entity) {
     // frame the pairs fan down the whole chain (a ripple per segment pair);
     // for a plain shell they fan across the blob.
     const pairs = Math.ceil(type.legs / 2);
-    const spanZ = segmented ? dims.depth * 0.3 + dims.segments * dims.depth * SEGMENT_STEP * 0.82 : bodyDepth * 0.76;
+    const spanZ = segmented ? dims.depth * 0.3 + dims.segments * dims.depth * 0.92 * 0.82 : bodyDepth * 0.76;
     const startZ = segmented ? dims.depth * 0.25 : -bodyDepth * 0.38;
     for (let side = 0; side < 2; side++) {
       for (let j = 0; j < pairs && legs.length < type.legs; j++) {
@@ -174,18 +179,16 @@ export function createEnemyView(entity) {
   const pincers = [];
   let body;
   if (segmented) {
-    const count = dims.segments;
-    for (let j = 0; j < count; j++) {
-      const taper = 1 - (j / Math.max(1, count - 1)) * 0.45;
+    for (const [j, spec] of frame.segments.entries()) {
       const seg = part(
-        bodyWidth * taper,
-        bodyHeight * (1 - (j / Math.max(1, count - 1)) * 0.25),
-        bodyDepth * (1 - (j / Math.max(1, count - 1)) * 0.22),
+        spec.width,
+        spec.height,
+        spec.depth,
         texture.body,
         type.colors.body,
         j === 0 ? 'enemy-body' : `enemy-segment-${j}`,
       );
-      seg.position.set(0, bodyTop - j * bodyHeight * 0.06, j * bodyDepth * SEGMENT_STEP);
+      seg.position.set(0, bodyTop - j * bodyHeight * 0.06, spec.along);
       group.add(seg);
       segments.push(seg);
     }

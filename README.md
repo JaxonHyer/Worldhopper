@@ -126,7 +126,9 @@ strikes. **You cannot fight it at all.** Chasmfiends are rare (one in ten
 wandering draws), except for the one that always guards the Perpendicularity
 when the game loads — for testing. Punch it and your fist recoils off the
 shell; the one defence is to **stand your ground and look at it**, and its
-strike breaks off. Both are slower than you walk.
+strike breaks off. Its shell is solid **end to end** — walk into any section
+and it's a wall like a rock's, head to tail. Both are slower than you walk — go
+around it and you're gone.
 
 **Fight back:** <kbd>J</kbd> at a keyboard, a left click once the mouse is
 captured, or the amber **punch** button on a phone. One tap is one swing; the

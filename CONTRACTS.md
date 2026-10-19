@@ -205,7 +205,22 @@ defence that is not a weapon. Distance guard: past arm's length it is too late.
 
 ---
 
-## 7. The spawn director
+## 7. Enemy hulls (collision)
+
+One geometry source, `enemyFrameSpec(type)`: per-segment frame numbers, used by
+the renderer AND by `collectEnemyObstacles(state, context)`. The rings
+(`{ id: '<enemy>-hull-JJ', x, z, radius, topY }`) are world-space obstacles a
+player cannot walk into — one per chain section for segmented frames, one per
+creature otherwise — and they exist only while its body lives (`dying` drops
+them with it).
+
+`stepWorld` composes them onto the *player's* obstacle view each step
+(enemy pathing is unaffected; `state.obstacles` stays furniture-only), and
+`resolveEnemyOverlap` afterwards pushes a slid-over player to the nearest rim
+— a hull may wall you, it may not trap you. Spawning with `findSpawnPoint`
+rejects points inside any existing hull, footprint-length, not head-circle.
+
+## 8. The spawn director
 
 `state.spawner = { rng, count, timer, spawned, culled }` — one uint32 of RNG and
 three counters. Nothing else, deliberately: `createRng()` is a closure and a
@@ -228,7 +243,7 @@ Same seed + same inputs ⇒ the same encounter. Asserted in
 
 ---
 
-## 8. Snapshot additions
+## 9. Snapshot additions
 
 `combat` is a **top-level** key in `SNAPSHOT_KEYS`, not a corner of `ui`. `ui` is
 a whitelist and a field added there without a matching line in
@@ -238,7 +253,7 @@ can walk up to a *specific* enemy instead of hoping one wanders past.
 
 ---
 
-## 9. Journal entries — reserved, not yet frozen
+## 10. Journal entries — reserved, not yet frozen
 
 M4's WP-4.2 owns the journal and its save schema. Nothing is frozen here yet;
 this section is a placeholder so the shape of this file is honest about what it
