@@ -89,6 +89,19 @@ across the fade). Walking, jumping and looking all still work in the lens;
 `Realm transition (ms)` sets the length of the fade, and `Cognitive lens height`
 sets how much of the world it shows.
 
+**Hop between worlds (stub).** Stand INSIDE a Perpendicularity while in the
+Cognitive Realm and the gate offers its authored link as the prompt: tap it
+(or <kbd>F</kbd>) and you land at another world's gate, still in the lens —
+the canon's own rule that travel happens at gates, with the Cognition
+contracting the distance. Currently Roshar ↔ "the Quiet Basin" (a stub
+destination for proving the mechanism, round trip in and out).
+
+**Do one thing you can only do there.** In the Cognitive Realm, four small
+**memory-flames** stand on Roshar's pool obsidian — walk through one and it
+stays lit (they don't exist in the physical world at all; that is the entire
+"only solvable there" rule). Each lit flame raises an obsidian stepping stone
+in the physical pool; the fourth completes a dry causeway across the basin.
+
 **The other realm has a look, and it is per-world data.** `cognitiveSkin` says
 what *this* world's subastral is made of, because canon says every world's is
 different — Shadesmar is Roshar's, and it is glass beads, while Scadrial's is

@@ -55,6 +55,7 @@ export function createDebugOverlay({ mount, onRefresh, now = () => performance.n
   setRow('origin', 'distance from origin');
   setRow('entities', 'entities');
   setRow('combat', 'hearts / enemies');
+  setRow('insights', 'insights');
   setRow('render', 'draw calls / tris');
   setRow('gpu', 'gl / gpu');
   setRow('settings', 'config');
@@ -87,6 +88,21 @@ export function createDebugOverlay({ mount, onRefresh, now = () => performance.n
     set('origin', `${snapshot.scaleFence.worst.toFixed(1)} m (limit ${snapshot.scaleFence.limit})`);
     rows.get('origin').dd.classList.toggle('is-warn', snapshot.scaleFence.warn);
     set('entities', `${snapshot.entityCount} (hash ${snapshot.entityHash})`);
+    // The lens-interaction layer in one line: which memory-flames are lit, and
+    // whether the basin's causeway is complete. Dim when there is none to do.
+    if (snapshot.insights && snapshot.insights.total > 0) {
+      rows.get('insights').dd.hidden = false;
+      rows.get('insights').dt.hidden = false;
+      set(
+        'insights',
+        `${snapshot.insights.lit}/${snapshot.insights.total} lit` +
+          (snapshot.insights.causeway ? ' · CAUSEWAY COMPLETE' : '') +
+          (snapshot.realm === 'cognitive' && snapshot.insights.lit < snapshot.insights.total ? ' — walk through the small flames' : ''),
+      );
+    } else {
+      rows.get('insights').dd.hidden = true;
+      rows.get('insights').dt.hidden = true;
+    }
     // The encounter layer in one line: what you have left, what is out there,
     // and what it is doing. The state tally is the AI's own answer, so a machine
     // that is stuck in one state is visible here before it is visible in play.

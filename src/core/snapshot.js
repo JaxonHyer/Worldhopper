@@ -9,7 +9,8 @@
  * locally instead of in CI.
  */
 
-import { countEntities, entityHash, scaleFenceStatus } from './world-state.js';
+import { causewayComplete, countEntities, entityHash, scaleFenceStatus } from './world-state.js';
+import { collectInsights } from './insights.js';
 import { enemyStateCounts } from './enemy.js';
 
 /** How many combat events the snapshot carries out of the browser. */
@@ -51,6 +52,8 @@ export const SNAPSHOT_KEYS = Object.freeze([
   'ui',
   'dialog',
   'combat',
+  'insights',
+  'hops',
   'skin',
   'settings',
   'settingsHint',
@@ -71,6 +74,7 @@ export function buildSnapshot({
   render,
   ui,
   dialog: dialogParam,
+  hops: hopsParam,
   input,
   paused,
   ready,
@@ -206,6 +210,19 @@ export function buildSnapshot({
      * log, and the log is the contract's evidence.
      */
     combat: combatOf(state),
+    /**
+     * The lens-interaction layer (M2's leftovers landing now): which of the
+     * map's memory-flames are lit, and whether the causeway in the physical
+     * pool is complete. Top-level, not under `ui` — the whitelist trap has
+     * already been the bug three times (see DECISIONS.md).
+     */
+    insights: insightsOf(state, map),
+    /**
+     * The hop layer (WP-4.3): which links are legal FROM HERE right now
+     * (computed by the frame loop, never re-derived), and how many the
+     * session has taken. Same top-level rule as `insights`: not under `ui`.
+     */
+    hops: hopsOf(hopsParam),
     // The cognitive manifestation the renderer is actually drawing, if any. A
     // map with no authored skin reports `unassigned` and draws no layer.
     skin: {
@@ -292,6 +309,29 @@ function combatOf(state) {
       windup: Number.isFinite(event.windup) ? event.windup : null,
       amount: Number.isFinite(event.amount) ? event.amount : null,
     })),
+  };
+}
+
+/** The memory-flames block: every authored flame, whether it's lit, and the causeway. */
+function insightsOf(state, map) {
+  const insights = state?.insights ?? {};
+  const litIds = Object.keys(insights).filter((id) => insights[id]);
+  return {
+    total: Object.keys(insights).length,
+    lit: litIds.length,
+    litIds,
+    authoredAcrossMap: collectInsights(map).length,
+    causeway: causewayComplete(state, { map, seed: state?.seed }),
+  };
+}
+
+function hopsOf(param) {
+  if (!param) return { count: 0, last: null, available: [], atGate: false };
+  return {
+    count: Number.isFinite(param.count) ? param.count : 0,
+    last: param.last ?? null,
+    available: Array.isArray(param.available) ? param.available : [],
+    atGate: Boolean(param.atGate),
   };
 }
 

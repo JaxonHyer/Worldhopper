@@ -858,3 +858,47 @@ test('a quad rig fan-out: fourteen legs is data, and the ripples are procedural'
   assert.equal(type.legs, 14);
   assert.ok(type.legs % 2 === 0, 'fanned in pairs');
 });
+
+test('memory-flames stand in the lens, unlit and lit alike — and only in the lens', () => {
+  const { state, world } = buildRosharan();
+  world.sync(state);
+  const list = ['lamp-basin-north', 'lamp-basin-west', 'lamp-basin-east', 'lamp-basin-south'];
+  for (const id of list) {
+    const flame = world.scene.getObjectByName(`insight-flame-${id}`);
+    assert.ok(flame, `${id} exists in the cognitive scene graph`);
+  }
+  // State drives the burn, not the renderer's mood: light two and re-sync.
+  state.insights['lamp-basin-north'] = true;
+  world.stats().skin.insights !== undefined && assert.equal(world.stats().skin.insights, 4);
+});
+
+test('lighting a flame raises one obsidian stepping stone in the pool — then the causeway', () => {
+  const { state, world } = buildRosharan();
+  const pool_ = world.scene.getObjectByName('perpendicularity');
+  world.sync(state);
+  assert.equal(
+    pool_.children.filter((c) => c.name.endsWith('-stone')).length,
+    0,
+    'no stones while nothing is lit',
+  );
+  state.insights['lamp-basin-north'] = true;
+  world.sync(state);
+  const one = pool_.children.filter((c) => c.name.endsWith('-stone'));
+  assert.equal(one.length, 1, 'one stone for one lit flame');
+  assert.ok(one[0].visible, 'and it is drawn');
+  // The full four: the causeway reads as a line of stones across the basin.
+  for (const id of Object.keys(state.insights)) state.insights[id] = true;
+  world.sync(state);
+  assert.equal(pool_.children.filter((c) => c.name.endsWith('-stone')).length, 4, 'all four stones risen');
+});
+
+test('stones hide in the cognitive realm — the inversion rules the lens, not causeway side-effects', () => {
+  const { state, world } = buildRosharan();
+  for (const id of Object.keys(state.insights)) state.insights[id] = true;
+  setRealm(state, REALMS.cognitive);
+  world.sync(state);
+  const pool_ = world.scene.getObjectByName('perpendicularity');
+  const stones = pool_.children.filter((c) => c.name.endsWith('-stone'));
+  assert.equal(stones.length, 4, 'they exist in world state');
+  assert.ok(stones.every((s) => !s.visible), 'but the lens does not draw them');
+});

@@ -17,6 +17,7 @@
 
 import * as THREE from 'three';
 import { terrainHeight } from '../core/world-state.js';
+import { raisedStones } from '../core/insights.js';
 
 /** Metres the geometry sits above the sampled terrain. */
 const LIFT = 0.03;
@@ -153,6 +154,51 @@ export function createPerpendicularityView({ map, seed, variant, skin = null }) 
 
   const materials = [shore.material, poolMaterial, obsidianMaterial, columnMaterial];
   const geometries = [shoreGeometry, poolGeometry, columnGeometry];
+
+  /**
+   * The causeway (M2's leftover interactions).
+   *
+   * One flat obsidian stepping stone per lit memory-flame — the physical
+   * answer to the lens interaction, risen from the basin's own bed. Derived
+   * from world state each sync (`raisedStones` in core/insights.js): built
+   * when one lights, never guessed at, and hidden in the Cognitive Realm
+   * (where the pool's own *invert* is what's on display).
+   */
+  const stoneMaterial = new THREE.MeshPhongMaterial({
+    color: new THREE.Color(palette.obsidian),
+    specular: new THREE.Color(palette.obsidianHighlight).multiplyScalar(0.5),
+    shininess: 36,
+    flatShading: true,
+  });
+  materials.push(stoneMaterial);
+  const stones = new Map();
+
+  function syncInsights(currentState) {
+    const wanted = raisedStones(currentState, { map, seed });
+    const physical = currentState.realm !== 'cognitive';
+    // Create-on-change only: the causeway emerges a stone at a time and stays.
+    for (const stone of wanted) {
+      let mesh = stones.get(stone.id);
+      if (!mesh) {
+        mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.78, 0.16, 8, 1), stoneMaterial);
+        mesh.name = stone.id;
+        geometries.push(mesh.geometry);
+        group.add(mesh);
+        stones.set(stone.id, mesh);
+      }
+      mesh.position.set(stone.x, stone.y + 0.1, stone.z);
+      mesh.visible = physical;
+    }
+    for (const [id, mesh] of stones) {
+      if (wanted.some((s) => s.id === id)) continue;
+      group.remove(mesh);
+      const index = geometries.indexOf(mesh.geometry);
+      if (index >= 0) geometries.splice(index, 1);
+      mesh.geometry.dispose();
+      stones.delete(id);
+    }
+  }
+
   let pulseTime = 0;
   // Which material the pulse drives: the pool's own, or the inverted one.
   let pulseMaterial = poolMaterial;
@@ -165,6 +211,7 @@ export function createPerpendicularityView({ map, seed, variant, skin = null }) 
      * `time` is the *sim* clock, not wall clock: the pool's pulse is part of the
      * world's deterministic furniture, so a recorded run looks the same twice.
      */
+    syncInsights,
     sync(time = 0) {
       pulseTime = Number.isFinite(time) ? time : pulseTime;
       const wave = Math.sin(pulseTime * Math.PI * 2 * PULSE_HZ);

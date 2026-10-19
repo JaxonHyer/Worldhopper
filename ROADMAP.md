@@ -415,8 +415,18 @@ movement feel; landmark readability.)* — **signed off** (PRs #2–#6).
       game opens on since 2026-10-16 (the owner: *"Nothing changed from last
       time"* — the test range has no realm to see, so landing on it showed
       nothing); the test range is `?map=blank-basin`
-- [ ] One interaction only solvable there (reveal a route across the bead sea)
-- [ ] Shifting back shows the world changed (state, not illusion)
+- [x] One interaction only solvable there (reveal a route across the bead sea)
+      *(landed 2026-10-18: four memory-flames on Roshar's pool obsidian, in the
+      lens only — `stepInsights` refuses the physical realm on purpose, and a
+      test wades the same spot in the physical world and finds nothing lit.
+      Walking through a flame is the whole interaction, phone-first: no button,
+      no scanning, no journal dependency.)*
+- [x] Shifting back shows the world changed (state, not illusion)
+      *(landed 2026-10-18: each lit memory-flame raises one authored obsidian
+      stone in the physical pool; the fourth completes a dry causeway across
+      the basin. Stones are derived from `state.insights`, never a renderer
+      guess — and they live outside the seeded entity list, so `entityHash`
+      can stay the fingerprint of the STATIC world alone.)*
 - [~] **Contracts frozen** — `OWNERSHIP.md` is in (Phase B starts with two
       agents, and the lanes are split there). `CONTRACTS.md` lands with WP-3.1/3.2,
       which define the last shared schema (the enemy state machine)
@@ -467,9 +477,21 @@ may claim it.
 - [ ] WP-4.1 Perpendicularity gate: find (via realm clues) → open — **Agent 1**
       *(the pool itself — geometry, walk-in trigger, fade to black — shipped early
       in M2 at the owner's request; what remains here is the puzzle: it starts
-      closed, and only realm clues tell you where and how to open it.)*
+      closed, and only realm clues tell you where and how to open it. **The
+      interaction kernel is in:** the memory-flame `insights` layer landed
+      2026-10-18 (the proof that "realm clues change the world" is testable).
+      What is NOT yet decided — the owner's own call, since they accepted the
+      always-open pool twice: does the default pool become the closed puzzle,
+      or does the puzzle live on a second gate/world?)*
 - [ ] WP-4.2 Journal UI, scanning, save schema — **Agent 2**
-- [ ] WP-4.3 Hop to world #2 (stub) — **Agent 1**
+- [x] WP-4.3 Hop to world #2 (stub) — **Agent 1**
+      *(landed 2026-10-19: `hopLinks` per map, legal only inside the gate while
+      in the lens per canon (travel is staged there = the canon's own two
+      rules), one shared prompt slot (Talk/Hop), white-out map swap, arrival
+      at the target gate still in the lens. Roshar ↔ "the Quiet Basin" round
+      trip, project-interpretation label, end-to-end asserted. Stub limits
+      named in DECISIONS.md; WP-4.1's closed-gate puzzle stays parked on the
+      owner's call.)*
 - [ ] WP-4.4 Full-run regression suite — **Agent 2**
 - [ ] **Vertical slice complete** (whole crew)
 

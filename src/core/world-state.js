@@ -13,6 +13,7 @@ import { terrainHeight } from './terrain.js';
 import { createPlayer, stepPlayer } from './player.js';
 import { loadNpc } from '../content/npcs.js';
 import { createAttack, createCombat, respawnPlayer, stepAttack, stepCombat } from './combat.js';
+import { hasCauseway, insightsInitialState, stepInsights } from './insights.js';
 import { activeCap, collectEnemyObstacles, createSpawner, placeInitialEnemies, resolveEnemyOverlap, stepEnemies, stepSpawner } from './enemy.js';
 
 export { terrainHeight, clamp, distanceFromOrigin };
@@ -190,6 +191,13 @@ export function createWorldState({ map, seed, settings = null, environment = { s
     events: [],
     /** The roaming spawn director's own state (WP-3.2). */
     spawner: createSpawner(normalized),
+    /**
+     * Insights (M2's leftover interactions): the memory-flames this map
+     * authors, all unlit. Written only from `stepInsights`, and ONLY while the
+     * player is in the Cognitive Realm — an interaction in the physical world
+     * cannot light them, which is the entire "only solvable there" contract.
+     */
+    insights: insightsInitialState(map),
   };
   // The world is inhabited from the first frame: the director tops the
   // population up as you explore, but nobody lands in an empty world.
@@ -257,8 +265,17 @@ export function stepWorld(state, dt, intent = null, context = null) {
     // ...and if any of that moved a hull onto the player, put them back OUT of
     // it. Refusal blocks walking IN; this releases anyone slid over.
     resolveEnemyOverlap(state, context);
+    // The lens interaction (M2): memory-flames only light in the Cognitive
+    // Realm. Deliberately AFTER combat/enemies — walking through a flame while
+    // being hunted is legal and stays deterministic either way.
+    stepInsights(state, dt, context);
   }
   return state;
+}
+
+/** The causeway question, exposed for the renderer and the debug snapshot. */
+export function causewayComplete(state, context) {
+  return hasCauseway(state, context);
 }
 
 /**

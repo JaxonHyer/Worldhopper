@@ -79,6 +79,12 @@ const blankBasin = {
     open: true,
   },
 
+  /**
+   * The hop home (WP-4.3, stub): a stub door must close behind you, or you
+   * can never be sure it was a door. The basin's link goes back to Roshar.
+   */
+  hopLinks: [{ id: 'hop-basin-peaks', target: 'roshar', label: 'Roshar' }],
+
   /** Seeded low-poly scatter — the only entities this map has in M0. */
   propPolicy: {
     kind: 'rock',
