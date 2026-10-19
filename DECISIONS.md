@@ -3,6 +3,46 @@
 One line per meaningful decision, with the reason. Newest first. The owner reads
 this to stay oriented; agents add to it in the same PR as the change.
 
+## M2 leftover interactions: memory-flames in the lens, a causeway in the world (Agent 1, 2026-10-18)
+
+The owner's "Do what's next" after passing the M3 combat work. The two unchecked
+M2 bullets — *"one interaction only solvable there (reveal a route across the
+bead sea)"* and *"shifting back shows the world changed (state, not
+illusion)"* — are the nucleus of WP-4.1's puzzle loop (find via realm clues →
+open), so they landed next, instantiated at Roshar's Perpendicularity itself.
+
+- **Memory-flames: four small authored flames on the pool's obsidian, in the
+  lens only.** Walk through one and it flares and STAYS lit. The contract is in
+  the code: `stepInsights` refuses to advance outside the Cognitive Realm, and a
+  test wades the same spot physically and finds nothing lit. Interaction on a
+  phone is just *walking through* — no new button, no scanning, no journal
+  dependency (WP-4.2's scanning UI can read the same state later, precisely).
+- **The world comes back changed — in state, not illusion.** Each lit flame
+  raises one authored obsidian stepping stone at the pool; the fourth completes
+  a dry causeway across the basin (the physical "route across the bead sea",
+  readable from the shore). Stones are derived per-frame from `state.insights`
+  by the pool view; they never enter the seeded `entities` list, because they
+  EMERGE — the same rule that keeps enemies out of `entityHash`.
+- **Authoring follows the existing rule** ("cognitiveSkin is per-world data,
+  never global code"): the flames live in `roshar.cognitiveSkin.insights` with
+  `{ id, x, z, radius, stone }` rows; a map with no authored list (blank-basin)
+  has no interaction, asserted. The flames' meaning is **project
+  interpretation**: living things are flames in Shadesmar (canon), and these
+  small flames claim nothing more specific — no named creature, no borrowed
+  text.
+- **Thrash note (mine, logged):** a quick `git checkout --` during the mutation
+  sweep reverted the mutated file's *uncommitted* Roshar map row along with the
+  mutation; re-applied immediately and the suite confirmed 296/0. Nothing lost,
+  and a sharper reminder why restores in this repo are commit-first, not
+  checkout-first.
+
+**Open design question parked deliberately for WP-4.1** (flagged to the owner
+in the PR): the roadmap's puzzle says the gate "starts closed" — but the owner
+accepted the always-open pool twice. This pass adds the machinery without
+touching the pool's `open: true`. Whether the default pool becomes the closed
+puzzle, or the puzzle lives on a second gate/world, is a taste call I'm not
+making alone.
+
 ## M3 — the pass note: the Chasmfiend's collision covers its whole body (Agent 1, 2026-10-18)
 
 One sentence from the owner: *"Make it so that the Chamfiends collision covers

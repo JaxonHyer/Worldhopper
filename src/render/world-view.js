@@ -271,6 +271,8 @@ export function createWorldView({ map, state, variant, settings }) {
       }
       // The pool breathes on the sim clock, so a run looks the same on replay.
       pool.sync(currentState.simTime);
+      // The causeway answers the lens interaction's state, one stone per flame.
+      pool.syncInsights(currentState);
     },
     applySettings(next, nextVariant) {
       const wanted = next.girlPlayer ? 'girl' : 'boy';

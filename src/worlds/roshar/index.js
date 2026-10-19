@@ -200,6 +200,27 @@ export const roshar = {
       obsidian: '#05070a',
       obsidianHighlight: '#8fb6d8',
     },
+
+    /**
+     * Insights (M2's leftover interactions / WP-4.1's proving loop).
+     *
+     * Four memory-flames stand on the pool's obsidian, in the Cognitive Realm
+     * only. Walk through each one and it stays lit; the stones its light pays
+     * for rise in the physical pool, one per flame, a dry causeway across the
+     * basin's middle. **Project interpretation** (see DECISIONS.md): the books
+     * say living things are flames in Shadesmar; these small authored flames
+     * do not claim to be any specific being, and nothing about them is from
+     * any text.
+     *
+     * stone: where each stepping stone rises in the physical world — the four
+     * stones make a zigzag causeway through the pool so the "route" reads.
+     */
+    insights: [
+      { id: 'lamp-basin-north', x: 0, z: -12.0, radius: 1.6, stone: { x: 0.0, z: -11.2 } },
+      { id: 'lamp-basin-west', x: -2.4, z: -14.0, radius: 1.6, stone: { x: 0.6, z: -13.0 } },
+      { id: 'lamp-basin-east', x: 2.4, z: -14.4, radius: 1.6, stone: { x: -0.5, z: -15.0 } },
+      { id: 'lamp-basin-south', x: 0, z: -16.4, radius: 1.6, stone: { x: 0.0, z: -16.8 } },
+    ],
   },
 
   variants: [

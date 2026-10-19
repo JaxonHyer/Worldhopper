@@ -23,6 +23,7 @@ import * as THREE from 'three';
 import { beadVariation, resolveCognitiveSkin } from '../core/skin.js';
 import { terrainHeight } from '../core/world-state.js';
 import { FAIRNESS } from '../core/enemy.js';
+import { collectInsights, isLit } from '../core/insights.js';
 
 /** Metres between bead centres, tuned so neighbours touch without merging. */
 const SEA_SPACING = 1.35;
@@ -271,6 +272,48 @@ export function createCognitiveView({ map, state, variant, settings }) {
   }
   let enemyFlamesDrawn = 0;
 
+  /**
+   * The memory-flames (M2's leftover interactions).
+   *
+   * Small authored flames standing on the pool's obsidian — a third kind of
+   * thing in the subastral, neither a bead out of the sea nor a soul. Unlit,
+   * they are barely more than a pinprick of blue-white; walk through one and
+   * world state lights it (core/insights.js), and it stays: bigger, warmer,
+   * impossible to un-see. Read how many there are from the MAP, and which are
+   * lit from world state — the renderer never decides either thing.
+   */
+  const insightFlames = collectInsights(map).map((insight) => {
+    const flameGroup = new THREE.Group();
+    flameGroup.name = `insight-flame-${insight.id}`;
+    const outer = new THREE.Mesh(
+      new THREE.ConeGeometry(0.3, 0.9, 6, 1),
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(palette.flame),
+        transparent: true,
+        opacity: 0.4,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
+    outer.position.y = 0.45;
+    const core = new THREE.Mesh(
+      new THREE.ConeGeometry(0.13, 0.55, 5, 1),
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(palette.flameCore),
+        transparent: true,
+        opacity: 0.65,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
+    core.position.y = 0.3;
+    flameGroup.add(outer, core);
+    flameGroup.position.set(insight.x, terrainHeight(map, seed, insight.x, insight.z), insight.z);
+    flameGroup.userData.insightId = insight.id;
+    group.add(flameGroup);
+    return { group: flameGroup, outer, core, insight };
+  });
+
   let active = false;
   const anySoulMoves = soulEntities.some((entity) => entity.dynamic);
   const materials = [beadMaterial, soulMaterial, flameOuter.material, flameCore.material];
@@ -322,6 +365,21 @@ export function createCognitiveView({ map, state, variant, settings }) {
         npcFlame.group.scale.set(1 + nf, 1 - nf * 1.3, 1 + nf);
         npcFlame.group.rotation.y = phase * 0.55;
         npcFlame.core.material.opacity = 0.7 + Math.sin(phase * 12.1) * 0.1;
+      }
+
+      // Memory-flames: unlit they moulder to a pinprick; lit, they hold a
+      // steady burn. The flicker is the sim clock's, per-flame offset so the
+      // four never pulse in lockstep.
+      for (const flame of insightFlames) {
+        const lit = isLit(currentState, flame.insight.id);
+        const phase = t + flame.insight.x * 0.7 + flame.insight.z * 0.5;
+        const flickerBoost = lit ? 1.35 : 1;
+        flame.group.scale.setScalar(
+          (lit ? 1.5 : 0.75) * flickerBoost + Math.sin(phase * (lit ? 5 : 9)) * 0.04,
+        );
+        flame.group.visible = true;
+        flame.outer.material.opacity = (lit ? 0.75 : 0.28) + Math.sin(phase * 7) * 0.06;
+        flame.core.material.opacity = (lit ? 0.95 : 0.45) + Math.sin(phase * 11) * 0.08;
       }
 
       // Enemy flames: same flicker, offset per slot so a pack does not pulse in
@@ -387,6 +445,7 @@ export function createCognitiveView({ map, state, variant, settings }) {
         flame: true,
         npcFlames: npcFlames.length,
         enemyFlames: enemyFlamesDrawn,
+        insights: insightFlames.length,
         violations: skin.violations.length,
       };
     },
@@ -400,6 +459,10 @@ export function createCognitiveView({ map, state, variant, settings }) {
       for (const enemyFlame of enemyFlames) {
         enemyFlame.outer.material.dispose();
         enemyFlame.core.material.dispose();
+      }
+      for (const flame of insightFlames) {
+        flame.outer.material.dispose();
+        flame.core.material.dispose();
       }
       group.clear();
     },

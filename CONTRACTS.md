@@ -31,6 +31,10 @@ One object per loaded map, rebuilt from the seed, never mutated by rendering.
   combat,      // hearts, beacon, the event log's counters (see §5)
   events,      // the combat log (see §6)
   spawner,     // the spawn director's own state (see §7)
+  insights,    // { id -> boolean } authored memory-flames, written ONLY from
+               // core/insights.js's stepInsights, ONLY in the cognitive realm.
+               // The lens-interaction layer (M2 leftovers): flames in the lens,
+               // stones in the world; derived, never duplicated into entities.
 }
 ```
 
@@ -244,6 +248,10 @@ Same seed + same inputs ⇒ the same encounter. Asserted in
 ---
 
 ## 9. Snapshot additions
+
+The `insights` block is part of this contract: `{ total, lit, litIds,
+authoredAcrossMap, causeway }` — top-level, because `ui` is a whitelist and the
+trap has already been the bug three times.
 
 `combat` is a **top-level** key in `SNAPSHOT_KEYS`, not a corner of `ui`. `ui` is
 a whitelist and a field added there without a matching line in
