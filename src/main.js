@@ -328,10 +328,24 @@ function bootstrap() {
         hud.setRealm(toggleRealm(state));
       });
     }
+    // The beat the fade is covering: the world holds still while the screen is
+    // black, so nothing can happen to the player that they cannot see.
+    const transitioning = fade.active;
+    // Paused (debug only), mid-transition, or in a dialog: time stands still,
+    // so the sim can be stepped by hand — and so nothing happens to the player
+    // behind the fade or while a text box is up.
+    const dialogOpen = dialog.visible;
+
     // Hop gates: the OTHER Perpendicularities this shadesmar carries (in the
     // Cognitive Realm only — they live on the far side; here they are terrain
     // if you're in the physical realm, and walking through them means nothing).
     // Edge-triggered like the pool: step in once, it fires once.
+    //
+    // Declarations above, use below, always: this block sits after
+    // `transitioning` and `dialogOpen`, never before them — the first draft
+    // put it two lines higher and every browser boot died on frame one with a
+    // TDZ arrival error ("Cannot access 'Qe' before initialization" in the
+    // minified bundle, exactly the trap DECISIONS.md already records twice).
     if (!transitioning && state.realm === REALMS.cognitive) {
       const hit = hopGateInside(state, context);
       if (hit && hopArmedGet(hit.gate.id)) {
@@ -342,13 +356,7 @@ function bootstrap() {
     for (const hopGate of collectHopGates(map)) {
       if (!gateStatusFor(state.player.position, hopGate).inside) hopArmed.set(hopGate.id, true);
     }
-    // The beat the fade is covering: the world holds still while the screen is
-    // black, so nothing can happen to the player that they cannot see.
-    const transitioning = fade.active;
-    // Paused (debug only), mid-transition, or in a dialog: time stands still,
-    // so the sim can be stepped by hand — and so nothing happens to the player
-    // behind the fade or while a text box is up.
-    const dialogOpen = dialog.visible;
+
     const steps = pausedSim || transitioning || dialogOpen ? 0 : clock.advance(dtSeconds);
     if (steps > 0) {
       const look = input.look();

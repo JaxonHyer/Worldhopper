@@ -127,6 +127,19 @@ a gate swaps realms; travel-by-foot between worlds uses two of them.
   vocabulary stretching exactly where the roadmap asked for it, and it is why
   this redesign is *additive* to the puzzle rather than fighting it.
 
+**The forced round trip:** PR's first CI run failed the whole browser suite in
+47 s — the hop-gate trigger had been inserted ABOVE `const transitioning =
+fade.active;` in the frame loop, so every browser boot died on frame one with
+"Cannot access 'Qe' before initialization" (`Qe` being `transitioning`, in the
+minified bundle). This is the frame-loop's temporal-dead-zone trap, and the
+project notes had already recorded it twice — which makes this the third time,
+so this time it gets a guard of its own rather than another paragraph:
+`tests/unit/main-frame-order.test.js` scans the frame-loop source and asserts
+every read of `transitioning` and `dialogOpen` sits after its declaration.
+Local probes could not see the trap either (node runs of the bundle bail on
+WebGL context creation long before the frame loop executes), which is a fair
+reminder why CI's browser exists.
+
 **Still parked, same question as before:** WP-4.1's "the gate starts closed"
 (the owner accepted the always-open pool twice; hardening or not is theirs).
 
