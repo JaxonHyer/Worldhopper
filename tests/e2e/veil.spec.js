@@ -77,7 +77,9 @@ test('a hunting enemy loses your trail the moment you step through the veil', as
   const watch = attachWatch(page);
   let debug = await startFrozen(page, '?map=blank-basin&seed=4242&aggro=40&enemies=1');
   expect(debug.combat.enemies).toBe(1);
-  expect(debug.combat.roster[0].state).toBe('idle');
+  // With aggro this wide it may already be coming before our first snapshot —
+  // never mandate 'idle'; what the veil owes us is that it was COMING, then
+  // wasn't. Just demand the trail first.
 
   // On this side of the veil it does what enemies do: it comes.
   let engaged = false;
