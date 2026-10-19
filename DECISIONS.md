@@ -3,6 +3,43 @@
 One line per meaningful decision, with the reason. Newest first. The owner reads
 this to stay oriented; agents add to it in the same PR as the change.
 
+## M3 — the pass note: the Chasmfiend's collision covers its whole body (Agent 1, 2026-10-18)
+
+One sentence from the owner: *"Make it so that the Chamfiends collision covers
+its whole body. Otherwise this is a pass."* The hull was a 2.2 m circle on the
+giant's head and nine metres of shell allowed the player to walk straight
+through — obvious the moment the creature got long.
+
+- **One geometry source for mesh and walls.** `enemyFrameSpec(type)` in
+  `core/enemy.js` now returns the per-segment frame every archetype is built
+  from (offsets, widths, heights, depths, and the matching hull ring radius
+  and top). The rig in `render/enemy-view.js` reads it to place its boxes;
+  `collectEnemyObstacles` reads it to place the rings — same numbers, same
+  taper, so "collision covers its whole body" can't silently stop being true
+  the next time a row is re-dimensioned. Anything without a chain frame gets
+  a one-ring whole-body hull ("yes, that covers Whitespines too").
+- **Where hulls enter the physics:** in `stepWorld`, between player and
+  machine. Colliders are computed from the sim's own positions/yaws each step
+  and concatenated onto the player's obstacle view only — enemies' own
+  pathing is untouched, and `state.obstacles` (rocks/landmarks + the tested
+  `buildObstacles` contract) did not change.
+- **A hull you cannot leave is not a wall, it is a trap.** Refusal alone
+  (block walking INTO a ring) is enough for rocks because rocks never move
+  into the player. A 14-leg hull sliding over a player mid-chase would leave
+  them perma-trapped inside its volume: every attempted position re-rejects.
+  `resolveEnemyOverlap` runs after the machine: if the player is inside a ring
+  and not standing on it, they are pushed to the nearest rim (or along their
+  own velocity at dead-centre). Both halves get tests; drop either one and a
+  named test turns red (mutation-checked).
+- **The spawner respects whole footprints now** — no new enemy spawns inside
+  an existing hull, head OR tail; and the gate-lane unit test from the
+  placement pass was kept green as a regression (the giant's rings stay 5.5 m+
+  off x=0 — the realm suite's walk home is untouched).
+
+**Determinism check:** two identical seeds with identical input streams land
+the player in the identical spot with collision live (asserted), because the
+hulls are a pure function of sim state.
+
 ## M3 — the owner's combat pass, round two: a centipede-crab, a flipped face, a meaner Whitespine (Agent 1, 2026-10-18)
 
 Three playtest notes on the merged #22, each small, each test-pinned:

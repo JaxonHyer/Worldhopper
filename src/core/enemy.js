@@ -23,11 +23,120 @@
  */
 
 import { clamp } from './math.js';
+import { PLAYER } from './config.js';
 import { normalizeSeed, rngStep } from './rng.js';
 import { terrainHeight } from './terrain.js';
 import { EVENTS, FAIRNESS, damagePlayer, emitEvent } from './combat.js';
 
 export { FAIRNESS };
+
+// --- frame geometry: ONE source, read by the rig AND by collision ------------
+
+/**
+ * How a chain-shell frame overlaps its neighbours — and how far each section
+ * sits behind the one ahead. Part of the frame spec, not the sim: the number
+ * only decides how armoured the chain looks and where each hull ring sits.
+ */
+const CHAIN_STEP = 0.92;
+const CHAIN_TAPER_WIDTH = 0.45;
+const CHAIN_TAPER_HEIGHT = 0.25;
+const CHAIN_TAPER_DEPTH = 0.22;
+
+/**
+ * The geometry of an archetype's body, as data.
+ *
+ * "Derived, never authored twice" (the same rule `buildObstacles` already
+ * keeps for rocks): the renderer in `render/enemy-view.js` reads this to place
+ * its boxes, and `collectEnemyObstacles` reads it to place the hull rings a
+ * player cannot walk through. Two half-measures would drift apart and the
+ * world would get walkable walls or invisible walls — the owner asked for the
+ * Chasmfiend's collision to cover its whole body BECAUSE the head-only hull
+ * had drifted one size too small (2026-10-18, "collision covers its whole
+ * body... otherwise this is a pass").
+ *
+ * @returns either a per-segment spec for a chain `frame` or a one-ring hull
+ *   centred on the creature's position for anything else.
+ */
+export function enemyFrameSpec(type) {
+  const dims = type?.dims ?? {};
+  if (Number.isInteger(dims.segments) && dims.segments > 0) {
+    const count = dims.segments;
+    const legHeight = dims.legHeight ?? type.height * 0.42;
+    const legWidth = dims.legWidth ?? 0.5;
+    const last = Math.max(1, count - 1);
+    return {
+      segmented: true,
+      segments: Array.from({ length: count }, (_, j) => {
+        const t = j / last;
+        const width = dims.width * (1 - t * CHAIN_TAPER_WIDTH);
+        const height = dims.height * (1 - t * CHAIN_TAPER_HEIGHT);
+        const depth = dims.depth * (1 - t * CHAIN_TAPER_DEPTH);
+        return {
+          /** metres behind the creature's position along its local +Z (trailing). */
+          along: j * dims.depth * CHAIN_STEP,
+          width,
+          height,
+          depth,
+          /** Hull ring: the body half-width plus a leg pad, tapering with the shell. */
+          colliderRadius: width / 2 + legWidth * 0.5 + 0.05,
+          /** Hull height above the ground under that ring. */
+          colliderTop: legHeight + height,
+        };
+      }),
+    };
+  }
+  return {
+    segmented: false,
+    segments: [
+      {
+        along: 0,
+        width: 0,
+        height: 0,
+        depth: 0,
+        /** A solid, single hull for everything else — whole body, one ring. */
+        colliderRadius: type.radius ?? 0.55,
+        colliderTop: type.height * 0.75,
+      },
+    ],
+  };
+}
+
+/**
+ * The player's-collidable footprint of every live enemy, as obstacle rings in
+ * world space. Follows the sim's own positions and yaws exactly — a ring per
+ * chain section when the frame is segmented, one ring per creature otherwise.
+ * Dying enemies drop their hull with the body.
+ */
+export function collectEnemyObstacles(state, context) {
+  const obstacles = [];
+  if (!state?.enemies || !context?.map) return obstacles;
+  for (const enemy of state.enemies) {
+    if (enemy.dying || enemy.dead) continue;
+    const type = ENEMY_TYPES[enemy.typeId];
+    if (!type) continue;
+    const frame = enemyFrameSpec(type);
+    const sin = Math.sin(enemy.yaw ?? 0);
+    const cos = Math.cos(enemy.yaw ?? 0);
+    for (let j = 0; j < frame.segments.length; j++) {
+      const seg = frame.segments[j];
+      // Local +Z rotated by yaw is (sin, cos): the trail direction, matching
+      // exactly how the rig lays its chain behind the creature's facing.
+      obstacles.push({
+        id: `${enemy.id}-hull-${String(j).padStart(2, '0')}`,
+        x: enemy.position.x + sin * seg.along,
+        z: enemy.position.z + cos * seg.along,
+        radius: seg.colliderRadius,
+        topY: enemy.position.y + seg.colliderTop,
+      });
+    }
+  }
+  return obstacles;
+}
+
+/** How far an enemy's hull extends from its anchor, for spawn clearance. */
+export function footprintExtent(type) {
+  return enemyFrameSpec(type).segments.reduce((m, seg) => Math.max(m, seg.along + seg.colliderRadius), 0);
+}
 
 /** The one machine. Every archetype runs this and nothing else. */
 export const ENEMY_STATES = Object.freeze({
@@ -694,10 +803,13 @@ export function findSpawnPoint(state, context, fromX, fromZ) {
     if (isBlocked(x, z, probe, context)) continue;
     if (nearNpc(state, x, z, 5)) continue;
     // Not on top of another enemy: a giant already standing somewhere is a
-    // landmark, and the ring arriving inside it reads as a bug, not luck.
+    // landmark — and now "standing" means its WHOLE footprint, head to tail,
+    // not a circle on its head.
     let onAnother = false;
     for (const other of state.enemies) {
-      if (Math.hypot(other.position.x - x, other.position.z - z) < (other.radius ?? 1) + 3) {
+      const otherType = ENEMY_TYPES[other.typeId];
+      const extent = otherType ? footprintExtent(otherType) : (other.radius ?? 1) + 3;
+      if (Math.hypot(other.position.x - x, other.position.z - z) < extent + 2) {
         onAnother = true;
         break;
       }
@@ -753,6 +865,47 @@ function spawnEnemy(state, context, spot, typeId, placement = null) {
  * around its own home (`pickRoamTarget`). Neither is scripted, and both are
  * reproducible.
  */
+/**
+ * Keep the player OUT of a hull that moved onto them.
+ *
+ * Refusal alone is enough for rocks — they never move into the player. A hull
+ * ring can slide over a player mid-chase, and then refusal (which only checks
+ * NEW positions) traps them inside its volume forever: a perma-trap exactly
+ * under the one creature big enough to hide it. So after the machine moves the
+ * world, overlap is resolved the only fair way — out to the nearest rim, or
+ * along their own velocity if they are dead-centre. Standing ON a body is not
+ * pushed: a 2.4 m shell you can stand on is a feature, not a trap.
+ */
+export function resolveEnemyOverlap(state, context) {
+  const player = state?.player;
+  if (!player) return state;
+  const rings = collectEnemyObstacles(state, context);
+  for (const ring of rings) {
+    const dx = player.position.x - ring.x;
+    const dz = player.position.z - ring.z;
+    const distance = Math.hypot(dx, dz);
+    const minDistance = ring.radius + PLAYER.radius;
+    if (distance >= minDistance) continue;
+    if (Number.isFinite(player.position.y) && player.position.y >= ring.topY - 0.06) continue;
+    if (distance < 0.0001) {
+      const vx = player.velocity.x;
+      const vz = player.velocity.z;
+      const n = Math.hypot(vx, vz);
+      if (n > 0.0001) {
+        player.position.x = ring.x + (vx / n) * minDistance;
+        player.position.z = ring.z + (vz / n) * minDistance;
+      } else {
+        player.position.x = ring.x + minDistance;
+      }
+    } else {
+      const push = minDistance - distance;
+      player.position.x += (dx / distance) * push;
+      player.position.z += (dz / distance) * push;
+    }
+  }
+  return state;
+}
+
 export function stepSpawner(state, context, dt) {
   const policy = context?.map?.enemyPolicy;
   if (!policy || !state.spawner) return state;

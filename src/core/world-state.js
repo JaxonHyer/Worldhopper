@@ -13,7 +13,7 @@ import { terrainHeight } from './terrain.js';
 import { createPlayer, stepPlayer } from './player.js';
 import { loadNpc } from '../content/npcs.js';
 import { createAttack, createCombat, respawnPlayer, stepAttack, stepCombat } from './combat.js';
-import { activeCap, createSpawner, placeInitialEnemies, stepEnemies, stepSpawner } from './enemy.js';
+import { activeCap, collectEnemyObstacles, createSpawner, placeInitialEnemies, resolveEnemyOverlap, stepEnemies, stepSpawner } from './enemy.js';
 
 export { terrainHeight, clamp, distanceFromOrigin };
 export const EYE_HEIGHT = 1.7;
@@ -233,9 +233,16 @@ export function stepWorld(state, dt, intent = null, context = null) {
   state.tick += 1;
   state.simTime += dt;
   if (intent && context) {
+    // Solid bodies, end to end: the player cannot walk through a Chasmfiend's
+    // whole shell — or through anything else that lives. Colliders are derived
+    // from the same frame spec the rig reads (enemy.js) and follow the sim one
+    // step behind, which at 60 Hz is invisible.
+    const solidBodies = collectEnemyObstacles(state, context);
+    const playerStepContext =
+      solidBodies.length > 0 ? { ...context, obstacles: (context.obstacles ?? []).concat(solidBodies) } : context;
     // A dead player is a body, not an input reader: the frame loop owns the
     // respawn beat (see respawnPlayer), and nothing may walk around meanwhile.
-    if (!state.combat?.dead) stepPlayer(state.player, intent, context, dt);
+    if (!state.combat?.dead) stepPlayer(state.player, intent, playerStepContext, dt);
     stepAttack(
       state.player,
       dt,
@@ -247,6 +254,9 @@ export function stepWorld(state, dt, intent = null, context = null) {
     stepCombat(state, context, dt);
     stepEnemies(state, context, dt);
     stepSpawner(state, context, dt);
+    // ...and if any of that moved a hull onto the player, put them back OUT of
+    // it. Refusal blocks walking IN; this releases anyone slid over.
+    resolveEnemyOverlap(state, context);
   }
   return state;
 }
